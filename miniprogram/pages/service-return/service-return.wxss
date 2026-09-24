@@ -1,0 +1,9 @@
+page { background: #f4f8fd; }
+.return-page { align-items:center; display:flex; flex-direction:column; min-height:100vh; padding:230rpx 52rpx 60rpx; box-sizing:border-box; text-align:center; }
+.return-icon { align-items:center; background:#e8f7ef; border-radius:50%; color:#20a66a; display:flex; font-size:48rpx; font-weight:700; height:112rpx; justify-content:center; width:112rpx; }
+.return-icon.failed { background:#fff0f0; color:#d3545b; }
+.return-title { color:#172b42; font-size:34rpx; font-weight:700; margin-top:34rpx; }
+.return-message { color:#8190a2; font-size:25rpx; line-height:1.7; margin-top:16rpx; }
+.return-button { background:#3498ff; border-radius:24rpx; color:#fff; font-size:27rpx; margin-top:42rpx; width:100%; }
+.return-button::after { border:none; }
+.return-link { color:#66809b; font-size:25rpx; margin-top:30rpx; padding:12rpx; }

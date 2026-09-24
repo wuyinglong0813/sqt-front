@@ -1,0 +1,55 @@
+page { background: #f4f8fd; }
+
+.contract-page { min-height: 100vh; padding-bottom: 40rpx; }
+.contract-hero { background: linear-gradient(138deg, #45a8ff, #2478df 76%, #1557a8); color: #fff; overflow: hidden; padding: 38rpx 32rpx 34rpx; position: relative; }
+.hero-mark { height: 220rpx; opacity: .08; position: absolute; right: -30rpx; top: -42rpx; width: 220rpx; }
+.hero-label { color: rgba(255,255,255,.72); font-size: 23rpx; position: relative; }
+.hero-amount { font-size: 50rpx; font-weight: 700; margin-top: 10rpx; position: relative; }
+.hero-summary { align-items: center; background: rgba(255,255,255,.1); border: 1rpx solid rgba(255,255,255,.14); border-radius: 20rpx; display: grid; grid-template-columns: repeat(3, 1fr); margin-top: 24rpx; padding: 18rpx 10rpx; position: relative; text-align: center; }
+.hero-summary > view { border-right: 1rpx solid rgba(255,255,255,.16); }
+.hero-summary > view:last-child { border-right: none; }
+.summary-value { font-size: 29rpx; font-weight: 700; }
+.summary-label { color: rgba(255,255,255,.65); font-size: 20rpx; margin-top: 4rpx; }
+.current-company { align-items: center; background: #fff; border: 1rpx solid #dfe8f3; border-radius: 22rpx; box-shadow: 0 8rpx 24rpx rgba(28,60,96,.055); display: flex; margin: 20rpx 24rpx 0; padding: 20rpx; }
+.current-company image { height: 52rpx; margin-right: 14rpx; width: 52rpx; }
+.current-company-copy { flex: 1; min-width: 0; }
+.current-company-name { color: #22364d; font-size: 24rpx; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.current-company-desc { color: #96a2af; font-size: 19rpx; margin-top: 4rpx; }
+.current-company-badge { background: #eaf4ff; border-radius: 16rpx; color: #2c87de; font-size: 19rpx; padding: 5rpx 11rpx; }
+.filter-tabs { background: #fff; border-bottom: 1rpx solid #e5ecf5; border-top: 1rpx solid #e5ecf5; box-sizing: border-box; margin-top: 20rpx; padding: 16rpx 24rpx; white-space: nowrap; }
+.filter-tab { background: #f1f5fa; border-radius: 22rpx; color: #75827e; display: inline-block; font-size: 24rpx; margin-right: 12rpx; padding: 10rpx 24rpx; }
+.filter-tab.active { background: #3498ff; color: #fff; font-weight: 600; }
+.company-filter { margin: 18rpx 24rpx 0; }
+.company-picker { align-items: center; background: #fff; border: 1rpx solid #dfe8f3; border-radius: 20rpx; display: flex; padding: 18rpx 22rpx; }
+.picker-label { color: #96a1ae; font-size: 19rpx; }
+.picker-value { color: #2d4057; font-size: 24rpx; margin-top: 4rpx; }
+.picker-arrow { color: #7d8c9c; font-size: 28rpx; margin-left: auto; }
+.contract-list { margin: 22rpx 24rpx 0; }
+.company-group { margin-bottom: 26rpx; }
+.company-group + .company-group { border-top: 1rpx solid #cedbe8; margin-top: 34rpx; padding-top: 28rpx; }
+.company-group-head { align-items: center; background: #e5f1fd; border-left: 7rpx solid #2e91ea; border-radius: 20rpx; display: flex; margin-bottom: 14rpx; padding: 16rpx 18rpx; }
+.company-avatar { align-items: center; background: #fff; border: 1rpx solid #cfe3f8; border-radius: 14rpx; color: #2788e4; display: flex; flex-shrink: 0; font-size: 24rpx; font-weight: 700; height: 56rpx; justify-content: center; width: 56rpx; }
+.company-group-copy { flex: 1; margin-left: 13rpx; min-width: 0; }
+.company-group-name { color: #263a50; font-size: 25rpx; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.company-group-count { color: #7f91a3; font-size: 19rpx; margin-top: 7rpx; }
+.contract-item { background: #fff; border: 1rpx solid #e3ebf5; border-radius: 26rpx; box-shadow: 0 10rpx 30rpx rgba(22, 49, 85,.05); margin-bottom: 18rpx; padding: 26rpx; }
+.item-top,.item-bottom { align-items: center; display: flex; }
+.item-top { justify-content: space-between; }
+.contract-name { color: #182739; flex: 1; font-size: 29rpx; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.status { border-radius: 15rpx; flex-shrink: 0; font-size: 21rpx; margin-left: 14rpx; padding: 5rpx 11rpx; }
+.status-PENDING { background: #fff3d6; color: #9a6511; }
+.status-ACTIVE { background: #e7f2ff; color: #3498ff; }
+.status-COMPLETED { background: #edf2f8; color: #687571; }
+.status-VOIDED { background: #f8ecec; color: #a04b4b; }
+.status-REJECTED { background: #fdeaea; color: #b44343; }
+.counterparty { color: #7f8c88; font-size: 23rpx; margin-top: 10rpx; }
+.item-bottom { border-top: 1rpx solid #edf2f8; gap: 32rpx; margin-top: 20rpx; padding-top: 18rpx; }
+.meta-label { color: #9aa4a1; font-size: 20rpx; }
+.amount { color: #2478df; font-size: 27rpx; font-weight: 700; margin-top: 3rpx; }
+.meta-value { color: #45534f; font-size: 22rpx; margin-top: 3rpx; }
+.arrow { color: #a7b0ae; font-size: 36rpx; margin-left: auto; }
+.loading { color: #8b9794; font-size: 24rpx; padding: 70rpx 0; text-align: center; }
+.empty { align-items: center; display: flex; flex-direction: column; padding: 80rpx 0; }
+.empty image { height: 110rpx; width: 110rpx; }
+.empty-title { color: #34433f; font-size: 27rpx; font-weight: 600; margin-top: 18rpx; }
+.empty-desc { color: #98a29f; font-size: 22rpx; margin-top: 8rpx; }

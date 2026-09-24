@@ -1,0 +1,7 @@
+<view class="return-page">
+  <view class="return-icon {{failed ? 'failed' : ''}}">{{loading ? '…' : (failed ? '!' : '✓')}}</view>
+  <view class="return-title">{{title}}</view>
+  <view class="return-message">{{message}}</view>
+  <button wx:if="{{failed}}" class="return-button" bindtap="syncResult">重新同步</button>
+  <view class="return-link" bindtap="goBusinessPage">返回业务页面</view>
+</view>

@@ -1,0 +1,35 @@
+<view class="cancel-page">
+  <view class="warning-hero">
+    <view class="warning-icon">!</view>
+    <view><view class="warning-title">注销账号前请仔细确认</view><view class="warning-desc">注销不同于退出登录，完成后将无法继续使用当前商签通账号。</view></view>
+  </view>
+
+  <view class="cancel-card">
+    <view class="card-title">提交申请前需要完成</view>
+    <view class="check-row"><view class="check-no">1</view><view><view class="check-title">处理进行中的业务</view><view class="check-desc">完成待签合同、待审批事项以及尚未确认的履约和对账记录。</view></view></view>
+    <view class="check-row"><view class="check-no">2</view><view><view class="check-title">妥善处理企业身份</view><view class="check-desc">如果你是企业唯一负责人或管理员，需要先完成权限交接。</view></view></view>
+    <view class="check-row"><view class="check-no">3</view><view><view class="check-title">保存需要留存的资料</view><view class="check-desc">提前下载你仍需使用的合同、签署文件和业务凭证。</view></view></view>
+    <view class="check-row"><view class="check-no">4</view><view><view class="check-title">完成本人身份核验</view><view class="check-desc">平台支持会核验账号归属和注销意愿，避免账号被他人误操作。</view></view></view>
+  </view>
+
+  <view class="cancel-card consequence-card">
+    <view class="card-title">注销后的数据处理</view>
+    <view class="consequence-row"><view class="dot"></view><view>账号登录能力、个人资料和可解除的账号关联将按处理结果关闭或匿名化。</view></view>
+    <view class="consequence-row"><view class="dot"></view><view>合同签署证据、企业业务单据及依法需要保留的记录，不会因账号注销立即删除。</view></view>
+    <view class="consequence-row"><view class="dot"></view><view>具体处理结果以身份核验、业务检查和隐私政策约定为准。</view></view>
+    <view class="privacy-link" bindtap="openPrivacy">查看《隐私保护指引》</view>
+  </view>
+
+  <view class="apply-card" wx:if="{{isLoggedIn}}">
+    <view class="apply-title">申请注销</view>
+    <view class="apply-desc">为避免合同、企业权限或对账数据被误处理，当前通过平台支持完成身份核验和业务检查，不提供一键删除。</view>
+    <button class="contact-button" open-type="contact" show-message-card>联系平台支持申请注销</button>
+    <view class="apply-tip">联系客服不会立即注销账号，平台完成条件检查并再次确认后才会继续处理。</view>
+  </view>
+
+  <view class="apply-card" wx:else>
+    <view class="apply-title">请先登录当前账号</view>
+    <view class="apply-desc">登录后才能核验账号归属并发起注销咨询。</view>
+    <button class="login-button" bindtap="goLogin">登录 / 注册</button>
+  </view>
+</view>

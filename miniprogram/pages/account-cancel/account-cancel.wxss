@@ -1,0 +1,21 @@
+page { background: #f6f8fb; }
+.cancel-page { box-sizing: border-box; min-height: 100vh; padding: 27rpx 27rpx calc(50rpx + env(safe-area-inset-bottom)); }
+.warning-hero { align-items: center; background: linear-gradient(135deg, #fff4f1, #fff9f7); border: 1rpx solid #f5d8d2; border-radius: 28rpx; display: flex; gap: 19rpx; padding: 28rpx; }
+.warning-icon { align-items: center; background: #dc625a; border-radius: 50%; color: #fff; display: flex; flex-shrink: 0; font-size: 31rpx; font-weight: 700; height: 69rpx; justify-content: center; width: 69rpx; }
+.warning-title { color: #6a302e; font-size: 29rpx; font-weight: 700; }
+.warning-desc { color: #9b6a67; font-size: 21rpx; line-height: 1.55; margin-top: 7rpx; }
+.cancel-card, .apply-card { background: #fff; border: 1rpx solid #e6ecf2; border-radius: 27rpx; margin-top: 22rpx; padding: 27rpx; }
+.card-title, .apply-title { color: #223449; font-size: 29rpx; font-weight: 700; }
+.check-row { align-items: flex-start; border-bottom: 1rpx solid #edf1f5; display: flex; gap: 17rpx; padding: 22rpx 0; }
+.check-row:last-child { border-bottom: 0; padding-bottom: 2rpx; }
+.check-no { align-items: center; background: #edf6ff; border-radius: 50%; color: #2889e7; display: flex; flex-shrink: 0; font-size: 21rpx; font-weight: 700; height: 43rpx; justify-content: center; width: 43rpx; }
+.check-title { color: #35475b; font-size: 25rpx; font-weight: 600; }
+.check-desc { color: #8996a5; font-size: 21rpx; line-height: 1.6; margin-top: 6rpx; }
+.consequence-row { align-items: flex-start; color: #6b798b; display: flex; font-size: 22rpx; gap: 13rpx; line-height: 1.65; margin-top: 15rpx; }
+.dot { background: #df7169; border-radius: 50%; flex-shrink: 0; height: 10rpx; margin-top: 13rpx; width: 10rpx; }
+.privacy-link { color: #2889e7; font-size: 22rpx; margin-top: 20rpx; }
+.apply-card { background: linear-gradient(145deg, #fff 0%, #f8fbff 100%); }
+.apply-desc { color: #7f8d9e; font-size: 22rpx; line-height: 1.65; margin-top: 10rpx; }
+.contact-button, .login-button { background: linear-gradient(135deg, #45a8ff, #2478df); border: 0; border-radius: 46rpx; color: #fff; font-size: 27rpx; font-weight: 600; height: 88rpx; line-height: 88rpx; margin-top: 22rpx; }
+.contact-button::after, .login-button::after { border: 0; }
+.apply-tip { color: #9ca6b1; font-size: 19rpx; line-height: 1.55; margin-top: 14rpx; text-align: center; }

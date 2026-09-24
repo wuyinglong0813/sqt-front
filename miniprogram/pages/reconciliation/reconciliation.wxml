@@ -1,0 +1,35 @@
+<view class="recon-page">
+  <view class="recon-hero">
+    <image src="/images/brand-logo.svg" mode="aspectFit"/>
+    <view class="hero-label">企业往来对账</view>
+    <view class="hero-title">{{isGlobal ? pageTitle : '与 ' + counterpartyName + ' 的' + pageTitle}}</view>
+    <view class="hero-date">业务单据经双方确认后，对账数据将自动更新</view>
+  </view>
+
+  <view class="current-company">
+    <image src="/images/icons/company.svg" mode="aspectFit"/>
+    <view class="current-copy"><view class="current-name">{{currentCompanyName}}</view><view class="current-desc">当前企业的往来对账</view></view>
+    <view class="current-badge">当前企业</view>
+  </view>
+
+  <view class="company-filter" wx:if="{{isGlobal && companyOptions.length > 1}}">
+    <picker mode="selector" range="{{companyOptions}}" range-key="name" value="{{companyIndex}}" bindchange="selectCompany">
+      <view class="company-picker"><view><view class="picker-label">按往来公司筛选</view><view class="picker-value">{{companyOptions[companyIndex].name}}</view></view><view class="picker-arrow">⌄</view></view>
+    </picker>
+  </view>
+
+  <view class="statement-card">
+    <view class="section-head"><view><view class="section-title">对账单列表</view><view class="section-sub">每家往来公司单独生成对账 PDF</view></view><view class="count-pill">{{visibleAccounts.length}}</view></view>
+    <view class="statement-item" wx:for="{{visibleAccounts}}" wx:key="counterpartyCompanyId">
+      <view class="pdf-icon">PDF</view>
+      <view class="statement-copy">
+        <view class="statement-name">与 {{item.counterpartyName}} 的对账单</view>
+        <view class="statement-meta">已确认业务单据 {{item.entryCount}} 笔</view>
+        <view class="statement-meta">最近更新：{{item.updatedText}}</view>
+      </view>
+      <view class="statement-actions"><view data-account="{{item}}" bindtap="viewPdf">查看明细</view><view data-account="{{item}}" bindtap="downloadPdf">下载 PDF</view></view>
+    </view>
+    <view class="empty" wx:if="{{!loading && visibleAccounts.length === 0}}"><view class="empty-icon">表</view><view class="empty-title">暂无对账单</view><view class="empty-sub">建立企业合作关系后，可在此查看双方对账情况</view></view>
+    <view class="loading" wx:if="{{loading}}">加载中...</view>
+  </view>
+</view>

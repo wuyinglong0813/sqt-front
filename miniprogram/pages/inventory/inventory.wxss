@@ -1,0 +1,50 @@
+page { background: #f4f8fd; }
+.page { min-height: 100vh; padding-bottom: calc(38rpx + env(safe-area-inset-bottom)); }
+.hero { background: linear-gradient(138deg,#45a8ff,#2478df); color: #fff; padding: 34rpx 30rpx 36rpx; }
+.hero-label { color: rgba(255,255,255,.68); font-size: 21rpx; }
+.hero-title { font-size: 38rpx; font-weight: 700; margin-top: 7rpx; }
+.hero-sub { color: rgba(255,255,255,.76); font-size: 22rpx; margin-top: 7rpx; }
+.metrics { display: grid; gap: 16rpx; grid-template-columns: 1fr 1fr; margin-top: 26rpx; }
+.metrics view { background: rgba(255,255,255,.15); border-radius: 14rpx; padding: 18rpx; }
+.metrics text { font-size: 34rpx; font-weight: 700; }
+.metrics label { color: rgba(255,255,255,.72); font-size: 21rpx; margin-left: 10rpx; }
+.section-head { align-items: center; display: flex; justify-content: space-between; padding: 26rpx 24rpx 15rpx; }
+.section-title { color: #203248; font-size: 29rpx; font-weight: 700; }
+.section-sub { color: #94a0ad; font-size: 20rpx; margin-top: 4rpx; }
+.section-head button { background: #eaf4ff; border: 0; border-radius: 13rpx; color: #2787e3; font-size: 22rpx; height: 62rpx; line-height: 62rpx; margin: 0; padding: 0 16rpx; }
+button::after { border: 0; }
+.warehouse-scroll { white-space: nowrap; width: 100%; }
+.warehouse-row { display: flex; padding: 0 24rpx 4rpx; }
+.warehouse-card { background: #fff; border: 1rpx solid #dfe8f3; border-radius: 18rpx; flex: 0 0 290rpx; margin-right: 14rpx; padding: 20rpx; }
+.warehouse-icon { align-items: center; background: #e7f3ff; border-radius: 12rpx; color: #2a89e5; display: flex; font-size: 22rpx; font-weight: 700; height: 50rpx; justify-content: center; width: 50rpx; }
+.warehouse-name { color: #273a50; font-size: 25rpx; font-weight: 700; margin-top: 13rpx; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.warehouse-address { color: #98a3b0; font-size: 19rpx; margin-top: 6rpx; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.empty-inline { color: #929eac; font-size: 22rpx; padding: 25rpx; text-align: center; }
+.inventory-head { padding-top: 32rpx; }
+.balance-list { padding: 0 24rpx; }
+.balance-card { background: #fff; border: 1rpx solid #dfe8f3; border-radius: 17rpx; margin-bottom: 13rpx; padding: 21rpx; }
+.balance-head { align-items: center; display: flex; justify-content: space-between; }
+.balance-main { min-width: 0; }
+.product-name { color: #26394f; font-size: 26rpx; font-weight: 700; }
+.product-meta { color: #96a1af; font-size: 20rpx; margin-top: 5rpx; }
+.quantity { color: #2586e2; flex-shrink: 0; margin-left: 15rpx; }
+.quantity text { font-size: 34rpx; font-weight: 700; }
+.quantity label { font-size: 21rpx; margin-left: 5rpx; }
+.price-row { border-top: 1rpx solid #edf1f6; display: grid; gap: 18rpx; grid-template-columns: 1fr 1fr; margin-top: 18rpx; padding-top: 17rpx; }
+.price-row view { display: flex; flex-direction: column; min-width: 0; }
+.price-row label { color: #96a1af; font-size: 19rpx; }
+.price-row text { color: #2b3c50; font-size: 23rpx; font-weight: 650; margin-top: 5rpx; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.empty { align-items: center; color: #8290a0; display: flex; flex-direction: column; padding: 70rpx 20rpx; }
+.empty image { height: 86rpx; opacity: .65; width: 86rpx; }
+.empty view { font-size: 26rpx; margin-top: 13rpx; }
+.empty text { color: #a0aab5; font-size: 20rpx; margin-top: 6rpx; }
+.loading { color: #97a3af; font-size: 22rpx; padding: 50rpx; text-align: center; }
+.mask { align-items: flex-end; background: rgba(10,24,42,.48); bottom: 0; display: flex; left: 0; position: fixed; right: 0; top: 0; z-index: 300; }
+.sheet { background: #fff; border-radius: 28rpx 28rpx 0 0; box-sizing: border-box; padding: 30rpx 28rpx calc(28rpx + env(safe-area-inset-bottom)); width: 100%; }
+.sheet-title { color: #1c2f45; font-size: 32rpx; font-weight: 700; margin-bottom: 24rpx; }
+.field-label { color: #7f8c9b; font-size: 22rpx; margin: 16rpx 0 8rpx; }
+.sheet input { background: #f5f8fc; border: 1rpx solid #e0e8f2; border-radius: 12rpx; box-sizing: border-box; font-size: 25rpx; height: 76rpx; padding: 0 18rpx; width: 100%; }
+.sheet button { background: #3498ff; border: 0; border-radius: 14rpx; color: #fff; font-size: 25rpx; height: 74rpx; line-height: 74rpx; margin: 25rpx 0 0; }
+
+.inbound-sheet { max-height: 85vh; }
+.warehouse-picker { padding: 20rpx; background: #f5f8fc; border-radius: 12rpx; font-size: 26rpx; }

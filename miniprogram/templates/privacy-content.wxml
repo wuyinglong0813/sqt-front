@@ -1,0 +1,59 @@
+<template name="privacyContent">
+  <view class="privacy-document">
+    <view class="privacy-version">更新日期：2026年7月17日　生效日期：2026年7月17日</view>
+
+    <view class="privacy-lead">
+      欢迎使用商签通小程序。商签通运营方（以下简称“我们”）重视你的个人信息与企业业务数据安全。本指引适用于商签通当前提供的账号登录、企业管理、成员授权、合同协同、订单及对账服务。
+    </view>
+
+    <view class="privacy-section">
+      <view class="privacy-section-title">一、我们如何收集和使用信息</view>
+      <view class="privacy-item">
+        <view class="privacy-item-title">1. 账号与登录信息</view>
+        <view class="privacy-item-desc">为完成账号注册、登录和安全校验，我们会处理微信用户标识（OpenID）、经你授权获取的手机号码，以及你主动提供的昵称。拒绝提供手机号码不会影响浏览无需登录的内容，但将无法使用企业协作等账号功能。</view>
+      </view>
+      <view class="privacy-item">
+        <view class="privacy-item-title">2. 企业与成员信息</view>
+        <view class="privacy-item-desc">当你创建、认证或加入企业时，我们会处理企业名称、统一社会信用代码、法定代表人姓名，以及成员姓名、手机号码、企业角色和授权状态，用于核验企业身份和管理成员权限。</view>
+      </view>
+      <view class="privacy-item">
+        <view class="privacy-item-title">3. 合同与交易信息</view>
+        <view class="privacy-item-desc">当你使用业务功能时，我们会保存你主动提交的合作企业、订单编号、金额、日期、合同模板、合同内容、审批、签署和对账记录，用于履行你发起的企业协作操作。</view>
+      </view>
+      <view class="privacy-item">
+        <view class="privacy-item-title">4. 实名与人脸认证信息</view>
+        <view class="privacy-item-desc">当你主动使用个人或企业认证、电子印章及合同签署功能时，我们会委托法大大提供身份核验和电子签服务。证件、人脸等敏感信息在服务商页面处理，商签通不保存完整证件号或人脸照片；具体处理前会依法取得你的授权。</view>
+      </view>
+      <view class="privacy-item">
+        <view class="privacy-item-title">5. 本地存储信息</view>
+        <view class="privacy-item-desc">为保持登录状态和记住当前企业，我们会在你的设备中保存登录会话、当前企业标识及隐私同意状态。你可以通过微信清理小程序数据，但这不会自动删除服务端账号数据。</view>
+      </view>
+      <view class="privacy-note">当前版本不会主动读取你的通讯录、地理位置、相册或麦克风。</view>
+    </view>
+
+    <view class="privacy-section">
+      <view class="privacy-section-title">二、信息的保存与保护</view>
+      <view class="privacy-paragraph">我们仅在实现本指引所述目的所需的最短期限内保存信息，法律法规另有规定的除外。我们通过访问控制、会话保护、传输加密及必要的安全审计等措施降低信息被未经授权访问、篡改、泄露或丢失的风险。</view>
+    </view>
+
+    <view class="privacy-section">
+      <view class="privacy-section-title">三、信息的共享与委托处理</view>
+      <view class="privacy-paragraph">我们不会出售你的个人信息。手机号快捷登录由微信提供验证能力，相关动态凭证会在微信与商签通服务端之间传输。仅在取得你的授权、为实现必要服务而委托合规服务商处理，或法律法规及有权机关依法要求时，我们才会提供必要信息，并要求接收方承担保密和安全保护义务。</view>
+    </view>
+
+    <view class="privacy-section">
+      <view class="privacy-section-title">四、你的权利</view>
+      <view class="privacy-paragraph">你有权查询、复制、更正或删除个人信息，撤回授权、注销账号，并可通过微信的小程序设置管理已授权信息。需要处理服务端数据时，可通过微信公众平台展示的开发者联系方式提交申请。撤回同意不影响撤回前基于同意已进行的处理。</view>
+    </view>
+
+    <view class="privacy-section">
+      <view class="privacy-section-title">五、未成年人保护</view>
+      <view class="privacy-paragraph">本小程序主要面向具备完全民事行为能力的企业用户。未满十四周岁的未成年人应在监护人同意和指导下使用服务；如我们发现未经监护人同意处理了未成年人个人信息，将依法尽快删除或采取其他保护措施。</view>
+    </view>
+
+    <view class="privacy-section">
+      <view class="privacy-section-title">六、指引的更新与联系</view>
+      <view class="privacy-paragraph">功能或个人信息处理规则发生重大变化时，我们会更新本指引，并通过页面提示等适当方式告知你。对本指引或个人信息保护有疑问，可通过微信公众平台中本小程序展示的开发者联系方式与我们联系。</view>
+    </view>
+  </view>
+</template>

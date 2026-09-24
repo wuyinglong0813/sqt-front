@@ -1,0 +1,114 @@
+page { background: #f4f8fd; }
+
+.page { padding: 24rpx; padding-bottom: calc(24rpx + env(safe-area-inset-bottom)); }
+
+/* ====== CARD ====== */
+.card {
+  background: #fff;
+  border-radius: 20rpx;
+  margin-bottom: 20rpx;
+  padding: 28rpx;
+  box-shadow: 0 1rpx 4rpx rgba(0,0,0,0.03);
+}
+
+/* ====== 基本信息 ====== */
+.form-group { margin-bottom: 4rpx; }
+.form-label { color: #999; font-size: 24rpx; margin-bottom: 12rpx; }
+.form-input { color: #162336; font-size: 32rpx; font-weight: 600; width: 100%; }
+.form-input::placeholder { color: #ccc; font-weight: 400; }
+
+.cat-list { display: flex; flex-wrap: wrap; gap: 12rpx; }
+.cat-item {
+  background: #f5f5f5; border-radius: 8rpx; color: #666;
+  font-size: 24rpx; padding: 10rpx 20rpx;
+}
+.cat-item.active { background: #e3f0ff; color: #3498ff; font-weight: 600; }
+
+/* ====== 区块标题 ====== */
+.section-title {
+  font-size: 28rpx; font-weight: 600; color: #333; margin-bottom: 20rpx;
+  padding-left: 12rpx; border-left: 6rpx solid #3498ff;
+}
+
+/* ====== 合同信息字段 ====== */
+.field-row {
+  display: flex; align-items: center; padding: 20rpx 0;
+  border-bottom: 1rpx solid #f0f0f0;
+}
+.field-row:last-child { border-bottom: none; }
+.field-label { font-size: 26rpx; color: #666; width: 210rpx; flex-shrink: 0; }
+.field-input { flex: 1; font-size: 28rpx; color: #222; }
+.field-input::placeholder { color: #ccc; }
+.field-value { flex: 1; font-size: 28rpx; color: #222; }
+.field-value.placeholder { color: #ccc; }
+.field-value.date { color: #3498ff; }
+.field-value.locked { display: flex; align-items: center; gap: 8rpx; color: #999; }
+.locked-icon { height: 36rpx; width: 36rpx; }
+.locked-text { font-size: 24rpx; color: #999; }
+
+/* ====== 产品表格 ====== */
+.table-scroll { width: 100%; }
+.table-wrap { min-width: 900rpx; }
+.table-row { display: flex; align-items: center; }
+.table-header { background: #eaf4ff; border-radius: 8rpx 8rpx 0 0; }
+.th {
+  flex: 1; min-width: 130rpx; padding: 16rpx 6rpx;
+  font-size: 24rpx; color: #3498ff; font-weight: 600; text-align: center;
+}
+.th-del { flex: 0 0 56rpx; min-width: 56rpx; }
+.td { flex: 1; min-width: 130rpx; padding: 6rpx 3rpx; }
+.td-del { flex: 0 0 56rpx; min-width: 56rpx; display: flex; justify-content: center; align-items: center; }
+.td-input {
+  width: 100%; height: 56rpx; font-size: 24rpx; color: #333;
+  background: #fafafa; border-radius: 6rpx; text-align: center; padding: 0 4rpx; box-sizing: border-box;
+}
+.td-input.num { text-align: right; }
+.td-input.auto { background: #eaf4ff; color: #3498ff; font-weight: 600; }
+.del-btn {
+  width: 40rpx; height: 40rpx; display: flex; align-items: center; justify-content: center;
+  font-size: 20rpx; color: #e53e3e; background: #fff5f5; border-radius: 50%;
+}
+.table-add {
+  margin-top: 16rpx; padding: 14rpx; text-align: center;
+  font-size: 26rpx; color: #3498ff; background: #eaf4ff; border-radius: 10rpx;
+  border: 1rpx dashed #3498ff;
+}
+.table-summary {
+  margin-top: 16rpx; padding: 20rpx; background: #fafafa; border-radius: 10rpx;
+}
+.sum-row { display: flex; align-items: center; margin-bottom: 8rpx; }
+.sum-row:last-child { margin-bottom: 0; }
+.sum-label { font-size: 26rpx; color: #666; width: 100rpx; flex-shrink: 0; }
+.sum-amount { font-size: 30rpx; color: #e53e3e; font-weight: 700; }
+.sum-chinese { font-size: 26rpx; color: #3498ff; font-weight: 600; }
+
+/* ====== 条款 ====== */
+.clause-item { margin-bottom: 20rpx; padding-bottom: 20rpx; border-bottom: 1rpx solid #f0f0f0; }
+.clause-item:last-child { border-bottom: none; padding-bottom: 0; }
+.clause-head { display: flex; align-items: center; margin-bottom: 12rpx; }
+.clause-num { font-size: 26rpx; font-weight: 700; color: #3498ff; margin-right: 8rpx; flex-shrink: 0; }
+.clause-title-input { flex: 1; font-size: 26rpx; font-weight: 600; color: #333; padding: 8rpx 0; border-bottom: 1rpx dashed #ddd; }
+.clause-title-input::placeholder { color: #ccc; font-weight: 400; }
+.clause-del { width: 48rpx; height: 48rpx; display: flex; align-items: center; justify-content: center; font-size: 24rpx; color: #999; margin-left: 12rpx; }
+.clause-textarea {
+  width: 100%; min-height: 120rpx; font-size: 26rpx; color: #555; line-height: 1.8;
+  background: #f9fafb; border-radius: 10rpx; padding: 16rpx; box-sizing: border-box;
+}
+.clause-textarea::placeholder { color: #ccc; }
+.add-clause-btn {
+  margin-top: 16rpx; padding: 14rpx; text-align: center;
+  font-size: 26rpx; color: #3498ff; background: #eaf4ff; border-radius: 10rpx;
+  border: 1rpx dashed #3498ff;
+}
+
+/* ====== 操作按钮 ====== */
+.btn-area { margin-top: 12rpx; }
+.btn-save {
+  background: linear-gradient(90deg, #3498ff, #45a8ff); border: none;
+  border-radius: 48rpx; color: #fff; font-size: 32rpx; font-weight: 600;
+  height: 96rpx; line-height: 96rpx; width: 100%;
+}
+.btn-save::after { border: none; }
+.btn-delete { color: #ef4444; font-size: 28rpx; margin-top: 24rpx; text-align: center; }
+
+.safe-bottom { height: 60rpx; }

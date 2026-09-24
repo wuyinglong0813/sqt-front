@@ -1,0 +1,5 @@
+<view class="es {{compact ? 'es-compact' : ''}}">
+  <image class="es-img" src="{{imageSrc}}" mode="aspectFit"/>
+  <view class="es-text">{{text}}</view>
+  <button wx:if="{{buttonText}}" class="es-btn" bindtap="onTap">{{buttonText}}</button>
+</view>

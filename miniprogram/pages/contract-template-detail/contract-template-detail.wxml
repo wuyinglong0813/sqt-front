@@ -1,0 +1,112 @@
+<view class="page">
+  <!-- 基本信息 -->
+  <view class="card">
+    <view class="form-group">
+      <view class="form-label">模板名称</view>
+      <input class="form-input" placeholder="请输入模板名称" value="{{name}}" bindinput="onNameInput"/>
+    </view>
+    <view class="form-group">
+      <view class="form-label">分类</view>
+      <view class="cat-list">
+        <view class="cat-item {{category === item ? 'active' : ''}}"
+          wx:for="{{categories}}" wx:key="*this"
+          data-cat="{{item}}" bindtap="onCategoryTap">{{item}}</view>
+      </view>
+    </view>
+  </view>
+
+  <!-- 合同信息字段 -->
+  <view class="card">
+    <view class="section-title">合同信息</view>
+    <view class="field-row" wx:for="{{fields}}" wx:key="key">
+      <view class="field-label">{{item.label}}</view>
+
+      <block wx:if="{{item.type === 'date'}}">
+        <picker mode="date" value="{{item.value}}" data-index="{{index}}" bindchange="onDateFieldChange">
+          <view class="field-value date {{item.value ? '' : 'placeholder'}}">{{item.value || item.hint || '请选择日期'}}</view>
+        </picker>
+      </block>
+
+      <block wx:elif="{{!item.editable}}">
+        <view class="field-value locked" data-index="{{index}}">
+          <image class="locked-icon" src="/images/icons/role.svg" mode="aspectFit"/>
+          <text class="locked-text">{{item.hint || '自动生成'}}</text>
+        </view>
+      </block>
+
+      <block wx:else>
+        <input class="field-input" placeholder="{{item.hint || ''}}" value="{{item.value}}" data-index="{{index}}" bindinput="onFieldChange"/>
+      </block>
+    </view>
+  </view>
+
+  <!-- 产品表格 -->
+  <view class="card" wx:if="{{tableSection}}">
+    <view class="section-title">{{tableSection.title}}</view>
+    <scroll-view class="table-scroll" scroll-x enable-flex>
+      <view class="table-wrap">
+        <!-- 表头 -->
+        <view class="table-row table-header">
+          <view class="th" wx:for="{{tableSection.columns}}" wx:for-item="col" wx:key="*this">
+            <text>{{col}}</text>
+          </view>
+          <view class="th th-del"></view>
+        </view>
+        <!-- 数据行 -->
+        <view class="table-row" wx:for="{{tableRows}}" wx:for-item="row" wx:for-index="ri" wx:key="ri">
+          <view class="td" wx:for="{{tableSection.columns}}" wx:for-item="col" wx:for-index="ci" wx:key="ci">
+            <block wx:if="{{ci === amountColumnIndex}}">
+              <input class="td-input num auto" type="digit" value="{{row[ci]}}" disabled/>
+            </block>
+            <block wx:elif="{{ci === quantityColumnIndex || ci === priceColumnIndex}}">
+                <input class="td-input num" type="digit" value="{{row[ci]}}" data-row="{{ri}}" data-col="{{ci}}" bindfocus="onNumberCellFocus" bindblur="onNumberCellBlur" bindinput="onTableCellChange"/>
+            </block>
+            <block wx:else>
+              <input class="td-input" type="text" value="{{row[ci]}}" data-row="{{ri}}" data-col="{{ci}}" bindinput="onTableCellChange"/>
+            </block>
+          </view>
+          <view class="td td-del">
+            <view class="del-btn" data-index="{{ri}}" bindtap="deleteTableRow">✕</view>
+          </view>
+        </view>
+      </view>
+    </scroll-view>
+
+    <!-- 添加行 -->
+    <view class="table-add" bindtap="addTableRow">＋ 添加产品行</view>
+
+    <!-- 合计 -->
+    <view class="table-summary">
+      <view class="sum-row">
+        <text class="sum-label">合计：</text>
+        <text class="sum-amount">¥{{totalAmount}}</text>
+      </view>
+      <view class="sum-row">
+        <text class="sum-label">大写：</text>
+        <text class="sum-chinese">{{totalAmountCn}}</text>
+      </view>
+    </view>
+  </view>
+
+  <!-- 条款 -->
+  <view class="card">
+    <view class="section-title">合同条款</view>
+    <view class="clause-item" wx:for="{{clauses}}" wx:for-item="clause" wx:for-index="idx" wx:key="idx">
+      <view class="clause-head">
+        <text class="clause-num">{{clause._label}}</text>
+        <input class="clause-title-input" placeholder="条款标题" value="{{clause.title}}" data-index="{{idx}}" bindinput="onClauseTitleChange"/>
+        <view class="clause-del" data-index="{{idx}}" bindtap="deleteClause">✕</view>
+      </view>
+      <textarea class="clause-textarea" placeholder="请输入条款内容..." value="{{clause.content}}" data-index="{{idx}}" bindinput="onClauseContentChange" maxlength="2000"/>
+    </view>
+    <view class="add-clause-btn" bindtap="addClause">＋ 添加条款</view>
+  </view>
+
+  <!-- 操作按钮 -->
+  <view class="btn-area">
+    <button class="btn-save" bindtap="save">保存模板</button>
+    <view class="btn-delete" wx:if="{{templateId}}" bindtap="deleteTemplate">删除此模板</view>
+  </view>
+
+  <view class="safe-bottom"></view>
+</view>

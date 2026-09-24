@@ -1,0 +1,138 @@
+page { background: #fff; }
+
+.page {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  padding: 0 56rpx;
+  box-sizing: border-box;
+}
+
+/* ===== 品牌区 ===== */
+.branding {
+  align-items: center;
+  display: flex;
+  flex-direction: column;
+  padding-top: 160rpx;
+  padding-bottom: 80rpx;
+}
+
+.logo {
+  height: 150rpx;
+  width: 150rpx;
+}
+
+.app-name {
+  color: #162336;
+  font-size: 46rpx;
+  font-weight: 700;
+  margin-top: 24rpx;
+}
+
+.app-desc {
+  color: #999;
+  font-size: 26rpx;
+  margin-top: 12rpx;
+}
+
+/* ===== 协议（快捷登录上方） ===== */
+.agree-row {
+  align-items: center;
+  display: flex;
+  justify-content: center;
+  margin-bottom: 32rpx;
+}
+
+.agree-check {
+  align-items: center;
+  border: 2rpx solid #d0d0d0;
+  border-radius: 50%;
+  color: #fff;
+  display: flex;
+  flex-shrink: 0;
+  font-size: 20rpx;
+  height: 32rpx;
+  justify-content: center;
+  margin-right: 10rpx;
+  width: 32rpx;
+}
+
+.agree-check.on {
+  background: #3498ff;
+  border-color: #3498ff;
+}
+
+.agree-check.error {
+  border-color: #d34a4a;
+}
+
+.agree-label {
+  color: #999;
+  font-size: 24rpx;
+  line-height: 1.5;
+}
+
+.agree-label.error {
+  color: #d34a4a;
+}
+
+.agree-row.shaking {
+  animation: shake .35s ease;
+}
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  30% { transform: translateX(-8rpx); }
+  60% { transform: translateX(8rpx); }
+}
+
+.agree-link {
+  color: #3498ff;
+}
+
+.agree-label.error .agree-link {
+  color: #d34a4a;
+}
+
+.agree-hint {
+  color: #bbb;
+  font-size: 22rpx;
+  margin-bottom: 32rpx;
+  text-align: center;
+}
+
+/* ===== 手机号快捷登录按钮 ===== */
+.btn-quick-login {
+  align-items: center;
+  background: linear-gradient(90deg, #3498ff, #45a8ff);
+  border: none;
+  border-radius: 48rpx;
+  box-shadow: 0 12rpx 28rpx rgba(15, 118, 110, 0.28);
+  color: #fff;
+  display: flex;
+  font-size: 34rpx;
+  font-weight: 600;
+  height: 100rpx;
+  justify-content: center;
+  letter-spacing: 2rpx;
+  width: 100%;
+}
+
+.btn-quick-login::after { border: none; }
+
+/* ===== 输入手机号登录 / 注册 ===== */
+.phone-login-link {
+  color: #3498ff;
+  font-size: 28rpx;
+  margin-top: 36rpx;
+  text-align: center;
+}
+
+/* ===== 稍后登录 ===== */
+.skip-row {
+  color: #aab2b0;
+  font-size: 26rpx;
+  margin-top: auto;
+  padding-bottom: calc(48rpx + env(safe-area-inset-bottom));
+  text-align: center;
+}

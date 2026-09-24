@@ -1,0 +1,43 @@
+<view class="page">
+  <view class="section-head card">
+    <view class="title">角色列表</view>
+    <view class="add-btn" bindtap="showAddRole">＋ 新建</view>
+  </view>
+  <view class="role-help">点击角色可增减权限，保存后影响当前企业所有使用该角色的成员。只想调整个别成员时，请先复制角色，再分配给该成员。</view>
+
+  <block wx:for="{{roles}}" wx:key="id">
+    <view class="role-card card" bindtap="editRole" data-id="{{item.id}}">
+      <view class="role-heading">
+        <view class="role-name">{{item.name}}</view>
+        <view wx:if="{{!item.editable}}" class="system-role-badge">身份保护</view>
+        <view wx:elif="{{item.systemRole}}" class="system-role-badge">默认角色 · 可调权限</view>
+        <view wx:if="{{item.editable}}" class="role-arrow">›</view>
+      </view>
+      <view class="role-perms">{{item.permsDisplay || item.permissions}}</view>
+      <view wx:if="{{item.editable}}" class="copy-role" catchtap="copyRole" data-id="{{item.id}}">复制为新角色</view>
+    </view>
+  </block>
+
+  <view wx:if="{{roles.length === 0}}" class="empty">暂无角色</view>
+</view>
+
+<!-- 新建/编辑角色弹窗 -->
+<view class="modal-mask" wx:if="{{showModal}}" bindtap="hideModal">
+  <view class="modal-card" catchtap="noop">
+    <view class="modal-title">{{editRoleId ? '编辑角色' : '新建角色'}}</view>
+    <input class="form-input" placeholder="角色名称" value="{{roleName}}" disabled="{{systemRole}}" bindinput="onNameInput"/>
+    <view class="role-help">{{editRoleId ? '修改会应用到该角色的所有成员。' : '新角色仅在分配给成员后生效。'}}{{systemRole ? '默认角色名称固定，权限可调整。' : ''}}</view>
+    <view class="perm-title">勾选允许使用的功能，取消勾选即移除权限</view>
+    <view class="perm-list">
+      <view class="perm-item" wx:for="{{allPerms}}" wx:key="code" data-code="{{item.code}}" bindtap="togglePerm">
+        <view class="perm-check {{item.checked ? 'checked' : ''}}">{{item.checked ? '✓' : ''}}</view>
+        <view class="perm-label">{{item.label}}</view>
+      </view>
+    </view>
+    <view class="modal-btns">
+      <view class="btn-cancel" bindtap="hideModal">取消</view>
+      <view class="btn-confirm" bindtap="saveRole">{{saving ? '保存中…' : '保存'}}</view>
+      <view class="btn-delete" wx:if="{{deletable}}" bindtap="deleteRole">删除</view>
+    </view>
+  </view>
+</view>

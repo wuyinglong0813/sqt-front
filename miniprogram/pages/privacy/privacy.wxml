@@ -1,0 +1,46 @@
+<import src="../../templates/privacy-content.wxml"/>
+
+<view class="page">
+  <!-- 顶部 logo 区 -->
+  <view class="top-logo">
+    <image class="tl-icon" src="/images/logo.png" mode="aspectFit"/>
+    <view class="tl-name">商签通</view>
+  </view>
+
+  <!-- 协议正文卡片 -->
+  <view class="agree-card">
+    <view class="ac-text">
+      <text>在你使用</text>
+      <text class="ac-bold">【商签通】</text>
+      <text>服务之前，请仔细阅读</text>
+      <text class="ac-link" bindtap="showAgreement">《商签通小程序隐私保护指引》</text>
+      <text>。如你同意《商签通小程序隐私保护指引》，请点击“同意”开始使用</text>
+      <text class="ac-bold">【商签通】</text>
+    </view>
+  </view>
+
+  <!-- 底部操作 -->
+  <view class="bottom-actions">
+    <view class="ba-check {{shaking ? 'shaking' : ''}}" bindtap="toggleAgree">
+      <view class="ba-checkbox {{agreed ? 'checked' : ''}} {{shaking ? 'error' : ''}}">{{agreed ? '✓' : ''}}</view>
+      <text class="ba-check-text {{shaking ? 'error' : ''}}">{{shaking ? '请先阅读并同意隐私保护指引' : '我已阅读并同意《商签通小程序隐私保护指引》'}}</text>
+    </view>
+    <button class="ba-btn" bindtap="doAgree">同意</button>
+    <view class="ba-deny" bindtap="doDeny">不同意</view>
+  </view>
+</view>
+
+<!-- 协议弹层 -->
+<view class="agreement-mask" wx:if="{{showAgreementModal}}" bindtap="closeAgreement">
+  <view class="agreement-sheet" catchtap="noop">
+    <view class="as-header">
+      <view class="as-title">商签通小程序隐私保护指引</view>
+      <view class="as-close" bindtap="closeAgreement">✕</view>
+    </view>
+    <scroll-view class="as-body" scroll-y>
+      <view class="privacy-scroll-content">
+        <template is="privacyContent"/>
+      </view>
+    </scroll-view>
+  </view>
+</view>

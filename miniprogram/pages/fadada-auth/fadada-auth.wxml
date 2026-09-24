@@ -1,0 +1,15 @@
+<view class="state-page" wx:if="{{loading}}">
+  <view class="state-icon loading-ring"></view>
+  <view class="state-title">{{loadingText}}</view>
+  <view class="state-desc">请稍候，正在建立安全连接</view>
+</view>
+
+<view class="state-page" wx:elif="{{errorMessage}}">
+  <view class="state-icon error">!</view>
+  <view class="state-title">{{pageTitle}}暂时无法打开</view>
+  <view class="state-desc">{{errorMessage}}</view>
+  <button class="primary-button" bindtap="retry">重新加载</button>
+  <view class="back-link" bindtap="goBack">返回上一页</view>
+</view>
+
+<web-view wx:else src="{{serviceUrl}}" binderror="onWebViewError"></web-view>

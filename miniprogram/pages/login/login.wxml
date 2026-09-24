@@ -1,0 +1,40 @@
+<view class="page">
+  <!-- 品牌区 -->
+  <view class="branding">
+    <image class="logo" src="/images/logo.png" mode="aspectFit"/>
+    <view class="app-name">商签通</view>
+    <view class="app-desc">安全合规的企业贸易管理平台</view>
+  </view>
+
+  <!-- 协议（在快捷登录按钮上方） -->
+  <view class="agree-row {{shaking ? 'shaking' : ''}}">
+    <view class="agree-check {{agreed ? 'on' : ''}} {{shaking ? 'error' : ''}}" bindtap="toggleAgree">
+      <text wx:if="{{agreed}}">✓</text>
+    </view>
+    <view class="agree-label {{shaking ? 'error' : ''}}">
+      已阅读并同意
+      <text class="agree-link" catchtap="openUserAgreement">《用户许可使用协议》</text>
+      和
+      <text class="agree-link" catchtap="openPrivacyAgreement">《隐私协议》</text>
+    </view>
+  </view>
+  <view class="agree-hint">未注册的用户将直接创建账号</view>
+
+  <!-- 手机号快捷登录（主入口） -->
+  <button
+    class="btn-quick-login"
+    open-type="{{quickPhoneEnabled && agreed ? 'getPhoneNumber' : ''}}"
+    bindgetphonenumber="quickPhoneLogin"
+    bindtap="onWechatPhoneTap">
+    {{quickPhoneEnabled ? '手机号快捷登录' : '微信登录'}}
+  </button>
+
+  <view class="agree-hint" wx:if="{{desktopMode}}">首次在电脑登录后，请在手机微信使用同一微信账号打开商签通，在“我的 → 账号与个人信息”绑定手机号并完成认证。</view>
+
+  <!-- 输入手机号登录 / 注册 -->
+  <view class="phone-login-link" wx:if="{{!desktopMode}}" bindtap="goPhoneLogin">输入手机号登录 / 注册</view>
+
+  <!-- 稍后登录 -->
+  <view class="skip-row" bindtap="skipLogin">稍后登录</view>
+
+</view>

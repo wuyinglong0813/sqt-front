@@ -1,0 +1,77 @@
+<view class="page">
+  <!-- 顶部 Banner -->
+  <view class="bind-banner">
+    <view class="bind-banner-circle bind-circle-lg"></view>
+    <view class="bind-banner-circle bind-circle-md"></view>
+    <view class="bind-banner-title">企业入驻</view>
+    <view class="bind-banner-sub">填写营业执照信息，完成企业身份认证</view>
+  </view>
+
+  <view class="mode-tabs">
+    <button class="mode-tab {{mode === 'create' ? 'active' : ''}}" data-mode="create" bindtap="switchMode">新企业入驻</button>
+    <button class="mode-tab {{mode === 'search' ? 'active' : ''}}" data-mode="search" bindtap="switchMode">查找已入驻企业</button>
+  </view>
+  <view class="create-card" wx:if="{{mode === 'create'}}">
+    <view class="form-title">填写企业资料</view>
+    <view class="form-hint">请按营业执照填写，下一步确认信息后进行企业认证。提交资料不代表认证通过。</view>
+    <view class="field-label">企业 / 个体工商户全称</view>
+    <input class="company-input" placeholder="与营业执照上的名称一致" maxlength="128" value="{{companyName}}" data-field="companyName" bindinput="onCompanyInput" />
+    <view class="field-label">统一社会信用代码 / 工商注册号</view>
+    <input class="company-input" placeholder="18 位信用代码或 15 位注册号" maxlength="18" value="{{creditCode}}" data-field="creditCode" bindinput="onCompanyInput" />
+    <view class="field-label">法定代表人 / 负责人姓名</view>
+    <input class="company-input" placeholder="与营业执照上的姓名一致" maxlength="64" value="{{legalPersonName}}" data-field="legalPersonName" bindinput="onCompanyInput" />
+    <button class="confirm-btn" bindtap="continueCreate">下一步，确认企业信息</button>
+    <view class="form-hint form-footer">已有企业的成员，请联系企业管理员获取成员邀请。</view>
+  </view>
+
+  <block wx:if="{{mode === 'search'}}">
+  <view class="search-notice">仅查找已入驻商签通的企业。首次入驻请填写企业资料。</view>
+
+  <!-- 搜索栏 -->
+  <view class="search-bar-wrap">
+    <view class="search-bar">
+      <image class="search-icon" src="/images/icons/search.svg" mode="aspectFit"/>
+      <input class="search-input" placeholder="请输入企业名称（与营业执照上一致）" maxlength="50" value="{{keyword}}" bindinput="onKeywordInput" confirm-type="search" bindconfirm="doSearch" />
+      <view class="search-clear" wx:if="{{keyword}}" bindtap="clearKeyword">✕</view>
+    </view>
+    <button class="search-btn" bindtap="doSearch">搜索</button>
+  </view>
+
+  <!-- 搜索结果列表（未选中时） -->
+  <view class="results-wrap" wx:if="{{!selectedCompany && searched}}">
+    <view class="results-empty" wx:if="{{results.length === 0}}">
+      <image class="empty-icon" src="/images/icons/company.svg" mode="aspectFit"/>
+      <view class="empty-text">未找到已入驻企业</view>
+      <view class="empty-hint">首次入驻可直接填写营业执照信息</view>
+      <button class="confirm-btn" data-mode="create" bindtap="switchMode">填写企业资料</button>
+    </view>
+    <block wx:for="{{results}}" wx:key="id">
+      <view class="result-card" data-index="{{index}}" bindtap="selectCompany">
+        <view class="result-name">{{item.name}}</view>
+        <view class="result-row">
+          <text class="result-label">统一社会信用代码</text>
+          <text class="result-value">{{item.maskedCreditCode}}</text>
+        </view>
+        <view class="result-arrow">›</view>
+      </view>
+    </block>
+  </view>
+
+  <!-- 已选中企业详情（待确认） -->
+  <view class="confirm-wrap" wx:if="{{selectedCompany}}">
+    <view class="confirm-card">
+      <view class="confirm-label">已选择企业</view>
+      <view class="confirm-name">{{selectedCompany.name}}</view>
+      <view class="confirm-row">
+        <text class="confirm-key">统一社会信用代码</text>
+        <text class="confirm-val">{{selectedCompany.maskedCreditCode}}</text>
+      </view>
+      <view class="confirm-row">
+        <text class="confirm-key">平台状态</text>
+        <text class="confirm-val">{{selectedCompany.verified ? '已认证' : '已入驻'}}</text>
+      </view>
+      <button class="confirm-btn" bindtap="confirmCompany">如何加入</button>
+    </view>
+  </view>
+  </block>
+</view>

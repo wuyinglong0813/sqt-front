@@ -1,0 +1,137 @@
+<view class="page">
+  <view class="hero">
+    <view class="hero-label">企业项目成本中心</view>
+    <view class="hero-title">项目账套</view>
+    <view class="hero-sub">创建项目并划分已签署合同，系统自动汇总成本与收入</view>
+    <view class="hero-count"><text>{{projects.length}}</text><label>项目总数</label></view>
+  </view>
+
+  <view class="pending-contract-tip" wx:if="{{pendingContractId}}">
+    <view class="pending-contract-icon">合</view>
+    <view class="pending-contract-copy">
+      <view>{{pendingAction === 'create' ? '创建项目并加入合同' : '请选择合同所属项目'}}</view>
+      <text>{{pendingContractName || pendingContractId}}</text>
+    </view>
+  </view>
+
+  <view class="section-head">
+    <view><view class="section-title">项目列表</view><view class="section-sub">没有项目需求时无需创建，不影响原有业务</view></view>
+    <button bindtap="openCreate">＋ 创建项目</button>
+  </view>
+
+  <view class="project-list" wx:if="{{projects.length > 0}}">
+    <view class="project-card" wx:for="{{projects}}" wx:key="id" data-id="{{item.id}}" bindtap="openProject">
+      <view class="project-top">
+        <view class="project-main"><view class="project-name">{{item.name}}</view><view class="project-no">{{item.projectNo}}</view></view>
+        <view class="contract-count">{{pendingContractId ? '选择此项目 ›' : item.contractCount + ' 份合同 ›'}}</view>
+      </view>
+      <view class="project-description" wx:if="{{item.description}}">{{item.description}}</view>
+      <view class="amount-grid">
+        <view><label>采购成本</label><text>¥{{item.purchaseCostText}}</text></view>
+        <view><label>销售收入</label><text>¥{{item.salesIncomeText}}</text></view>
+        <view><label>预计毛利</label><text class="{{item.estimatedProfit < 0 ? 'negative' : ''}}">¥{{item.estimatedProfitText}}</text></view>
+      </view>
+    </view>
+  </view>
+  <view class="empty" wx:if="{{!loading && projects.length === 0}}">
+    <image src="/images/icons/reconcile.svg" mode="aspectFit"/>
+    <view>暂未创建项目</view><text>创建项目后，可把已签署合同划入项目并计算成本</text>
+    <button bindtap="openCreate">创建第一个项目</button>
+  </view>
+  <view class="loading" wx:if="{{loading}}">项目加载中...</view>
+
+  <view class="detail-mask" wx:if="{{activeProject}}" bindtap="closeProject">
+    <view class="detail-sheet" catchtap="noop">
+      <view class="sheet-grabber"></view>
+      <view class="detail-head">
+        <view><view class="detail-title">{{activeProject.name}}</view><view class="detail-no">{{activeProject.projectNo}}</view></view>
+        <view class="close" bindtap="closeProject">×</view>
+      </view>
+      <view class="summary-grid">
+        <view><label>采购成本</label><text>¥{{activeProject.purchaseCostText}}</text></view>
+        <view><label>销售收入</label><text>¥{{activeProject.salesIncomeText}}</text></view>
+        <view><label>预计毛利</label><text class="{{activeProject.estimatedProfit < 0 ? 'negative' : ''}}">¥{{activeProject.estimatedProfitText}}</text></view>
+      </view>
+      <view class="contract-head"><view><view class="contract-title">已划分合同</view><view class="contract-sub">只统计当前仍为已生效状态的合同金额</view></view><button bindtap="openAssign">＋ 划分合同</button></view>
+      <scroll-view class="contract-list" scroll-y>
+        <view class="contract-card" wx:for="{{activeProject.contracts}}" wx:key="id">
+          <view class="contract-row"><view class="direction {{item.direction === 'PURCHASE' ? 'purchase' : 'sale'}}">{{item.directionText}}</view><view class="contract-amount">¥{{item.amountText}}</view></view>
+          <view class="contract-name">{{item.name}}</view>
+          <view class="contract-meta">{{item.contractNo}} · {{item.counterpartyName}}</view>
+          <view class="inactive-tip" wx:if="{{item.status !== 'ACTIVE'}}">合同已失效，当前金额不计入汇总</view>
+          <view class="remove" data-id="{{item.id}}" catchtap="removeContract">移出项目</view>
+        </view>
+        <view class="empty-inline" wx:if="{{activeProject.contracts.length === 0}}">暂无合同，点击“划分合同”添加</view>
+      </scroll-view>
+    </view>
+  </view>
+
+  <view class="mask" wx:if="{{showCreate}}" bindtap="closeCreate">
+    <view class="form-sheet create-sheet" catchtap="noop">
+      <view class="create-head">
+        <view class="create-head-main">
+          <view class="create-icon"><image src="/images/icons/reconcile.svg" mode="aspectFit"/></view>
+          <view>
+            <view class="create-eyebrow">PROJECT LEDGER</view>
+            <view class="create-title">新建项目账套</view>
+          </view>
+        </view>
+        <view class="create-close" bindtap="closeCreate">×</view>
+        <view class="create-subtitle">创建后即可归集已签署合同，项目成本与收入将自动计算</view>
+      </view>
+
+      <view class="create-form">
+        <view class="form-group primary-group">
+          <view class="form-label-row"><view class="form-label">项目名称 <text>*</text></view><view class="form-count">{{projectName.length || 0}}/128</view></view>
+          <view class="input-shell">
+            <view class="input-mark">项</view>
+            <input value="{{projectName}}" data-field="projectName" bindinput="onProjectInput" placeholder="例如：雄安办公楼一期" maxlength="128" focus="{{showCreate}}"/>
+          </view>
+        </view>
+
+        <view class="form-group">
+          <view class="form-label-row"><view class="form-label">项目编号</view><view class="optional-tag">选填</view></view>
+          <view class="input-shell">
+            <view class="input-mark secondary">#</view>
+            <input value="{{projectNo}}" data-field="projectNo" bindinput="onProjectInput" placeholder="留空后由系统自动生成" maxlength="64"/>
+          </view>
+          <view class="form-hint">编号用于快速检索项目，创建后不会影响合同编号</view>
+        </view>
+
+        <view class="form-group">
+          <view class="form-label-row"><view class="form-label">项目说明</view><view class="optional-tag">选填</view></view>
+          <view class="textarea-shell">
+            <textarea value="{{projectDescription}}" data-field="projectDescription" bindinput="onProjectInput" placeholder="可填写项目范围、地点或内部备注" maxlength="500"/>
+            <view class="textarea-count">{{projectDescription.length || 0}}/500</view>
+          </view>
+        </view>
+
+        <view class="create-tip"><view class="tip-dot">✓</view><view>项目创建后，再从已签署合同中选择归属；不会改变原合同内容。</view></view>
+      </view>
+
+      <view class="create-actions">
+        <button class="create-cancel" disabled="{{creating}}" bindtap="closeCreate">取消</button>
+        <button class="create-submit" loading="{{creating || assigning}}" disabled="{{creating || assigning || !projectName}}" bindtap="createProject">{{pendingContractId ? '创建并加入合同' : '创建项目'}}</button>
+      </view>
+    </view>
+  </view>
+
+  <view class="assign-mask" wx:if="{{showAssign}}" bindtap="closeAssign">
+    <view class="assign-sheet" catchtap="noop">
+      <view class="detail-head"><view><view class="detail-title">划分合同</view><view class="detail-no">选择已签署且尚未归属项目的合同</view></view><view class="close" bindtap="closeAssign">×</view></view>
+      <view class="assign-rule"><view class="assign-rule-icon">!</view><view>同一企业内，每份合同只能归属一个项目；已归属的合同不会在这里重复显示。</view></view>
+      <scroll-view class="select-list" scroll-y>
+        <view class="select-card {{item.selected ? 'selected' : ''}}" wx:for="{{availableContracts}}" wx:key="id" data-id="{{item.id}}" bindtap="toggleContract">
+          <view class="check">{{item.selected ? '✓' : ''}}</view>
+          <view class="select-main"><view class="select-name">{{item.name}}</view><view class="select-meta">{{item.directionText}} · {{item.contractNo}}</view><view class="select-meta">{{item.counterpartyName}}</view></view>
+          <view class="select-amount">¥{{item.amountText}}</view>
+        </view>
+        <view class="empty-inline" wx:if="{{availableContracts.length === 0}}">暂无可划分合同</view>
+      </scroll-view>
+      <view class="assign-footer">
+        <view class="assign-selected">已选择 <text>{{selectedContractIds.length}}</text> 份合同</view>
+        <button class="assign-button" loading="{{assigning}}" disabled="{{assigning || selectedContractIds.length === 0}}" bindtap="assignContracts">确认划分</button>
+      </view>
+    </view>
+  </view>
+</view>

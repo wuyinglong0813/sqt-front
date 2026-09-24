@@ -1,0 +1,87 @@
+page { background: #f4f8fd; }
+.approval-page { min-height: 100vh; padding-bottom: 44rpx; }
+.current-company { align-items: center; background: #fff; border-bottom: 1rpx solid #dce7f2; display: flex; padding: 22rpx 26rpx; }
+.company-icon-shell { align-items: center; background: #eaf4ff; border-radius: 18rpx; display: flex; flex-shrink: 0; height: 68rpx; justify-content: center; margin-right: 16rpx; width: 68rpx; }
+.company-icon-shell image { height: 46rpx; width: 46rpx; }
+.company-context { flex: 1; min-width: 0; }
+.company-context-name { color: #1c3047; font-size: 25rpx; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.company-context-desc { color: #94a0ae; font-size: 19rpx; margin-top: 5rpx; }
+.center-tabs { background: #e7eef7; border-radius: 20rpx; display: grid; gap: 7rpx; grid-template-columns: 1fr 1fr; margin: 22rpx 24rpx 0; padding: 7rpx; }
+.center-tab { align-items: center; border-radius: 15rpx; color: #778695; display: flex; font-size: 25rpx; font-weight: 600; justify-content: center; padding: 18rpx 10rpx; }
+.center-tab.active { background: #fff; box-shadow: 0 4rpx 14rpx rgba(39,73,112,.09); color: #1884e9; }
+.center-tab-count { background: #f04b4b; border-radius: 16rpx; color: #fff; font-size: 18rpx; line-height: 29rpx; margin-left: 9rpx; min-width: 29rpx; padding: 0 5rpx; text-align: center; }
+.approval-tabs { border-bottom: 1rpx solid #dce6f1; display: flex; gap: 34rpx; margin: 13rpx 24rpx 0; padding: 0 4rpx; }
+.approval-tab { align-items: center; border-bottom: 5rpx solid transparent; color: #7f8c9a; display: flex; font-size: 23rpx; justify-content: center; padding: 16rpx 4rpx 13rpx; }
+.approval-tab.active { border-bottom-color: #2185e8; color: #2185e8; font-weight: 700; }
+.tab-count { font-size: 19rpx; margin-left: 7rpx; }
+.approval-tab.active .tab-count { color: #2185e8; }
+.company-filter { margin: 18rpx 24rpx 0; }
+.company-picker { align-items: center; background: #fff; border: 1rpx solid #dfe8f3; border-radius: 20rpx; display: flex; padding: 19rpx 22rpx; }
+.picker-label { color: #96a1ae; font-size: 19rpx; }
+.picker-value { color: #2d4057; font-size: 24rpx; margin-top: 4rpx; }
+.picker-arrow { color: #7d8c9c; font-size: 28rpx; margin-left: auto; }
+.approval-groups { margin: 0 24rpx; }
+.company-group { margin-top: 24rpx; }
+.group-head { align-items: center; display: flex; margin: 0 4rpx 12rpx; }
+.group-avatar { align-items: center; background: #eaf4ff; border: 1rpx solid #d1e6fb; border-radius: 15rpx; color: #2487e4; display: flex; flex-shrink: 0; font-size: 25rpx; font-weight: 700; height: 58rpx; justify-content: center; width: 58rpx; }
+.group-copy { flex: 1; margin-left: 13rpx; min-width: 0; }
+.group-name { color: #25394f; font-size: 25rpx; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.group-count { color: #9aa5b1; font-size: 19rpx; margin-top: 8rpx; }
+.approval-card { background: #fff; border: 1rpx solid #e1eaf4; border-radius: 24rpx; box-shadow: 0 8rpx 24rpx rgba(28,60,96,.045); margin-bottom: 16rpx; padding: 23rpx; }
+.card-top { align-items: flex-start; display: flex; }
+.type-icon { align-items: center; background: #eaf4ff; border-radius: 15rpx; color: #2487e4; display: flex; flex-shrink: 0; font-size: 25rpx; font-weight: 700; height: 58rpx; justify-content: center; width: 58rpx; }
+.type-icon.payment_voucher { background: #fff4dc; color: #b87415; }
+.type-icon.invoice { background: #eaf4ff; color: #2787df; }
+.type-icon.sales_order { background: #edf8f2; color: #289465; }
+.card-copy { flex: 1; margin-left: 14rpx; min-width: 0; }
+.card-title { color: #20344b; font-size: 26rpx; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.card-meta { color: #929eac; font-size: 20rpx; margin-top: 6rpx; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.signature-hint { color: #b26e13; font-size: 19rpx; margin-top: 7rpx; }
+.pending-badge { background: #fff3d8; border-radius: 16rpx; color: #a36a11; flex-shrink: 0; font-size: 19rpx; margin-left: 10rpx; padding: 5rpx 10rpx; }
+.contract-summary { background: #f7faff; border-radius: 16rpx; display: grid; gap: 16rpx; grid-template-columns: .8fr 1.2fr; margin-top: 18rpx; padding: 16rpx; }
+.contract-summary text { color: #96a1ad; display: block; font-size: 18rpx; }
+.summary-strong { color: #35485d; font-size: 21rpx; font-weight: 600; margin-top: 5rpx; }
+.card-actions { border-top: 1rpx solid #edf2f7; display: flex; gap: 10rpx; justify-content: flex-end; margin-top: 18rpx; padding-top: 17rpx; }
+.card-actions.single .action { min-width: 190rpx; }
+.action { border: 0; border-radius: 15rpx; font-size: 21rpx; height: 64rpx; line-height: 64rpx; margin: 0; padding: 0 18rpx; }
+.action::after { border: 0; }
+.action.ghost { background: #eff6fd; color: #357fc4; }
+.action.reject { background: #f4f6f9; color: #788592; }
+.action.primary { background: #2f91ee; color: #fff; }
+.result-list { background: #fff; border: 1rpx solid #e1eaf4; border-radius: 24rpx; overflow: hidden; }
+.result-card { align-items: flex-start; display: flex; padding: 24rpx 22rpx; }
+.result-card + .result-card { border-top: 1rpx solid #edf2f7; }
+.result-card.read { opacity: .78; }
+.result-icon { align-items: center; background: #eaf4ff; border-radius: 15rpx; color: #2787df; display: flex; flex-shrink: 0; font-size: 24rpx; font-weight: 700; height: 58rpx; justify-content: center; width: 58rpx; }
+.result-icon.sales_order { background: #edf8f2; color: #289465; }
+.result-icon.payment_voucher { background: #fff4dc; color: #b87415; }
+.result-icon.rejected { background: #fff0f0; color: #d45454; }
+.result-icon.cancelled { background: #eef1f4; color: #788592; }
+.result-copy { flex: 1; margin-left: 14rpx; min-width: 0; }
+.result-title-row { align-items: center; display: flex; }
+.unread-dot { background: #f04b4b; border-radius: 50%; flex-shrink: 0; height: 13rpx; margin-right: 9rpx; width: 13rpx; }
+.result-title { color: #20344b; font-size: 25rpx; font-weight: 700; }
+.result-detail { color: #7f8d9d; font-size: 20rpx; line-height: 1.5; margin-top: 10rpx; }
+.result-reason { color: #c55555; font-size: 20rpx; line-height: 1.5; margin-top: 10rpx; }
+.result-time { color: #a1aab5; font-size: 18rpx; margin-top: 9rpx; }
+.result-arrow { color: #a8b4c0; flex-shrink: 0; font-size: 38rpx; line-height: 58rpx; margin-left: 10rpx; }
+.loading-hint { color: #8f9ba8; font-size: 23rpx; padding: 70rpx 0; text-align: center; }
+.empty-hint { align-items: center; display: flex; flex-direction: column; padding: 90rpx 24rpx; }
+.empty-hint image { height: 104rpx; opacity: .75; width: 104rpx; }
+.empty-title { color: #7e8b98; font-size: 24rpx; margin-top: 18rpx; }
+.action-reason { background: #fff8e8; border-radius: 10rpx; color: #80601d; font-size: 21rpx; line-height: 1.55; margin: 14rpx 0; padding: 12rpx 15rpx; }
+.signature-mask { align-items: flex-end; background: rgba(11,25,43,.5); bottom: 0; display: flex; left: 0; position: fixed; right: 0; top: 0; z-index: 500; }
+.signature-sheet { background: #fff; border-radius: 30rpx 30rpx 0 0; box-sizing: border-box; padding: 15rpx 28rpx calc(28rpx + env(safe-area-inset-bottom)); width: 100%; }
+.signature-handle { background: #dce3eb; border-radius: 4rpx; height: 7rpx; margin: 0 auto 22rpx; width: 74rpx; }
+.signature-head { align-items: flex-start; display: flex; justify-content: space-between; }
+.signature-title { color: #203349; font-size: 31rpx; font-weight: 700; }
+.signature-signer { color: #8c99a8; font-size: 21rpx; margin-top: 6rpx; }
+.signature-close { color: #8d9baa; font-size: 42rpx; line-height: 38rpx; padding: 0 8rpx; }
+.signature-confirm-copy { background: #f3f8fd; border-radius: 12rpx; color: #71869b; font-size: 20rpx; line-height: 1.5; margin-top: 18rpx; padding: 13rpx 15rpx; }
+.signature-canvas-wrap { background: #fff; border: 2rpx dashed #b9c9d9; border-radius: 15rpx; height: 300rpx; margin-top: 18rpx; overflow: hidden; position: relative; }
+.signature-canvas { height: 100%; position: relative; width: 100%; z-index: 2; }
+.signature-placeholder { bottom: 13rpx; color: #a5b0bc; font-size: 19rpx; left: 0; pointer-events: none; position: absolute; right: 0; text-align: center; z-index: 1; }
+.signature-actions { display: grid; gap: 14rpx; grid-template-columns: .8fr 1.5fr; margin-top: 20rpx; }
+.signature-actions button { border: 0; border-radius: 13rpx; font-size: 23rpx; height: 72rpx; line-height: 72rpx; margin: 0; }
+.signature-clear { background: #edf4fb; color: #65778a; }
+.signature-confirm { background: #3498ff; color: #fff; }

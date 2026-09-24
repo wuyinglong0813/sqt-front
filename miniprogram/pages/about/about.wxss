@@ -1,0 +1,9 @@
+page { background: #f6f8fb; }
+.about-page { box-sizing: border-box; min-height: 100vh; padding: 150rpx 28rpx calc(46rpx + env(safe-area-inset-bottom)); }
+.brand-card { background: linear-gradient(145deg, #fff 0%, #f4f9ff 100%); border: 1rpx solid #e1eaf3; border-radius: 34rpx; box-shadow: 0 14rpx 38rpx rgba(25, 53, 86, .055); padding: 50rpx 34rpx; text-align: center; }
+.logo-shell { background: #fff; border: 1rpx solid #e2ebf4; border-radius: 30rpx; box-shadow: 0 12rpx 28rpx rgba(36, 120, 223, .12); height: 130rpx; margin: 0 auto; overflow: hidden; width: 130rpx; }
+.logo-shell image { height: 100%; width: 100%; }
+.brand-name { color: #17283c; font-size: 39rpx; font-weight: 700; margin-top: 22rpx; }
+.brand-en { color: #6ca5d8; font-size: 17rpx; letter-spacing: 7rpx; margin-top: 4rpx; }
+.version-label { color: #909cab; font-size: 22rpx; margin-top: 32rpx; }
+.version-value { color: #2889e7; font-size: 28rpx; font-weight: 600; margin-top: 8rpx; }

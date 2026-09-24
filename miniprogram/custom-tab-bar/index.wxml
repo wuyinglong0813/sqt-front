@@ -1,0 +1,26 @@
+<view class="tab-bar" wx:if="{{!hidden}}">
+  <view class="tab-bar-inner">
+    <view
+      class="tab-indicator {{animateIndicator ? '' : 'without-transition'}}"
+      style="transform: {{indicatorTransform}}"
+    >
+      <view class="tab-indicator-pill"></view>
+    </view>
+
+    <view
+      wx:for="{{list}}"
+      wx:key="pagePath"
+      class="tab-item {{selected === index ? 'selected' : ''}}"
+      data-index="{{index}}"
+      bindtap="switchTab"
+    >
+      <image
+        class="tab-icon"
+        src="{{selected === index ? item.selectedIconPath : item.iconPath}}"
+        mode="aspectFit"
+      />
+      <view class="tab-label">{{item.text}}</view>
+    </view>
+  </view>
+  <view class="tab-safe-area"></view>
+</view>

@@ -1,0 +1,42 @@
+<view class="page">
+  <view class="hero">
+    <view class="hero-title">交易单据模板</view>
+    <view class="hero-desc">合同、销售单和退货单统一使用企业模板</view>
+    <view class="upload-grid">
+      <button class="upload-btn primary" bindtap="uploadSalesTemplate">＋ 上传销售单模板</button>
+      <button class="upload-btn secondary" bindtap="uploadReturnTemplate">＋ 上传退货单模板</button>
+    </view>
+  </view>
+
+  <view class="type-tabs">
+    <view class="type-tab" bindtap="openContractTemplates">合同模板 <text class="tab-arrow">›</text></view>
+    <view class="type-tab {{activeType === 'SALES_ORDER' ? 'active' : ''}}" data-type="SALES_ORDER" bindtap="switchType">销售单 <text class="tab-count">{{salesCount}}</text></view>
+    <view class="type-tab {{activeType === 'RETURN_ORDER' ? 'active' : ''}}" data-type="RETURN_ORDER" bindtap="switchType">退货单 <text class="tab-count">{{returnCount}}</text></view>
+  </view>
+
+  <view class="format-tip">
+    <view class="tip-dot"></view>
+    <view>上传 JSON 模板定义单据列和空白行；创建时会自动带入合同产品，并允许提交前修改。</view>
+  </view>
+
+  <view class="loading" wx:if="{{loading && templates.length === 0}}">加载中...</view>
+  <view class="empty" wx:elif="{{templates.length === 0}}">
+    <image src="/images/icons/template.svg" mode="aspectFit"/>
+    <view class="empty-title">{{emptyText}}</view>
+    <view class="empty-desc">点击上方对应按钮上传模板</view>
+  </view>
+
+  <view class="template-list" wx:else>
+    <view class="template-card" wx:for="{{templates}}" wx:key="id">
+      <view class="template-icon">{{activeType === 'RETURN_ORDER' ? '退' : '销'}}</view>
+      <view class="template-copy">
+        <view class="template-name">{{item.name}}</view>
+        <view class="template-meta">{{item.sourceText}}<text wx:if="{{item.dateText}}"> · {{item.dateText}}</text></view>
+      </view>
+      <view class="template-tag">{{item.typeLabel}}</view>
+      <view class="template-delete" data-template="{{item}}" bindtap="deleteTemplate">删除</view>
+    </view>
+  </view>
+
+  <view class="page-end">生成单据时可选择合同默认模板或企业模板</view>
+</view>

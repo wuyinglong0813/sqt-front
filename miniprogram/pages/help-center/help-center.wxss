@@ -1,0 +1,35 @@
+page { background: #f6f8fb; }
+.help-page { box-sizing: border-box; min-height: 100vh; padding: 26rpx 26rpx calc(50rpx + env(safe-area-inset-bottom)); }
+.help-hero { background: linear-gradient(137deg, #2387e6 0%, #3da3f7 61%, #75c3ff 100%); border-radius: 31rpx; box-shadow: 0 16rpx 40rpx rgba(36, 126, 211, .17); color: #fff; padding: 34rpx; }
+.hero-label { color: rgba(255,255,255,.75); font-size: 21rpx; }
+.hero-title { font-size: 36rpx; font-weight: 700; margin-top: 13rpx; }
+.hero-desc { color: rgba(255,255,255,.78); font-size: 23rpx; margin-top: 10rpx; }
+.quick-grid { display: grid; gap: 15rpx; grid-template-columns: repeat(3, 1fr); margin-top: 21rpx; }
+.quick-card { background: #fff; border: 1rpx solid #e5ebf2; border-radius: 23rpx; padding: 20rpx 15rpx; text-align: center; }
+.quick-icon { align-items: center; background: #eaf5ff; border-radius: 18rpx; color: #2689e7; display: flex; font-size: 24rpx; font-weight: 700; height: 58rpx; justify-content: center; margin: 0 auto; width: 58rpx; }
+.quick-icon.purple { background: #f1edff; color: #7457d9; }
+.quick-icon.green { background: #eaf8f3; color: #269775; }
+.quick-title { color: #26374a; font-size: 24rpx; font-weight: 600; margin-top: 13rpx; }
+.quick-desc { color: #9ba5b1; font-size: 18rpx; margin-top: 5rpx; white-space: nowrap; }
+.section-head { align-items: flex-end; display: flex; justify-content: space-between; margin: 32rpx 7rpx 14rpx; }
+.section-title { color: #1b2b3e; font-size: 30rpx; font-weight: 700; }
+.section-desc { color: #9aa4af; font-size: 20rpx; }
+.category-scroll { margin-bottom: 17rpx; white-space: nowrap; width: 100%; }
+.category-list { display: inline-flex; gap: 12rpx; padding-right: 25rpx; }
+.category-pill { background: #fff; border: 1rpx solid #e1e8f0; border-radius: 28rpx; color: #708094; font-size: 22rpx; padding: 12rpx 22rpx; }
+.category-pill.active { background: #eaf5ff; border-color: #b9dcfb; color: #2689e7; font-weight: 600; }
+.faq-list { display: flex; flex-direction: column; gap: 14rpx; }
+.faq-card { background: #fff; border: 1rpx solid #e5ebf2; border-radius: 22rpx; overflow: hidden; padding: 22rpx 23rpx; }
+.faq-card.open { border-color: #cfe5f8; box-shadow: 0 8rpx 24rpx rgba(38, 137, 231, .055); }
+.faq-question { align-items: center; display: flex; min-width: 0; }
+.faq-category { background: #eef6fe; border-radius: 13rpx; color: #4389c9; flex-shrink: 0; font-size: 18rpx; margin-right: 13rpx; padding: 5rpx 9rpx; }
+.faq-title { color: #26374a; flex: 1; font-size: 25rpx; font-weight: 600; min-width: 0; }
+.faq-toggle { color: #99a5b2; flex-shrink: 0; font-size: 34rpx; margin-left: 12rpx; }
+.faq-answer { border-top: 1rpx solid #edf2f6; color: #68778a; font-size: 23rpx; line-height: 1.75; margin-top: 19rpx; padding-top: 18rpx; }
+.support-card { background: linear-gradient(145deg, #fff 0%, #f8fbff 100%); border: 1rpx solid #dfeaf4; border-radius: 28rpx; margin-top: 25rpx; padding: 29rpx; text-align: center; }
+.support-icon { font-size: 44rpx; }
+.support-title { color: #203247; font-size: 29rpx; font-weight: 700; margin-top: 10rpx; }
+.support-desc { color: #7f8d9d; font-size: 22rpx; line-height: 1.65; margin: 10rpx auto 0; max-width: 560rpx; }
+.support-button { background: linear-gradient(135deg, #45a8ff, #2478df); border: 0; border-radius: 46rpx; color: #fff; font-size: 27rpx; font-weight: 600; height: 86rpx; line-height: 86rpx; margin-top: 21rpx; }
+.support-button::after { border: 0; }
+.support-tip { color: #a0a9b4; font-size: 19rpx; line-height: 1.55; margin-top: 15rpx; }

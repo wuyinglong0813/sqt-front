@@ -1,0 +1,58 @@
+<view class="page">
+  <view class="hero">
+    <view class="hero-label">企业库存台账</view>
+    <view class="hero-title">库存管理</view>
+    <view class="hero-sub">支持手动入库，也可通过销售单接收入库</view>
+    <view class="metrics">
+      <view><text>{{overview.warehouseCount}}</text><label>仓库</label></view>
+      <view><text>{{overview.productCount}}</text><label>库存商品</label></view>
+    </view>
+  </view>
+
+  <view class="section-head"><view><view class="section-title">仓库</view><view class="section-sub">入库时需要选择一个启用仓库</view></view><button bindtap="openCreate">＋ 新建仓库</button></view>
+  <scroll-view class="warehouse-scroll" scroll-x wx:if="{{warehouses.length > 0}}">
+    <view class="warehouse-row">
+      <view class="warehouse-card" wx:for="{{warehouses}}" wx:key="id"><view class="warehouse-icon">仓</view><view class="warehouse-name">{{item.name}}</view><view class="warehouse-address">{{item.address || '未填写地址'}}</view></view>
+    </view>
+  </scroll-view>
+  <view class="empty-inline" wx:if="{{!loading && warehouses.length === 0}}">暂无仓库，先创建仓库后才能直接入库</view>
+
+  <view class="section-head inventory-head"><view><view class="section-title">库存余额</view><view class="section-sub">按仓库、商品、规格汇总</view></view><button wx:if="{{overview.canManualInbound}}" bindtap="openInbound">＋ 手动入库</button></view>
+  <view class="balance-list" wx:if="{{overview.balances.length > 0}}">
+    <view class="balance-card" wx:for="{{overview.balances}}" wx:key="id">
+      <view class="balance-head">
+        <view class="balance-main"><view class="product-name">{{item.productName}}</view><view class="product-meta">{{item.specification || '无规格'}} · {{item.warehouseName}}</view></view>
+        <view class="quantity"><text>{{item.quantity}}</text><label>{{item.baseUnit}}</label></view>
+      </view>
+      <view class="price-row">
+        <view><label>库存单价</label><text>¥{{item.unitPriceText}} / {{item.baseUnit}}</text></view>
+        <view><label>库存金额</label><text>¥{{item.inventoryAmountText}}</text></view>
+      </view>
+    </view>
+  </view>
+  <view class="empty" wx:if="{{!loading && overview.balances.length === 0}}"><image src="/images/icons/inventory.svg" mode="aspectFit"/><view>暂无库存</view><text>点击“手动入库”添加库存，或从销售单接收入库</text></view>
+  <view class="loading" wx:if="{{loading}}">库存加载中...</view>
+
+  <view class="mask" wx:if="{{showCreate}}" bindtap="closeCreate">
+    <view class="sheet" catchtap="noop">
+      <view class="sheet-title">新建仓库</view>
+      <view class="field-label">仓库名称</view><input value="{{warehouseName}}" data-field="warehouseName" bindinput="onWarehouseInput" placeholder="例如：一号成品仓"/>
+      <view class="field-label">仓库地址（选填）</view><input value="{{warehouseAddress}}" data-field="warehouseAddress" bindinput="onWarehouseInput" placeholder="请输入详细地址"/>
+      <button loading="{{creating}}" disabled="{{creating}}" bindtap="createWarehouse">创建仓库</button>
+    </view>
+  </view>
+  <view class="mask" wx:if="{{showInbound}}" bindtap="closeInbound">
+    <scroll-view scroll-y class="sheet inbound-sheet" catchtap="noop">
+      <view class="sheet-title">手动入库</view>
+      <view class="field-label">入库仓库</view>
+      <picker range="{{warehouses}}" range-key="name" value="{{warehouseIndex}}" bindchange="selectInboundWarehouse"><view class="warehouse-picker">{{warehouses[warehouseIndex].name}} ⌄</view></picker>
+      <view class="field-label">商品名称</view><input type="text" value="{{inbound.productName}}" data-field="productName" bindinput="onInboundInput" placeholder="商品名称" maxlength="500"/>
+      <view class="field-label">规格（选填）</view><input type="text" value="{{inbound.specification}}" data-field="specification" bindinput="onInboundInput" placeholder="规格（选填）" maxlength="500"/>
+      <view class="field-label">单位，如件、吨</view><input type="text" value="{{inbound.baseUnit}}" data-field="baseUnit" bindinput="onInboundInput" placeholder="单位，如件、吨" maxlength="500"/>
+      <view class="field-label">入库数量</view><input type="digit" value="{{inbound.quantity}}" data-field="quantity" bindinput="onInboundInput" placeholder="入库数量" maxlength="500"/>
+      <view class="field-label">入库单价（元，可填 0）</view><input type="digit" value="{{inbound.unitPrice}}" data-field="unitPrice" bindinput="onInboundInput" placeholder="入库单价（元，可填 0）" maxlength="500"/>
+      <view class="field-label">入库备注（选填）</view><input type="text" value="{{inbound.remark}}" data-field="remark" bindinput="onInboundInput" placeholder="入库备注（选填）" maxlength="500"/>
+      <button loading="{{savingInbound}}" disabled="{{savingInbound}}" bindtap="saveInbound">确认入库</button>
+    </scroll-view>
+  </view>
+</view>

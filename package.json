@@ -1,0 +1,10 @@
+{
+  "name": "sqt-front",
+  "private": true,
+  "scripts": {
+    "test": "node miniprogram/tests/run-tests.js && node --test miniprogram/tests/*.test.js && node miniprogram/tests/legal-representative-tests.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

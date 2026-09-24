@@ -1,0 +1,66 @@
+<view class="page">
+  <block wx:if="{{hasCompany}}">
+    <view class="cert-banner">
+      <view class="cert-banner-circle cert-c-lg"></view>
+      <view class="cert-banner-circle cert-c-md"></view>
+      <view class="cert-company-name">{{companyName || '企业信息'}}</view>
+      <view class="cert-badge">{{identity ? identity.statusText : '正在加载'}}</view>
+      <view class="cert-legal">统一社会信用代码：{{creditCode || '—'}}</view>
+    </view>
+
+    <view class="cert-card">
+      <view class="section-title">认证与签章</view>
+      <view class="cert-step-desc" wx:if="{{identity && identity.failureReason}}">{{identity.failureReason}}</view>
+      <view class="cert-step-desc" wx:if="{{identity && identity.sealSyncWarning}}">{{identity.sealSyncWarning}}</view>
+      <view class="cert-row" wx:for="{{actions}}" wx:key="key" data-key="{{item.key}}" bindtap="handleAction">
+        <view class="cert-row-left">
+          <view class="cert-step-num {{item.done ? 'done' : ''}}">{{item.done ? '✓' : index + 1}}</view>
+          <view class="cert-step-info">
+            <view class="cert-step-title">{{item.title}}</view>
+            <view class="cert-step-desc">{{item.desc}}</view>
+          </view>
+        </view>
+        <view class="cert-status" style="color:{{item.statusColor}}">{{item.statusText}}</view>
+        <view class="arrow">›</view>
+      </view>
+    </view>
+
+    <view class="btn-wrap">
+      <button class="submit-btn" loading="{{loading}}" disabled="{{loading}}" bindtap="refreshStatus">刷新状态</button>
+    </view>
+  </block>
+
+  <view class="agree-page" wx:else>
+    <view class="agree-card">
+      <view class="agree-title">企业信息确认</view>
+      <view class="cert-step-desc">法人本人或授权经办人均可申请。认证通过后，系统根据核验结果分配法人或管理员身份。</view>
+      <view class="agree-row">
+        <view class="agree-key">企业/个体工商户名称</view>
+        <view class="agree-val">{{companyName}}</view>
+      </view>
+      <view class="agree-row">
+        <view class="agree-key">统一社会信用代码/工商注册号</view>
+        <view class="agree-val">{{creditCode}}</view>
+      </view>
+      <view class="agree-row">
+        <view class="agree-key">法定代表人/负责人姓名</view>
+        <view class="agree-val">{{legalPersonName}}</view>
+      </view>
+    </view>
+
+    <view class="agree-bottom">
+      <view class="agree-check-row" bindtap="toggleAgree">
+        <view class="agree-checkbox {{agreed ? 'checked' : ''}}">{{agreed ? '✓' : ''}}</view>
+        <text class="agree-text">我已阅读并同意</text>
+        <text class="agree-link" catchtap="openAgreement" data-type="service">《商签通服务协议》</text>
+        <text class="agree-text">和</text>
+        <text class="agree-link" catchtap="openAgreement" data-type="privacy">《隐私协议》</text>
+      </view>
+      <button class="agree-btn" loading="{{submitting}}" disabled="{{submitting}}" bindtap="createAndAuthenticate">同意并开始认证</button>
+      <view class="agree-footer">
+        <image class="agree-footer-icon" src="/images/logo.png" mode="aspectFit"/>
+        <text class="agree-footer-text">商签通提供技术支持</text>
+      </view>
+    </view>
+  </view>
+</view>

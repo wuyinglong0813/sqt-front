@@ -1,0 +1,151 @@
+<view class="page">
+  <view class="loading" wx:if="{{loading && !detail}}">加载单据中...</view>
+  <block wx:if="{{detail}}">
+    <view class="hero">
+      <view class="hero-label">{{detail.title}}</view>
+      <view class="hero-no">{{documentNo}}</view>
+      <view class="hero-row"><view>{{detail.companyName}} → {{detail.counterpartyName}}</view><view class="status {{detail.status === 'DRAFT' ? 'draft' : (detail.status === 'REJECTED' ? 'rejected' : '')}}">{{detail.statusText}}</view></view>
+    </view>
+
+    <view class="memo-summary {{detail.contractReadOnly ? 'readonly' : ''}}" bindtap="openMemoEditor">
+      <view class="memo-summary-icon">记</view>
+      <view class="memo-summary-body">
+        <view class="memo-summary-head"><text>我的进展</text><text wx:if="{{memoUpdatedAt}}">{{memoUpdatedAt}}</text></view>
+        <view class="memo-summary-text {{memo ? '' : 'empty'}}">{{memoPreview}}</view>
+        <view class="memo-summary-private">{{detail.contractReadOnly ? '合同当前只读，不可修改' : '仅当前账号可见'}}</view>
+      </view>
+      <view class="memo-summary-arrow">›</view>
+    </view>
+
+    <view class="draft-notice" wx:if="{{detail.status === 'DRAFT' || detail.status === 'REJECTED'}}">
+      <view class="draft-notice-title">{{detail.status === 'REJECTED' ? documentLabel + '已被驳回' : '这是' + documentLabel + '草稿'}}</view>
+      <view class="reject-reason" wx:if="{{detail.status === 'REJECTED'}}">驳回原因：{{detail.rejectedReason}}</view>
+      <view wx:elif="{{detail.contractStatus === 'PENDING'}}">合同尚待对方确认，当前只有制单方可见；合同生效后才能提交。</view>
+      <view wx:elif="{{detail.contractStatus === 'ACTIVE'}}">合同已生效，可以继续编辑或提交给对方确认。</view>
+      <view wx:else>合同当前未生效，此草稿不能编辑或发布。</view>
+      <view class="draft-actions">
+        <button wx:if="{{detail.canEditDraft}}" class="secondary" bindtap="openDraftEditor">编辑草稿</button>
+        <button wx:if="{{detail.canPublish}}" class="primary" loading="{{publishing}}" disabled="{{publishing}}" bindtap="publishDraft">提交给对方确认</button>
+        <button wx:if="{{detail.canDeleteDraft}}" class="danger" loading="{{deleting}}" disabled="{{deleting}}" bindtap="deleteDraft">删除{{detail.status === 'REJECTED' ? '已驳回单据' : '草稿'}}</button>
+      </view>
+    </view>
+
+    <view class="action-notice" wx:if="{{activeAction}}">
+      <view class="action-notice-title">{{documentLabel}}作废申请待处理</view>
+      <view>原因：{{activeAction.reason}}</view>
+      <view class="draft-actions" wx:if="{{activeAction.canReview}}">
+        <button class="secondary" data-decision="REJECT" bindtap="reviewDocumentVoid">拒绝</button>
+        <button class="danger" data-decision="APPROVE" bindtap="reviewDocumentVoid">确认作废</button>
+      </view>
+      <view class="draft-actions" wx:if="{{activeAction.canCancel}}"><button class="secondary" bindtap="cancelDocumentVoid">撤回申请</button></view>
+    </view>
+
+    <view class="draft-actions standalone" wx:if="{{detail.canWithdraw || detail.canRequestVoid}}">
+      <button wx:if="{{detail.canWithdraw}}" class="secondary" loading="{{actionLoading}}" bindtap="withdrawDocument">撤回待确认单据</button>
+      <button wx:if="{{detail.canRequestVoid}}" class="danger" loading="{{actionLoading}}" bindtap="requestDocumentVoid">申请作废</button>
+    </view>
+
+    <view class="card summary-card">
+      <view class="summary-row"><text>关联合同</text><view>{{detail.contractNo}}</view></view>
+      <view class="summary-row"><text>单据日期</text><view>{{detail.date}}</view></view>
+      <view class="summary-row"><text>制单人</text><view>{{detail.preparedByName}}</view></view>
+      <view class="summary-row"><text>合计金额</text><view class="amount">¥{{detail.totalAmount}}</view></view>
+      <view class="pdf-actions"><button bindtap="viewPdf">查看 PDF</button><button bindtap="downloadPdf">下载 PDF</button></view>
+    </view>
+
+    <view class="card">
+      <view class="section-title">商品明细</view>
+      <scroll-view class="table-scroll" scroll-x>
+        <view class="table">
+          <view class="table-row header"><view>项目</view><view>规格</view><view>单位</view><view>数量</view><view>单价</view><view>金额</view><view>备注</view></view>
+          <view class="table-row {{item.lineType === 'FEE' ? 'fee-row' : ''}}" wx:for="{{items}}" wx:key="id"><view>{{item.productName}}</view><view>{{item.specification || '—'}}</view><view>{{item.baseUnit}}</view><view>{{item.quantity}}</view><view>{{item.unitPrice}}</view><view>{{item.amount}}</view><view>{{item.remark || '—'}}</view></view>
+        </view>
+      </scroll-view>
+    </view>
+
+    <view class="receive-card" wx:if="{{detail.canReceive || detail.canInbound || detail.canReject}}">
+      <view class="receive-title">{{documentLabel}}确认</view>
+      <view class="receive-tip">首次通过需要当前用户手写签名；通过后{{isReturnOrder ? '退货方库存减少、供方库存增加，并以负数冲减双方对账' : '正式进入双方对账'}}。</view>
+      <view class="receive-actions">
+        <button wx:if="{{detail.canReject}}" class="secondary" loading="{{receiving}}" disabled="{{receiving}}" bindtap="rejectSalesOrder">驳回</button>
+        <button wx:if="{{detail.canReceive}}" class="secondary" loading="{{receiving}}" disabled="{{receiving}}" bindtap="receiveOnly">通过，暂不入库</button>
+        <button wx:if="{{detail.canInbound}}" class="primary" loading="{{receiving}}" disabled="{{receiving}}" bindtap="chooseWarehouse">通过并入库</button>
+      </view>
+    </view>
+    <view class="done-tip" wx:if="{{detail.status === 'ACKNOWLEDGED'}}">该{{documentLabel}}已通过并更新对账，{{detail.canInbound ? '可选择仓库完成入库' : '等待合同供方完成入库'}}</view>
+    <view class="done-tip" wx:if="{{detail.status === 'INBOUNDED'}}">该{{documentLabel}}已通过、更新对账并完成入库</view>
+    <view class="done-tip voided" wx:if="{{detail.status === 'VOIDED'}}">该{{documentLabel}}已作废，原记录仅供查看</view>
+  </block>
+
+  <view class="memo-mask" wx:if="{{showMemoEditor}}" bindtap="closeMemoEditor">
+    <view class="memo-sheet" catchtap="noop">
+      <view class="memo-sheet-handle"></view>
+      <view class="memo-head"><view><view class="section-title">我的{{documentLabel}}进展</view><view class="memo-tip">仅当前账号可见，不与同事或对方共享</view></view><view class="memo-close" bindtap="closeMemoEditor">×</view></view>
+      <textarea value="{{memoDraft}}" maxlength="4000" bindinput="onMemoInput" placeholder="记录接收、入库或后续处理进展…" focus="{{showMemoEditor}}"/>
+      <view class="memo-sheet-meta"><text>{{memoDraft.length}} / 4000</text><text wx:if="{{memoUpdatedAt}}">上次保存 {{memoUpdatedAt}}</text></view>
+      <button class="memo-save" loading="{{memoSaving}}" disabled="{{memoSaving}}" bindtap="saveMemo">保存我的进展</button>
+    </view>
+  </view>
+
+  <view class="signature-mask" wx:if="{{showSignatureEditor}}" bindtap="closeSignatureEditor">
+    <view class="signature-sheet" catchtap="noop">
+      <view class="signature-handle"></view>
+      <view class="signature-head">
+        <view><view class="signature-title">请手写签名</view><view class="signature-signer">签署人：{{signatureSignerName}}</view></view>
+        <view class="signature-close" bindtap="closeSignatureEditor">×</view>
+      </view>
+      <view class="signature-canvas-wrap">
+        <canvas
+          type="2d"
+          id="salesOrderSignatureCanvas"
+          class="signature-canvas"
+          disable-scroll="true"
+          bindtouchstart="onSignatureTouchStart"
+          catchtouchmove="onSignatureTouchMove"
+          bindtouchend="onSignatureTouchEnd"
+          bindtouchcancel="onSignatureTouchEnd"
+        ></canvas>
+        <view class="signature-placeholder">请在此区域签名</view>
+      </view>
+      <view class="signature-notice">签名会自动填写到{{documentLabel}} PDF 的“客户确认”位置</view>
+      <view class="signature-actions">
+        <button class="signature-clear" disabled="{{receiving}}" bindtap="clearSignature">清除重签</button>
+        <button class="signature-confirm" loading="{{receiving}}" disabled="{{receiving}}" bindtap="confirmSignature">{{signatureActionText}}</button>
+      </view>
+    </view>
+  </view>
+
+  <view class="draft-editor-page" wx:if="{{showDraftEditor}}">
+    <view class="draft-editor-header"><view bindtap="closeDraftEditor">取消</view><text>编辑{{documentLabel}}草稿</text><view class="placeholder">取消</view></view>
+    <scroll-view class="draft-editor-body" scroll-y>
+      <view class="card edit-card">
+        <view class="edit-label">{{documentLabel}}名称</view>
+        <input value="{{draftTitle}}" data-field="draftTitle" bindinput="onDraftFieldInput" placeholder="请输入单据名称"/>
+      </view>
+      <view class="card edit-card">
+        <view class="section-title">单据信息</view>
+        <view class="edit-row"><text>制单企业</text><input value="{{draftCompanyName}}" data-field="draftCompanyName" bindinput="onDraftFieldInput"/></view>
+        <view class="edit-row"><text>往来单位</text><input value="{{draftCounterpartyName}}" data-field="draftCounterpartyName" bindinput="onDraftFieldInput"/></view>
+        <view class="edit-row"><text>关联合同</text><input value="{{draftContractNo}}" data-field="draftContractNo" bindinput="onDraftFieldInput"/></view>
+        <view class="edit-row"><text>单据日期</text><picker mode="date" value="{{draftDate}}" bindchange="onDraftDateChange"><view>{{draftDate || '请选择日期'}}</view></picker></view>
+      </view>
+      <view class="card edit-card">
+        <view class="section-title">商品明细</view>
+        <view class="edit-hint">左右滑动可编辑全部列</view>
+        <scroll-view class="draft-table-scroll" scroll-x>
+          <view class="draft-table" style="width: {{draftColumns.length * 190 + 78}}rpx;">
+            <view class="draft-table-row header"><view wx:for="{{draftColumns}}" wx:key="*this">{{item}}</view><view class="action"></view></view>
+            <view class="draft-table-row {{draftRowTypes[rowIndex] === 'FEE' ? 'fee-row' : ''}}" wx:for="{{draftRows}}" wx:for-item="row" wx:for-index="rowIndex" wx:key="rowIndex">
+              <view wx:for="{{draftColumns}}" wx:for-item="column" wx:for-index="columnIndex" wx:key="*this"><input value="{{row[columnIndex]}}" data-row="{{rowIndex}}" data-col="{{columnIndex}}" bindinput="onDraftCellInput"/></view>
+              <view class="action"><text data-index="{{rowIndex}}" bindtap="deleteDraftRow">×</text></view>
+            </view>
+          </view>
+        </scroll-view>
+        <view class="add-row" bindtap="addDraftRow">＋ 添加商品行</view>
+        <view class="draft-total">合计：<text>¥{{draftTotalAmount}}</text></view>
+      </view>
+      <view class="draft-editor-safe"></view>
+    </scroll-view>
+    <view class="draft-editor-footer"><button loading="{{draftSaving}}" disabled="{{draftSaving}}" bindtap="saveDraft">保存草稿</button></view>
+  </view>
+</view>

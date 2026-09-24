@@ -1,0 +1,181 @@
+<view class="member-page">
+  <view class="org-hero">
+    <image class="hero-watermark" src="/images/icons/team.svg" mode="aspectFit"/>
+    <view class="hero-top">
+      <view>
+        <view class="hero-eyebrow">ORGANIZATION</view>
+        <view class="hero-title">组织成员</view>
+      </view>
+      <button class="invite-btn" wx:if="{{inviteCode && !preparingInvite}}" open-type="share" data-invite-type="member">
+        <text class="invite-plus">＋</text> 邀请成员
+      </button>
+      <button class="invite-btn" wx:else loading="{{preparingInvite}}" disabled="{{preparingInvite}}" bindtap="shareInvite">
+        {{preparingInvite ? '准备邀请中' : '重试准备邀请'}}
+      </button>
+    </view>
+    <view class="company-identity">
+      <view class="company-avatar">{{companyAbbr}}</view>
+      <view class="company-copy">
+        <view class="company-name">{{companyName}}</view>
+        <view class="company-status"><text class="online-dot"></text>组织通讯录正常运行</view>
+      </view>
+    </view>
+  </view>
+
+  <view class="member-overview">
+    <view class="overview-item primary-overview">
+      <view class="overview-number">{{memberStats.total}}</view>
+      <view class="overview-label">成员总数</view>
+    </view>
+    <view class="overview-divider"></view>
+    <view class="overview-item">
+      <view class="overview-number active-number">{{memberStats.active}}</view>
+      <view class="overview-label"><text class="mini-dot active"></text>正常</view>
+    </view>
+    <view class="overview-divider"></view>
+    <view class="overview-item">
+      <view class="overview-number pending-number">{{memberStats.pending}}</view>
+      <view class="overview-label"><text class="mini-dot pending"></text>待审批</view>
+    </view>
+    <view class="overview-divider"></view>
+    <view class="overview-item">
+      <view class="overview-number">{{memberStats.managers}}</view>
+      <view class="overview-label">管理角色</view>
+    </view>
+  </view>
+
+  <view class="member-content">
+    <view class="search-shell">
+      <search-bar placeholder="搜索姓名、手机号或角色" value="{{keyword}}" bind:input="onSearch"/>
+    </view>
+
+    <scroll-view class="status-scroll" scroll-x enhanced show-scrollbar="{{false}}">
+      <view class="status-filters">
+        <view
+          class="status-filter {{activeStatusFilter === item.key ? 'selected' : ''}}"
+          wx:for="{{statusFilters}}"
+          wx:key="key"
+          data-key="{{item.key}}"
+          bindtap="onStatusFilterTap">
+          {{item.label}} <text>{{item.count}}</text>
+        </view>
+      </view>
+    </scroll-view>
+
+    <view class="list-heading">
+      <view>
+        <view class="list-title">{{activeStatusFilter === 'PENDING' ? '待审批成员' : '成员列表'}}</view>
+        <view class="list-desc">成员身份、角色与状态统一管理</view>
+      </view>
+      <view class="manage-roles" bindtap="manageRoles">角色与权限 ›</view>
+    </view>
+
+    <view class="member-skeleton" wx:if="{{loading && authorizations.length === 0}}">
+      <view class="skeleton-avatar"></view>
+      <view class="skeleton-copy"><view class="skeleton-line wide"></view><view class="skeleton-line"></view></view>
+    </view>
+
+    <view class="empty-wrap" wx:elif="{{filtered.length === 0}}">
+      <empty-state image-src="/images/logo.png" text="{{keyword ? '没有匹配的成员' : (activeStatusFilter === 'PENDING' ? '暂无待审批成员' : '暂无成员，邀请同事加入组织')}}"/>
+    </view>
+
+    <view
+      class="member-card {{item.status === 'PENDING' ? 'pending-card' : ''}}"
+      wx:for="{{filtered}}"
+      wx:key="id">
+      <view class="member-main">
+        <view class="member-avatar {{item.avatarTone}}">{{item.avatarText}}</view>
+        <view class="member-copy">
+          <view class="member-title-row">
+            <view class="member-name">{{item.memberName}}</view>
+            <view wx:for="{{item.roles}}" wx:for-item="memberRole" wx:key="code" class="role-chip role-{{memberRole.tone}}">{{memberRole.label}}</view>
+          </view>
+          <view class="member-subline">
+            <text>{{item.maskedPhone}}</text>
+            <text class="sub-divider">·</text>
+            <text class="member-status {{item.status === 'PENDING' ? 'pending' : ''}}">
+              <text class="status-dot"></text>{{item.statusText}}
+            </text>
+          </view>
+        </view>
+        <view class="identity-chip {{item.realNameVerified ? 'identity-verified' : 'identity-unverified'}}">{{item.realNameVerified ? '已实名' : '未实名'}}</view>
+      </view>
+
+      <view class="member-footer" wx:if="{{item.status === 'ACTIVE'}}">
+        <view class="member-permissions">
+          <view class="member-role-action" wx:if="{{item.status === 'ACTIVE' && item.roleCode !== 'LEGAL'}}" data-id="{{item.id}}" data-name="{{item.memberName}}" bindtap="showApproveModal">调整角色与权限 ›</view>
+        </view>
+        <view
+          wx:if="{{item.canRemove}}"
+          class="remove-action"
+          data-id="{{item.id}}"
+          bindtap="revokeAuth">
+          移除
+        </view>
+        <view wx:elif="{{item.roleCode === 'LEGAL'}}" class="owner-mark">主体负责人</view>
+      </view>
+
+      <view class="approval-zone" wx:if="{{item.status === 'PENDING'}}">
+        <view class="approval-copy">
+          <view class="approval-title">申请加入当前组织</view>
+          <view class="approval-desc">通过后需分配一个企业角色</view>
+        </view>
+        <view class="approval-actions">
+          <view
+            class="reject-button"
+            data-id="{{item.id}}"
+            bindtap="rejectMember">
+            拒绝
+          </view>
+          <view
+            class="approve-button"
+            data-id="{{item.id}}"
+            data-name="{{item.memberName}}"
+            bindtap="showApproveModal">
+            同意并分配角色
+          </view>
+        </view>
+      </view>
+    </view>
+
+    <view class="load-more" wx:if="{{loading && authorizations.length > 0}}">正在加载更多成员...</view>
+    <view class="page-end" wx:elif="{{authorizations.length > 0 && !hasMore}}">组织成员已全部加载</view>
+  </view>
+</view>
+
+<view class="modal-mask" wx:if="{{showApproveModal}}" bindtap="hideApproveModal">
+  <view class="role-sheet" catchtap="noop">
+    <view class="sheet-handle"></view>
+    <view class="sheet-heading">
+      <view>
+        <view class="sheet-title">{{editingMember ? '调整角色与权限' : '分配企业角色'}}</view>
+        <view class="sheet-desc">为 {{approveTargetName}} 多选角色，权限自动合并；再次点击可取消</view>
+      </view>
+      <view class="sheet-close" bindtap="hideApproveModal">×</view>
+    </view>
+    <view
+      wx:for="{{approveRoles}}"
+      wx:key="value"
+      class="role-option {{item.selected ? 'role-selected' : ''}}"
+      data-role="{{item.value}}"
+      bindtap="selectRole">
+      <view class="role-option-icon role-{{item.tone}}">{{item.label[0]}}</view>
+      <view class="role-option-copy">
+        <view class="role-option-name">{{item.label}}</view>
+        <view class="role-option-desc">{{item.description}}</view>
+      </view>
+      <view class="role-checkbox {{item.selected ? 'checked' : ''}}">{{item.selected ? '✓' : ''}}</view>
+    </view>
+    <view class="permission-preview" wx:if="{{selectedRoles.length}}">
+      <view class="preview-title">已选 {{selectedRoles.length}} 个角色 · 合并权限</view>
+      <view class="preview-permissions">
+        <text class="permission-tag" wx:for="{{combinedPermissions}}" wx:key="code">{{item.label}}</text>
+        <text wx:if="{{combinedPermissions.length === 0}}" class="sheet-desc">无业务权限</text>
+      </view>
+      <view class="sheet-desc">拥有所选角色的全部权限；取消一个角色后，其他角色共有的权限仍保留。</view>
+    </view>
+    <view class="manage-roles" bindtap="manageRoles">管理所有角色与权限 ›</view>
+    <button class="confirm-role" bindtap="confirmApprove" loading="{{savingRole}}" disabled="{{savingRole || selectedRoles.length === 0}}">{{editingMember ? '保存角色与权限' : '确认通过并分配'}}</button>
+    <view class="sheet-safe-area"></view>
+  </view>
+</view>

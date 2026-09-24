@@ -1,0 +1,7 @@
+{
+  "usingComponents": {
+    "search-bar": "/components/search-bar/search-bar",
+    "empty-state": "/components/empty-state/empty-state"
+  },
+  "navigationBarTitleText": "组织成员"
+}

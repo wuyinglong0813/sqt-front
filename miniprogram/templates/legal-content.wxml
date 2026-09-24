@@ -1,0 +1,116 @@
+<template name="userAgreementContent">
+  <view class="legal-document">
+    <view class="legal-meta">更新日期：2026年9月1日　生效日期：2026年9月1日</view>
+    <view class="legal-lead">欢迎使用商签通。本协议用于说明你使用账号登录、企业管理、合同协同、履约资料和对账服务时的权利与责任。开始使用相关服务前，请认真阅读并理解本协议。</view>
+
+    <view class="legal-section">
+      <view class="legal-section-title">一、账号与使用资格</view>
+      <view class="legal-paragraph">你应使用本人有权使用的微信账号和手机号码注册、登录，并保证提交的信息真实、准确、完整。你应妥善保管账号及登录凭证，不得出租、出借、转让账号或协助他人绕过身份与权限校验。</view>
+    </view>
+    <view class="legal-section">
+      <view class="legal-section-title">二、企业身份与权限</view>
+      <view class="legal-paragraph">当你创建、加入或代表企业操作时，应确保已取得相应授权。法定代表人、管理员及普通成员拥有不同权限；企业成员、角色或授权发生变化时，应及时在商签通中更新。因超越授权范围操作产生的责任，由实际操作人及相关主体依法承担。</view>
+    </view>
+    <view class="legal-section">
+      <view class="legal-section-title">三、服务内容</view>
+      <view class="legal-paragraph">商签通提供企业认证、成员授权、合同创建与签署、销售单、物流单、发票、转款凭证、其它履约资料、审批、库存、项目账套和对账等功能。具体功能以当前页面实际开放内容为准。</view>
+    </view>
+    <view class="legal-section">
+      <view class="legal-section-title">四、合同与电子签服务</view>
+      <view class="legal-paragraph">你应自行确认合同相对方、合同内容、金额、签署权限及履约资料的真实性。实名认证、电子印章和电子签署由具备相关能力的第三方服务商协助完成。签署前请完整审阅文件；完成签署后，相关记录可能作为业务凭证保存。</view>
+    </view>
+    <view class="legal-section">
+      <view class="legal-section-title">五、使用规范</view>
+      <view class="legal-paragraph">不得利用商签通上传或传播违法、侵权、虚假、恶意程序等内容，不得攻击系统、干扰服务、批量抓取数据，或未经授权访问其他用户及企业信息。发现账号或数据异常时，请及时停止相关操作并联系平台支持。</view>
+    </view>
+    <view class="legal-section">
+      <view class="legal-section-title">六、服务变更与中断</view>
+      <view class="legal-paragraph">我们会持续维护和改进服务。因系统升级、网络故障、第三方服务异常、不可抗力或安全风险处置，部分功能可能短暂调整或中断；我们将尽力恢复并在合理范围内降低影响。</view>
+    </view>
+    <view class="legal-section">
+      <view class="legal-section-title">七、信息与内容保护</view>
+      <view class="legal-paragraph">个人信息处理遵循《商签通小程序隐私保护指引》。你保留对合法上传内容依法享有的权利，并授权平台在提供、维护和保护服务所必需的范围内处理相关内容。</view>
+    </view>
+    <view class="legal-section">
+      <view class="legal-section-title">八、协议更新与联系</view>
+      <view class="legal-paragraph">服务范围或规则发生重要变化时，我们会更新本协议并通过页面提示等适当方式告知。若你对协议或服务有疑问，可在“帮助与反馈”中联系平台支持。</view>
+    </view>
+  </view>
+</template>
+
+<template name="collectionListContent">
+  <view class="legal-document">
+    <view class="legal-meta">更新日期：2026年9月1日</view>
+    <view class="legal-lead">以下清单按当前功能说明可能处理的信息、用途和触发场景。只有在你使用对应功能时，才会处理相关信息。</view>
+
+    <view class="info-list-item">
+      <view class="info-list-title">微信用户标识</view>
+      <view class="info-list-line"><text>内容：</text>OpenID 等账号标识</view>
+      <view class="info-list-line"><text>用途：</text>建立并识别商签通账号、维持登录状态</view>
+      <view class="info-list-line"><text>场景：</text>微信登录、重新进入小程序时恢复账号</view>
+    </view>
+    <view class="info-list-item">
+      <view class="info-list-title">手机号码与昵称</view>
+      <view class="info-list-line"><text>内容：</text>授权手机号、主动填写的昵称</view>
+      <view class="info-list-line"><text>用途：</text>账号注册、安全校验和成员识别</view>
+      <view class="info-list-line"><text>场景：</text>手机号快捷登录、个人信息展示</view>
+    </view>
+    <view class="info-list-item">
+      <view class="info-list-title">企业与成员信息</view>
+      <view class="info-list-line"><text>内容：</text>企业名称、统一社会信用代码、法定代表人、成员姓名、手机号、角色和授权状态</view>
+      <view class="info-list-line"><text>用途：</text>企业主体核验、组织管理与权限控制</view>
+      <view class="info-list-line"><text>场景：</text>创建、认证、加入企业或管理成员时</view>
+    </view>
+    <view class="info-list-item">
+      <view class="info-list-title">实名认证与电子签状态</view>
+      <view class="info-list-line"><text>内容：</text>认证结果、认证通过时间、第三方电子签用户标识</view>
+      <view class="info-list-line"><text>用途：</text>确认签署资格、发起电子印章与签署服务</view>
+      <view class="info-list-line"><text>场景：</text>主动进行个人认证、企业认证或合同签署时</view>
+    </view>
+    <view class="info-list-item">
+      <view class="info-list-title">合同及交易协作信息</view>
+      <view class="info-list-line"><text>内容：</text>合作企业、合同、订单、金额、日期、审批、签署、库存、项目账套和对账记录</view>
+      <view class="info-list-line"><text>用途：</text>完成你发起的企业交易协作并形成业务记录</view>
+      <view class="info-list-line"><text>场景：</text>使用合同、履约、库存、账套或对账功能时</view>
+    </view>
+    <view class="info-list-item">
+      <view class="info-list-title">你主动上传的文件</view>
+      <view class="info-list-line"><text>内容：</text>合同、图片、PDF、Word、签名、物流单、发票及其它履约资料</view>
+      <view class="info-list-line"><text>用途：</text>文件预览、下载、签署、审批和归档</view>
+      <view class="info-list-line"><text>场景：</text>选择文件、拍照、签名或上传资料时</view>
+    </view>
+    <view class="info-list-item">
+      <view class="info-list-title">设备本地存储信息</view>
+      <view class="info-list-line"><text>内容：</text>登录会话、当前企业、隐私同意状态和首页数据快照</view>
+      <view class="info-list-line"><text>用途：</text>恢复登录状态、提升页面打开速度</view>
+      <view class="info-list-line"><text>场景：</text>登录及重新进入小程序时</view>
+    </view>
+  </view>
+</template>
+
+<template name="sharingListContent">
+  <view class="legal-document">
+    <view class="legal-meta">更新日期：2026年9月1日</view>
+    <view class="legal-lead">商签通不会出售你的个人信息。为实现必要功能，我们会在最小范围内使用以下平台或服务商能力；未使用对应功能时，不会触发相关处理。</view>
+
+    <view class="provider-card">
+      <view class="provider-head"><view class="provider-name">微信平台</view><view class="provider-tag">登录能力</view></view>
+      <view class="provider-line"><text>处理目的：</text>微信账号识别、手机号快捷登录和小程序运行</view>
+      <view class="provider-line"><text>信息范围：</text>OpenID、手机号动态凭证及微信提供的必要运行信息</view>
+      <view class="provider-line"><text>触发场景：</text>登录、授权手机号或使用微信基础能力时</view>
+    </view>
+    <view class="provider-card">
+      <view class="provider-head"><view class="provider-name">法大大电子签服务</view><view class="provider-tag">认证与签署</view></view>
+      <view class="provider-line"><text>处理目的：</text>个人及企业身份核验、电子印章和合同签署</view>
+      <view class="provider-line"><text>信息范围：</text>认证所需身份信息、电子签用户标识、合同及签署相关信息</view>
+      <view class="provider-line"><text>触发场景：</text>你主动发起认证、开通电子签或签署合同时</view>
+    </view>
+    <view class="provider-card">
+      <view class="provider-head"><view class="provider-name">腾讯云托管与对象存储</view><view class="provider-tag">基础设施</view></view>
+      <view class="provider-line"><text>处理目的：</text>提供服务端运行、数据库及业务文件存储能力</view>
+      <view class="provider-line"><text>信息范围：</text>商签通服务运行所需的账号、企业、业务记录及上传文件</view>
+      <view class="provider-line"><text>触发场景：</text>使用商签通在线服务及文件功能时</view>
+    </view>
+    <view class="legal-note">第三方服务范围发生变化时，我们会及时更新本清单。具体个人信息处理规则同时受相应服务商公开规则约束。</view>
+  </view>
+</template>

@@ -1,0 +1,78 @@
+<view class="page">
+  <view class="header-bar">
+    <view class="h-title">合同模板库</view>
+    <view class="h-desc">通用模板，适用于所有合作公司签订合同时选用</view>
+  </view>
+
+  <!-- 搜索 + 分类 -->
+  <view class="filter-bar">
+    <view class="search-box">
+      <image class="search-icon" src="/images/icons/search.svg" mode="aspectFit"/>
+      <input class="search-input" placeholder="搜索模板名称" value="{{keyword}}" bindinput="onSearchInput" confirm-type="search" bindconfirm="onSearch"/>
+      <view class="search-clear" wx:if="{{keyword}}" bindtap="clearSearch">✕</view>
+    </view>
+    <view class="cat-row">
+      <scroll-view class="cat-tabs" scroll-x enable-flex>
+        <view class="cat-tab {{activeCategory === 'all' ? 'active' : ''}}" data-cat="all" bindtap="filterCategory">全部</view>
+        <view class="cat-tab {{activeCategory === item ? 'active' : ''}}"
+          wx:for="{{categories}}"
+          wx:key="*this"
+          data-cat="{{item}}"
+          bindtap="filterCategory">{{item}}</view>
+      </scroll-view>
+      <view class="cat-mgr-btn" bindtap="showCatManager">管理</view>
+    </view>
+  </view>
+
+  <view class="list">
+    <view class="empty-hint" wx:if="{{templates.length === 0}}">
+      <image class="empty-icon" src="/images/icons/template.svg" mode="aspectFit"/>
+      <view class="empty-text">暂无合同模板</view>
+      <view class="empty-sub">点击右下角 ＋ 创建模板</view>
+    </view>
+
+    <view class="tpl-card"
+      wx:for="{{templates}}"
+      wx:key="id"
+      data-template="{{item}}"
+      bindtap="onTemplateTap">
+      <view class="tpl-top">
+        <image class="tpl-icon" src="/images/icons/template.svg" mode="aspectFit"/>
+        <view class="tpl-info">
+          <view class="tpl-name">{{item.name}}</view>
+          <view class="tpl-meta">{{item.category}}</view>
+        </view>
+        <view class="arrow">›</view>
+      </view>
+      <view class="tpl-footer">
+        <text wx:if="{{item.createdBy}}">{{item.createdBy}} 创建</text>
+        <text wx:else>系统 创建</text>
+        <text class="tpl-divider" wx:if="{{item.updatedAt}}">·</text>
+        <text wx:if="{{item.updatedAt}}">更新于 {{item.updatedAt}}</text>
+      </view>
+    </view>
+  </view>
+
+  <!-- 新增按钮 -->
+  <view class="add-fab" bindtap="showAddForm">＋</view>
+
+  <!-- 分类管理弹窗 -->
+  <view class="mask" wx:if="{{showCatModal}}" bindtap="hideCatModal">
+    <view class="modal" catchtap="noop">
+      <view class="modal-title">管理分类</view>
+      <view class="cat-mgr-list">
+        <view class="cat-mgr-item" wx:for="{{categories}}" wx:key="*this">
+          <view class="cat-mgr-name">{{item}}</view>
+          <view class="cat-mgr-del" data-cat="{{item}}" bindtap="delCategory">✕</view>
+        </view>
+        <view class="cat-mgr-empty" wx:if="{{categories.length === 0}}">暂无分类</view>
+      </view>
+      <view class="cat-add-row">
+        <input class="cat-add-input" placeholder="新分类名称" value="{{newCatName}}" bindinput="onCatNameInput"/>
+        <button class="cat-add-btn" bindtap="addCategory">添加</button>
+      </view>
+      <button class="modal-close-btn" bindtap="hideCatModal">关闭</button>
+    </view>
+  </view>
+
+</view>

@@ -1,0 +1,43 @@
+page { background: #f6f8fb; }
+
+.document-page { box-sizing: border-box; min-height: 100vh; padding: 26rpx 26rpx calc(50rpx + env(safe-area-inset-bottom)); }
+.document-hero {
+  background: linear-gradient(138deg, #268ce9 0%, #3fa4f8 58%, #69b9fa 100%);
+  border-radius: 30rpx;
+  box-shadow: 0 15rpx 36rpx rgba(36, 126, 211, .16);
+  color: #fff;
+  padding: 32rpx;
+}
+.document-kicker { color: rgba(255,255,255,.74); font-size: 21rpx; }
+.document-title { font-size: 36rpx; font-weight: 700; margin-top: 13rpx; }
+.document-subtitle { color: rgba(255,255,255,.78); font-size: 23rpx; line-height: 1.6; margin-top: 10rpx; }
+.document-card {
+  background: #fff;
+  border: 1rpx solid #e5ebf2;
+  border-radius: 28rpx;
+  box-shadow: 0 10rpx 30rpx rgba(25, 53, 86, .045);
+  margin-top: 22rpx;
+  overflow: hidden;
+  padding: 30rpx;
+}
+
+.legal-document { color: #536275; font-size: 25rpx; line-height: 1.85; }
+.legal-meta { color: #98a2af; font-size: 21rpx; margin-bottom: 20rpx; }
+.legal-lead { background: #f3f8fd; border: 1rpx solid #e0ebf6; border-radius: 18rpx; color: #354a61; padding: 22rpx 24rpx; }
+.legal-section { margin-top: 29rpx; }
+.legal-section-title { color: #17283b; font-size: 29rpx; font-weight: 700; margin-bottom: 10rpx; }
+.legal-paragraph { color: #56677b; overflow-wrap: anywhere; text-align: justify; }
+.legal-note { background: #eef7ff; border-radius: 17rpx; color: #2478df; margin-top: 22rpx; padding: 18rpx 21rpx; }
+
+.info-list-item, .provider-card { border: 1rpx solid #e6edf4; border-radius: 20rpx; margin-top: 20rpx; padding: 22rpx; }
+.info-list-title { color: #1d3045; font-size: 28rpx; font-weight: 700; margin-bottom: 11rpx; }
+.info-list-line, .provider-line { color: #627184; font-size: 24rpx; margin-top: 8rpx; overflow-wrap: anywhere; }
+.info-list-line text, .provider-line text { color: #354a61; font-weight: 600; }
+.provider-head { align-items: center; display: flex; justify-content: space-between; margin-bottom: 11rpx; }
+.provider-name { color: #1d3045; font-size: 28rpx; font-weight: 700; }
+.provider-tag { background: #eaf5ff; border-radius: 15rpx; color: #2789e6; font-size: 20rpx; padding: 5rpx 11rpx; }
+
+.document-help { align-items: center; background: #fff; border: 1rpx solid #e5ebf2; border-radius: 24rpx; display: flex; justify-content: space-between; margin-top: 22rpx; padding: 23rpx 27rpx; }
+.help-title { color: #26374a; font-size: 26rpx; font-weight: 600; }
+.help-desc { color: #97a1ae; font-size: 21rpx; margin-top: 5rpx; }
+.help-arrow { color: #afb8c3; font-size: 36rpx; }

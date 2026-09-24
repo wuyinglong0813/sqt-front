@@ -1,0 +1,19 @@
+<import src="../../templates/privacy-content.wxml"/>
+<import src="../../templates/legal-content.wxml"/>
+
+<view class="document-page">
+  <view class="document-hero">
+    <view class="document-kicker">商签通 · 协议与隐私</view>
+    <view class="document-title">{{title}}</view>
+    <view class="document-subtitle">{{subtitle}}</view>
+  </view>
+
+  <view class="document-card">
+    <template is="{{templateName}}"/>
+  </view>
+
+  <view class="document-help" bindtap="openHelp">
+    <view><view class="help-title">对内容有疑问？</view><view class="help-desc">前往帮助中心联系平台支持</view></view>
+    <view class="help-arrow">›</view>
+  </view>
+</view>

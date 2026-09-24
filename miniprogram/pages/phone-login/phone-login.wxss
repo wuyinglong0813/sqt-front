@@ -1,0 +1,143 @@
+page { background: #fff; }
+
+.page {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  padding: 0 56rpx;
+  box-sizing: border-box;
+}
+
+/* ===== 品牌区 ===== */
+.branding {
+  align-items: center;
+  display: flex;
+  flex-direction: column;
+  padding-top: 40rpx;
+  padding-bottom: 48rpx;
+}
+
+.logo {
+  height: 150rpx;
+  width: 150rpx;
+}
+
+.app-name {
+  color: #162336;
+  font-size: 46rpx;
+  font-weight: 700;
+  margin-top: 24rpx;
+}
+
+.app-desc {
+  color: #999;
+  font-size: 24rpx;
+  margin-top: 10rpx;
+}
+
+/* ===== 表单 ===== */
+.input-row {
+  align-items: center;
+  background: #f7f8fa;
+  border-radius: 16rpx;
+  display: flex;
+  height: 100rpx;
+  margin-bottom: 20rpx;
+  padding: 0 28rpx;
+}
+
+.country-code {
+  border-right: 2rpx solid #e5e5e5;
+  color: #333;
+  font-size: 30rpx;
+  font-weight: 500;
+  margin-right: 20rpx;
+  padding-right: 20rpx;
+}
+
+.phone-input,
+.code-input {
+  color: #333;
+  flex: 1;
+  font-size: 30rpx;
+}
+
+.phone-input::placeholder,
+.code-input::placeholder {
+  color: #bbb;
+}
+
+.code-btn {
+  color: #3498ff;
+  flex-shrink: 0;
+  font-size: 26rpx;
+  margin-left: 16rpx;
+  white-space: nowrap;
+}
+
+.code-btn.sending {
+  color: #999;
+}
+
+.btn-submit {
+  align-items: center;
+  background: linear-gradient(90deg, #3498ff, #45a8ff);
+  border: none;
+  border-radius: 48rpx;
+  color: #fff;
+  display: flex;
+  font-size: 32rpx;
+  font-weight: 600;
+  height: 96rpx;
+  justify-content: center;
+  letter-spacing: 2rpx;
+  margin-top: 16rpx;
+  width: 100%;
+}
+
+.btn-submit::after { border: none; }
+
+/* ===== 协议 ===== */
+.agree-row {
+  align-items: center;
+  display: flex;
+  justify-content: center;
+  margin-top: 40rpx;
+}
+
+.agree-check {
+  align-items: center;
+  border: 2rpx solid #d0d0d0;
+  border-radius: 50%;
+  color: #fff;
+  display: flex;
+  flex-shrink: 0;
+  font-size: 20rpx;
+  height: 32rpx;
+  justify-content: center;
+  margin-right: 10rpx;
+  width: 32rpx;
+}
+
+.agree-check.on {
+  background: #3498ff;
+  border-color: #3498ff;
+}
+
+.agree-label {
+  color: #999;
+  font-size: 24rpx;
+  line-height: 1.5;
+}
+
+.agree-link {
+  color: #3498ff;
+}
+
+.agree-hint {
+  color: #bbb;
+  font-size: 22rpx;
+  margin-top: 12rpx;
+  padding-bottom: calc(48rpx + env(safe-area-inset-bottom));
+  text-align: center;
+}

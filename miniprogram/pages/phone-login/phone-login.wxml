@@ -1,0 +1,40 @@
+<view class="page">
+  <!-- 品牌区 -->
+  <view class="branding">
+    <image class="logo" src="/images/logo.png" mode="aspectFit"/>
+    <view class="app-name">商签通</view>
+    <view class="app-desc">安全合规的企业贸易管理平台</view>
+  </view>
+
+  <!-- 手机号 + 验证码表单 -->
+  <view class="form">
+    <view class="input-row">
+      <view class="country-code">+86</view>
+      <input class="phone-input" type="number" placeholder="请输入手机号" value="{{phoneNumber}}" bindinput="onPhoneInput" maxlength="11"/>
+    </view>
+
+    <view class="input-row">
+      <input class="code-input" type="number" placeholder="请输入验证码" value="{{smsCode}}" bindinput="onCodeInput" maxlength="6"/>
+      <view class="code-btn {{codeSending ? 'sending' : ''}}" bindtap="sendSmsCode">
+        {{codeSending ? countdown + 's后重发' : '获取验证码'}}
+      </view>
+    </view>
+
+    <button class="btn-submit" bindtap="onLogin">登录 / 注册</button>
+  </view>
+
+  <!-- 协议 + 提示 -->
+  <view class="agree-row">
+    <view class="agree-check {{agreed ? 'on' : ''}}" bindtap="toggleAgree">
+      <text wx:if="{{agreed}}">✓</text>
+    </view>
+    <view class="agree-label">
+      已阅读并同意
+      <text class="agree-link" catchtap="openUserAgreement">《用户许可使用协议》</text>
+      和
+      <text class="agree-link" catchtap="openPrivacyAgreement">《隐私协议》</text>
+    </view>
+  </view>
+  <view class="agree-hint">未注册的用户将直接创建账号</view>
+
+</view>

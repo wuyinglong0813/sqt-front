@@ -1,0 +1,9 @@
+<view class="about-page">
+  <view class="brand-card">
+    <view class="logo-shell"><image src="/images/logo.png" mode="aspectFit"/></view>
+    <view class="brand-name">商签通</view>
+    <view class="brand-en">TRADEPASS</view>
+    <view class="version-label">当前版本</view>
+    <view class="version-value">{{versionText}}</view>
+  </view>
+</view>

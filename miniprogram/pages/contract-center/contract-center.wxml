@@ -1,0 +1,52 @@
+<view class="contract-page">
+  <view class="contract-hero">
+    <image class="hero-mark" src="/images/brand-logo.svg" mode="aspectFit"/>
+    <view class="hero-label">企业合同资产</view>
+    <view class="hero-amount">¥{{summary.amount}}</view>
+    <view class="hero-summary">
+      <view><view class="summary-value">{{summary.total}}</view><view class="summary-label">全部合同</view></view>
+      <view><view class="summary-value">{{summary.pending}}</view><view class="summary-label">待签署</view></view>
+      <view><view class="summary-value">{{summary.active}}</view><view class="summary-label">履约中</view></view>
+    </view>
+  </view>
+
+  <view class="current-company">
+    <image src="/images/icons/company.svg" mode="aspectFit"/>
+    <view class="current-company-copy"><view class="current-company-name">{{currentCompanyName}}</view><view class="current-company-desc">当前企业的合同台账</view></view>
+    <view class="current-company-badge">当前企业</view>
+  </view>
+
+  <scroll-view class="filter-tabs" scroll-x enable-flex>
+    <view wx:for="{{tabs}}" wx:key="key" class="filter-tab {{activeTab === item.key ? 'active' : ''}}" data-key="{{item.key}}" bindtap="switchTab">{{item.label}}</view>
+  </scroll-view>
+
+  <view class="company-filter" wx:if="{{companyOptions.length > 1}}">
+    <picker mode="selector" range="{{companyOptions}}" range-key="name" value="{{companyIndex}}" bindchange="selectCompany">
+      <view class="company-picker"><view><view class="picker-label">按往来公司筛选</view><view class="picker-value">{{companyOptions[companyIndex].name}}</view></view><view class="picker-arrow">⌄</view></view>
+    </picker>
+  </view>
+
+  <view class="contract-list">
+    <view class="loading" wx:if="{{loading}}">合同台账加载中...</view>
+    <view class="empty" wx:elif="{{contractGroups.length === 0}}">
+      <image src="/images/icons/contracts.svg" mode="aspectFit"/>
+      <view class="empty-title">当前分类暂无合同</view>
+      <view class="empty-desc">从合作企业详情发起第一份合同</view>
+    </view>
+    <view class="company-group" wx:for="{{contractGroups}}" wx:key="companyId" wx:for-item="group">
+      <view class="company-group-head">
+        <view class="company-avatar">{{group.initial}}</view>
+        <view class="company-group-copy"><view class="company-group-name">{{group.companyName}}</view><view class="company-group-count">{{group.items.length}} 份合同</view></view>
+      </view>
+      <view class="contract-item" wx:for="{{group.items}}" wx:key="id" wx:for-item="contract" data-item="{{contract}}" bindtap="openContract">
+        <view class="item-top"><view class="contract-name">{{contract.name}}</view><view class="status status-{{contract.status}}">{{contract.statusText}}</view></view>
+        <view class="counterparty">{{contract.contractNo}}</view>
+        <view class="item-bottom">
+          <view><view class="meta-label">合同金额</view><view class="amount">¥{{contract.amount}}</view></view>
+          <view><view class="meta-label">合同期限</view><view class="meta-value">{{contract.startDate || '—'}} 至 {{contract.endDate || '—'}}</view></view>
+          <view class="arrow">›</view>
+        </view>
+      </view>
+    </view>
+  </view>
+</view>

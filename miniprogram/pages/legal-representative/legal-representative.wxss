@@ -1,0 +1,8 @@
+.page { padding: 28rpx; background: #f4f8fd; min-height: 100vh; box-sizing: border-box; }
+.card { background: white; border-radius: 20rpx; padding: 32rpx; margin-bottom: 24rpx; }
+.title { font-size: 34rpx; font-weight: 600; color: #18344e; margin-bottom: 20rpx; }
+.description, .step { font-size: 28rpx; color: #53657a; line-height: 1.8; }
+.step { margin-top: 20rpx; }
+.notice { margin-top: 28rpx; padding: 20rpx; background: #f0f6ff; border-radius: 12rpx; font-size: 26rpx; color: #526b88; line-height: 1.7; }
+.primary { background: #3498ff; color: white; margin-top: 32rpx; border-radius: 16rpx; }
+.secondary { background: white; color: #3498ff; margin-top: 20rpx; border-radius: 16rpx; }

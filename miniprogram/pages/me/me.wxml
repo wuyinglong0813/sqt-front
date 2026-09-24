@@ -1,0 +1,92 @@
+<view class="me-page">
+  <view class="me-shell guest-me-shell" wx:if="{{!isLoggedIn}}">
+    <view class="profile-hero guest-profile-hero">
+      <image class="profile-watermark" src="/images/brand-logo.svg" mode="aspectFit"/>
+      <view class="profile-main">
+        <image class="guest-profile-logo" src="/images/logo.png" mode="aspectFit"/>
+        <view class="profile-copy"><view class="profile-name">未登录</view><view class="profile-phone">登录后同步企业、合同与业务单据</view></view>
+        <button class="guest-login-button" bindtap="goLogin">登录/注册</button>
+      </view>
+    </view>
+
+    <view class="section-head">
+      <view><view class="section-title">企业身份</view><view class="section-sub">登录后查看当前代表的企业主体</view></view>
+      <view class="section-link" bindtap="goLogin">登录查看 ›</view>
+    </view>
+    <view class="company-summary guest-company-summary" bindtap="goLogin">
+      <view class="company-avatar">企</view>
+      <view class="company-copy"><view class="company-name">暂未登录企业身份</view><view class="company-meta">登录后创建或加入企业工作空间</view></view>
+      <view class="row-arrow">›</view>
+    </view>
+
+    <view class="section-head service-head"><view><view class="section-title">隐私与协议</view><view class="section-sub">个人信息规则与服务条款</view></view></view>
+    <view class="settings-list">
+      <view class="setting-row" bindtap="openLegalDocument" data-type="privacy"><image src="/images/icons/privacy.svg" mode="aspectFit"/><view class="setting-copy"><view class="setting-title">隐私保护指引</view><view class="setting-desc">了解个人信息处理规则</view></view><view class="row-arrow">›</view></view>
+      <view class="setting-row" bindtap="openLegalDocument" data-type="collection"><image src="/images/icons/info-collection.svg" mode="aspectFit"/><view class="setting-copy"><view class="setting-title">个人信息收集清单</view><view class="setting-desc">查看收集内容、用途和场景</view></view><view class="row-arrow">›</view></view>
+      <view class="setting-row" bindtap="openLegalDocument" data-type="sharing"><image src="/images/icons/info-sharing.svg" mode="aspectFit"/><view class="setting-copy"><view class="setting-title">第三方信息共享清单</view><view class="setting-desc">查看受托服务与必要数据范围</view></view><view class="row-arrow">›</view></view>
+      <view class="setting-row" bindtap="openLegalDocument" data-type="user"><image src="/images/icons/agreement.svg" mode="aspectFit"/><view class="setting-copy"><view class="setting-title">用户服务协议</view><view class="setting-desc">服务条款与使用规则</view></view><view class="row-arrow">›</view></view>
+    </view>
+
+    <view class="section-head service-head"><view><view class="section-title">服务与支持</view><view class="section-sub">产品帮助、反馈与版本信息</view></view></view>
+    <view class="settings-list">
+      <view class="setting-row" bindtap="openHelp"><image src="/images/icons/help.svg" mode="aspectFit"/><view class="setting-copy"><view class="setting-title">帮助与反馈</view><view class="setting-desc">常见问题与平台支持</view></view><view class="row-arrow">›</view></view>
+      <view class="setting-row" bindtap="openAbout"><image src="/images/icons/about.svg" mode="aspectFit"/><view class="setting-copy"><view class="setting-title">关于商签通</view><view class="setting-desc">产品能力与版本信息</view></view><view class="row-arrow">›</view></view>
+    </view>
+    <view class="page-end">商签通 · 让每一份凭证可信流转</view>
+  </view>
+
+  <block wx:else>
+    <view class="me-shell">
+      <view class="profile-hero">
+        <image class="profile-watermark" src="/images/brand-logo.svg" mode="aspectFit"/>
+        <view class="profile-main">
+          <view class="profile-avatar">{{userNameFirst}}</view>
+          <view class="profile-copy"><view class="profile-name">{{userDisplayName}}</view><view class="profile-phone">{{maskedPhone}}</view></view>
+          <view class="profile-code" bindtap="showProfileCode"><image src="/images/icons/qr-white.svg" mode="aspectFit"/></view>
+        </view>
+        <view class="profile-badge">{{memberRoleText}} · {{personalIdentityStatusText}}</view>
+      </view>
+
+      <view class="section-head">
+        <view><view class="section-title">当前企业</view><view class="section-sub">当前代表的企业主体与身份</view></view>
+      </view>
+
+      <view class="company-summary" wx:if="{{companies.length > 0}}">
+        <view class="company-avatar">{{companyAbbr}}</view>
+        <view class="company-copy"><view class="company-name">{{company.name}}</view><view class="company-meta">{{memberRoleText}} · 当前企业</view></view>
+        <view class="company-state {{companyVerified ? '' : 'pending'}}">{{companyStatusText}}</view>
+      </view>
+      <view class="company-summary empty-company" wx:else bindtap="goCompanyCenter">
+        <view class="company-avatar">企</view><view class="company-copy"><view class="company-name">{{hasOnboarding ? (onboardingName || onboardingStatus) : '暂未加入企业'}}</view><view class="company-meta">{{hasOnboarding ? onboardingStatus + '，点击继续' : '创建或加入企业后开始业务协作'}}</view></view><view class="row-arrow">›</view>
+      </view>
+
+      <view class="section-head service-head"><view><view class="section-title">账号与身份</view><view class="section-sub">个人信息、认证与账号安全</view></view></view>
+      <view class="settings-list">
+        <view class="setting-row" bindtap="openPersonalInfo"><image src="/images/icons/security.svg" mode="aspectFit"/><view class="setting-copy"><view class="setting-title">账号与个人信息</view><view class="setting-desc">手机号、个人认证与身份状态</view></view><view class="setting-status">{{personalIdentityStatusText}}</view><view class="row-arrow">›</view></view>
+        <view class="setting-row" bindtap="openAccountCancel"><image src="/images/icons/account-cancel.svg" mode="aspectFit"/><view class="setting-copy"><view class="setting-title">账号注销</view><view class="setting-desc">查看注销条件与数据处理说明</view></view><view class="row-arrow">›</view></view>
+      </view>
+
+      <view class="section-head service-head"><view><view class="section-title">隐私与协议</view><view class="section-sub">个人信息规则与服务条款</view></view></view>
+      <view class="settings-list">
+        <view class="setting-row" bindtap="openLegalDocument" data-type="privacy"><image src="/images/icons/privacy.svg" mode="aspectFit"/><view class="setting-copy"><view class="setting-title">隐私保护指引</view><view class="setting-desc">了解个人信息处理规则</view></view><view class="row-arrow">›</view></view>
+        <view class="setting-row" bindtap="openLegalDocument" data-type="collection"><image src="/images/icons/info-collection.svg" mode="aspectFit"/><view class="setting-copy"><view class="setting-title">个人信息收集清单</view><view class="setting-desc">查看收集内容、用途和场景</view></view><view class="row-arrow">›</view></view>
+        <view class="setting-row" bindtap="openLegalDocument" data-type="sharing"><image src="/images/icons/info-sharing.svg" mode="aspectFit"/><view class="setting-copy"><view class="setting-title">第三方信息共享清单</view><view class="setting-desc">查看受托服务与必要数据范围</view></view><view class="row-arrow">›</view></view>
+        <view class="setting-row" bindtap="openLegalDocument" data-type="user"><image src="/images/icons/agreement.svg" mode="aspectFit"/><view class="setting-copy"><view class="setting-title">用户服务协议</view><view class="setting-desc">服务条款与使用规则</view></view><view class="row-arrow">›</view></view>
+      </view>
+
+      <view class="section-head service-head"><view><view class="section-title">服务与支持</view><view class="section-sub">产品帮助、反馈与版本信息</view></view></view>
+      <view class="settings-list">
+        <view class="setting-row" bindtap="openHelp"><image src="/images/icons/help.svg" mode="aspectFit"/><view class="setting-copy"><view class="setting-title">帮助与反馈</view><view class="setting-desc">常见问题与平台支持</view></view><view class="row-arrow">›</view></view>
+        <view class="setting-row" bindtap="openAbout"><image src="/images/icons/about.svg" mode="aspectFit"/><view class="setting-copy"><view class="setting-title">关于商签通</view><view class="setting-desc">产品能力与版本信息</view></view><view class="row-arrow">›</view></view>
+      </view>
+
+      <view class="dev-card" wx:if="{{isDev}}">
+        <view class="dev-head" bindtap="toggleDev"><view><view class="section-title">开发者工具</view><view class="section-sub">仅开发环境显示</view></view><view class="row-arrow">{{devOpen ? '⌄' : '›'}}</view></view>
+        <picker wx:if="{{devOpen}}" mode="selector" range="{{devUsers}}" range-key="label" value="{{devUserIndex}}" bindchange="onSwitchUser"><view class="user-picker">{{devUsers[devUserIndex].label}}⌄</view></picker>
+      </view>
+
+      <view class="logout-button" bindtap="logout">退出登录</view>
+      <view class="page-end">商签通 · 让每一份凭证可信流转</view>
+    </view>
+  </block>
+</view>

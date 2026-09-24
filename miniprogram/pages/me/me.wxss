@@ -1,0 +1,66 @@
+page { background: #f4f8fd; }
+
+.me-page {
+  background:
+    radial-gradient(circle at 104% 3%,rgba(69,168,255,.16) 0,rgba(69,168,255,.16) 110rpx,transparent 260rpx),
+    radial-gradient(circle at -8% 54%,rgba(194,225,255,.34) 0,rgba(194,225,255,.34) 105rpx,transparent 310rpx),
+    linear-gradient(160deg,#f7fbff 0%,#f4f8fd 54%,#edf5ff 100%);
+  min-height: 100vh;
+  padding-bottom: calc(138rpx + env(safe-area-inset-bottom));
+}
+.me-shell { padding: 24rpx; }
+.guest-me-shell { min-height: 100vh; }
+.guest-profile-logo {
+  background: rgba(255,255,255,.14); border: 1rpx solid rgba(255,255,255,.22); border-radius: 50%;
+  flex-shrink: 0; height: 98rpx; width: 98rpx;
+}
+.guest-company-summary { cursor: pointer; }
+
+.profile-hero {
+  background:
+    radial-gradient(circle at 92% 2%,rgba(255,255,255,.18) 0,rgba(255,255,255,.18) 92rpx,transparent 220rpx),
+    linear-gradient(138deg,#45a8ff 0%,#3498ff 42%,#2478df 78%,#1557a8 100%);
+  border-radius: 34rpx; box-shadow: 0 20rpx 50rpx rgba(36,120,223,.2); color: #fff;
+  overflow: hidden; padding: 35rpx; position: relative;
+}
+.profile-watermark { height: 258rpx; opacity: .075; position: absolute; right: -54rpx; top: -68rpx; width: 258rpx; }
+.profile-main,.section-head,.company-summary,.setting-row,.dev-head { align-items: center; display: flex; }
+.profile-main { position: relative; }
+.profile-avatar { align-items: center; background: rgba(255,255,255,.16); border: 1rpx solid rgba(255,255,255,.24); border-radius: 50%; display: flex; flex-shrink: 0; font-size: 39rpx; font-weight: 700; height: 98rpx; justify-content: center; width: 98rpx; }
+.profile-copy { flex: 1; margin-left: 20rpx; min-width: 0; }
+.profile-name { font-size: 34rpx; font-weight: 700; }
+.profile-phone { color: rgba(255,255,255,.7); font-size: 22rpx; margin-top: 7rpx; }
+.profile-code { align-items: center; background: rgba(255,255,255,.13); border: 1rpx solid rgba(255,255,255,.18); border-radius: 19rpx; display: flex; height: 68rpx; justify-content: center; width: 68rpx; }
+.profile-code image { height: 47rpx; width: 47rpx; }
+.profile-badge { background: rgba(255,255,255,.14); border: 1rpx solid rgba(255,255,255,.18); border-radius: 20rpx; display: inline-block; font-size: 21rpx; margin-top: 25rpx; padding: 7rpx 14rpx; position: relative; }
+
+.section-head { justify-content: space-between; margin: 34rpx 4rpx 15rpx; }
+.section-title { color: #162336; font-size: 30rpx; font-weight: 700; }
+.section-sub { color: #8e9aaa; font-size: 21rpx; margin-top: 5rpx; }
+.section-link { color: #728198; font-size: 21rpx; }
+.service-head { margin-top: 38rpx; }
+
+.company-summary,.settings-list,.dev-card {
+  background: linear-gradient(145deg,#fff 0%,#fff 55%,#f5f9ff 100%); border: 1rpx solid #dfeaf6;
+  border-radius: 28rpx; box-shadow: 0 12rpx 34rpx rgba(22,49,85,.055);
+}
+.company-summary { gap: 15rpx; min-height: 106rpx; padding: 18rpx 22rpx; }
+.company-avatar { align-items: center; background: #e8f3ff; border: 1rpx solid #d6e8fb; border-radius: 21rpx; color: #3498ff; display: flex; flex-shrink: 0; font-size: 24rpx; font-weight: 700; height: 76rpx; justify-content: center; width: 76rpx; }
+.company-copy,.setting-copy { flex: 1; min-width: 0; }
+.company-name,.setting-title { color: #1b2a3c; font-size: 26rpx; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.company-meta,.setting-desc { color: #8e9aaa; font-size: 20rpx; margin-top: 6rpx; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.company-state { background: #e8f3ff; border-radius: 18rpx; color: #3498ff; flex-shrink: 0; font-size: 20rpx; padding: 5rpx 11rpx; }
+.company-state.pending { background: #fff3d6; color: #9a6511; }
+.row-arrow { color: #a9b4c1; flex-shrink: 0; font-size: 36rpx; }
+
+.settings-list { overflow: hidden; }
+.setting-row { border-bottom: 1rpx solid #eaf0f7; gap: 15rpx; min-height: 104rpx; padding: 13rpx 22rpx; }
+.setting-row:last-child { border-bottom: none; }
+.setting-row image { border-radius: 21rpx; flex-shrink: 0; height: 76rpx; width: 76rpx; }
+.setting-status { color: #728198; flex-shrink: 0; font-size: 20rpx; }
+
+.dev-card { margin-top: 24rpx; padding: 24rpx; }
+.dev-head { justify-content: space-between; }
+.user-picker { background: #f2f6fb; border: 1rpx solid #e1eaf5; border-radius: 17rpx; color: #52647a; font-size: 24rpx; margin-top: 20rpx; padding: 18rpx 20rpx; }
+.logout-button { background: rgba(255,255,255,.78); border: 1rpx solid #e7edf4; border-radius: 24rpx; color: #d24f4f; font-size: 26rpx; margin-top: 30rpx; padding: 22rpx; text-align: center; }
+.page-end { color: #98a4b2; font-size: 20rpx; padding: 22rpx 0 8rpx; text-align: center; }

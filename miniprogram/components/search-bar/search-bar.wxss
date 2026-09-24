@@ -1,0 +1,11 @@
+.sb {
+  align-items: center;
+  background: #f3f4f6;
+  border-radius: 36rpx;
+  display: flex;
+  height: 72rpx;
+  padding: 0 24rpx;
+}
+.sb-icon { height: 44rpx; margin-right: 12rpx; width: 44rpx; }
+.sb-input { color: #162336; flex: 1; font-size: 28rpx; }
+.sb-clear { color: #9ca3af; font-size: 26rpx; padding: 0 8rpx; }

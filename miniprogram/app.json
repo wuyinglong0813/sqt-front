@@ -1,0 +1,70 @@
+{
+  "lazyCodeLoading": "requiredComponents",
+  "resizable": true,
+  "pages": [
+    "pages/index/index",
+    "pages/login/login",
+    "pages/phone-login/phone-login",
+    "pages/privacy/privacy",
+    "pages/company/company",
+    "pages/me/me",
+    "pages/legal-document/legal-document",
+    "pages/help-center/help-center",
+    "pages/about/about",
+    "pages/account-cancel/account-cancel",
+    "pages/personal-cert/personal-cert",
+    "pages/fadada-auth/fadada-auth",
+    "pages/service-return/service-return",
+    "pages/company-bind/company-bind",
+    "pages/order-detail/order-detail",
+    "pages/contract-center/contract-center",
+    "pages/contract-preview/contract-preview",
+    "pages/contract-template/contract-template",
+    "pages/contract-template-detail/contract-template-detail",
+    "pages/document-template/document-template",
+    "pages/sales-order-detail/sales-order-detail",
+    "pages/inventory/inventory",
+    "pages/project-ledger/project-ledger",
+    "pages/sign-contract/sign-contract",
+    "pages/reconciliation/reconciliation",
+    "pages/contract-approval/contract-approval",
+    "pages/auth-manage/auth-manage",
+    "pages/company-cert/company-cert",
+    "pages/legal-representative/legal-representative",
+    "pages/role-manage/role-manage"
+  ],
+  "window": {
+    "navigationBarTitleText": "商签通",
+    "navigationBarBackgroundColor": "#3498ff",
+    "navigationBarTextStyle": "white",
+    "backgroundColor": "#f4f8fd",
+    "backgroundTextStyle": "dark"
+  },
+  "tabBar": {
+    "custom": false,
+    "color": "#9aa3a1",
+    "selectedColor": "#3498ff",
+    "backgroundColor": "#ffffff",
+    "borderStyle": "white",
+    "list": [
+      {
+        "pagePath": "pages/index/index",
+        "text": "首页",
+        "iconPath": "images/tab/tab_home.png",
+        "selectedIconPath": "images/tab/tab_home_on.png"
+      },
+      {
+        "pagePath": "pages/company/company",
+        "text": "企业",
+        "iconPath": "images/tab/tab_company.png",
+        "selectedIconPath": "images/tab/tab_company_on.png"
+      },
+      {
+        "pagePath": "pages/me/me",
+        "text": "我的",
+        "iconPath": "images/tab/tab_me.png",
+        "selectedIconPath": "images/tab/tab_me_on.png"
+      }
+    ]
+  }
+}

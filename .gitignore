@@ -1,0 +1,14 @@
+node_modules/
+miniprogram_npm/
+.DS_Store
+.idea/
+*.iml
+project.private.config.json
+.env
+.env.*
+!.env.example
+*.log
+*.pem
+*.key
+*.p12
+*.pfx

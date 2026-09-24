@@ -1,0 +1,59 @@
+<view class="page">
+  <view class="hero {{statusView.tone}}">
+    <view class="hero-mark">
+      <view class="hero-icon" wx:if="{{identity && identity.status === 'VERIFIED'}}">✓</view>
+      <view class="hero-icon" wx:elif="{{identity && identity.status === 'FAILED'}}">!</view>
+      <view class="hero-icon" wx:else>人</view>
+    </view>
+    <view class="hero-copy">
+      <view class="hero-title">{{statusView.title}}</view>
+      <view class="hero-desc">{{statusView.desc}}</view>
+    </view>
+  </view>
+
+  <view class="info-card">
+    <view class="card-title">账号手机号</view>
+    <view class="info-row"><text class="info-label">手机号</text><text class="info-value">{{phoneLoading ? '正在加载' : (maskedPhone || '尚未绑定')}}</text></view>
+    <block wx:if="{{!phoneLoading && !phoneBound}}">
+      <view class="notice-desc" wx:if="{{desktopMode}}">请在手机微信使用同一微信账号打开商签通，进入“我的 → 账号与个人信息”，授权绑定手机号后继续认证。完成后可回到电脑刷新状态。</view>
+      <block wx:else>
+        <view class="notice-desc">个人认证前需要验证手机号，请授权微信提供本人手机号。</view>
+        <button class="primary-button phone-bind-button" open-type="getPhoneNumber" bindgetphonenumber="bindWechatPhone" loading="{{bindingPhone}}" disabled="{{bindingPhone}}">微信授权绑定手机号</button>
+      </block>
+    </block>
+  </view>
+
+  <view class="loading-card" wx:if="{{loading}}">正在加载认证状态...</view>
+
+  <block wx:else>
+    <view class="config-notice" wx:if="{{!providerEnabled}}">
+      <view class="notice-title">认证服务尚未启用</view>
+      <view class="notice-desc">完成后端应用参数和回调地址配置后，即可发起真实认证。</view>
+    </view>
+
+    <view class="info-card">
+      <view class="card-title">认证信息</view>
+      <view class="info-row">
+        <text class="info-label">认证类型</text><text class="info-value">个人实名认证</text>
+      </view>
+      <view class="info-row">
+        <text class="info-label">认证状态</text><text class="status-pill {{statusView.tone}}">{{identity.statusText}}</text>
+      </view>
+      <view class="info-row" wx:if="{{identity.verifiedName}}">
+        <text class="info-label">认证姓名</text><text class="info-value">{{identity.verifiedName}}</text>
+      </view>
+      <view class="info-row" wx:if="{{identity.identMethod}}">
+        <text class="info-label">认证方式</text><text class="info-value">{{identity.identMethod}}</text>
+      </view>
+      <view class="info-row" wx:if="{{identity.verifiedAt}}">
+        <text class="info-label">通过时间</text><text class="info-value minor">{{identity.verifiedAt}}</text>
+      </view>
+      <view class="failure-box" wx:if="{{identity.failureReason}}">{{identity.failureReason}}</view>
+    </view>
+
+    <view class="actions">
+      <button class="primary-button" wx:if="{{statusView.button}}" disabled="{{phoneLoading || !phoneBound}}" bindtap="startAuth">{{statusView.button}}</button>
+      <button class="secondary-button" loading="{{syncing}}" disabled="{{syncing || !providerEnabled}}" bindtap="refreshStatus">刷新认证结果</button>
+    </view>
+  </block>
+</view>

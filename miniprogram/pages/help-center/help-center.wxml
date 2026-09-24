@@ -1,0 +1,35 @@
+<view class="help-page">
+  <view class="help-hero">
+    <view class="hero-label">帮助中心</view>
+    <view class="hero-title">你好，需要什么帮助？</view>
+    <view class="hero-desc">从常见问题开始，或者直接联系平台支持</view>
+  </view>
+
+  <view class="quick-grid">
+    <view class="quick-card" bindtap="goCompany"><view class="quick-icon blue">企</view><view class="quick-title">企业管理</view><view class="quick-desc">认证、成员和角色</view></view>
+    <view class="quick-card" bindtap="goContracts"><view class="quick-icon purple">合</view><view class="quick-title">合同中心</view><view class="quick-desc">合同与履约资料</view></view>
+    <view class="quick-card" bindtap="goApprovals"><view class="quick-icon green">审</view><view class="quick-title">审批中心</view><view class="quick-desc">待办与处理记录</view></view>
+  </view>
+
+  <view class="section-head"><view class="section-title">常见问题</view><view class="section-desc">按问题类型查看</view></view>
+  <scroll-view class="category-scroll" scroll-x enhanced show-scrollbar="{{false}}">
+    <view class="category-list">
+      <view wx:for="{{categories}}" wx:key="*this" class="category-pill {{activeCategory === item ? 'active' : ''}}" data-category="{{item}}" bindtap="selectCategory">{{item}}</view>
+    </view>
+  </scroll-view>
+
+  <view class="faq-list">
+    <view class="faq-card {{item.open ? 'open' : ''}}" wx:for="{{faqs}}" wx:key="id" data-index="{{index}}" bindtap="toggleFaq">
+      <view class="faq-question"><view class="faq-category">{{item.category}}</view><view class="faq-title">{{item.question}}</view><view class="faq-toggle">{{item.open ? '−' : '+'}}</view></view>
+      <view class="faq-answer" wx:if="{{item.open}}">{{item.answer}}</view>
+    </view>
+  </view>
+
+  <view class="support-card">
+    <view class="support-icon">💬</view>
+    <view class="support-title">问题还没有解决？</view>
+    <view class="support-desc">请说明操作步骤、出现时间和报错内容，并附上页面截图，方便快速定位。</view>
+    <button class="support-button" open-type="contact" show-message-card>联系平台支持</button>
+    <view class="support-tip">反馈将通过微信客服渠道发送，不会自动提交账号注销或删除数据。</view>
+  </view>
+</view>

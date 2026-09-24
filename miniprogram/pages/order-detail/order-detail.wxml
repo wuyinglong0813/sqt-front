@@ -1,0 +1,128 @@
+<view class="detail-page">
+  <view class="partner-hero">
+    <view class="hero-side">
+      <view class="company-avatar">{{myCompanyName[0]}}</view>
+      <view class="company-name">{{myCompanyName}}</view>
+      <view class="company-role">我方企业</view>
+    </view>
+    <view class="brand-bridge">
+      <view class="bridge-line"></view>
+      <image src="/images/logo.png" mode="aspectFit"/>
+      <view class="bridge-line"></view>
+    </view>
+    <view class="hero-side">
+      <view class="company-avatar partner">{{counterpartyName[0]}}</view>
+      <view class="company-name">{{counterpartyName}}</view>
+      <view class="company-role">{{relationText}}</view>
+    </view>
+  </view>
+
+  <view class="action-panel">
+    <view class="detail-action" wx:if="{{canSignContract}}" data-key="sign" bindtap="onAction">
+      <image src="/images/icons/contract.svg" mode="aspectFit"/>
+      <view><view class="action-title">{{signLabel}}</view><view class="action-desc">选择模板并发起</view></view>
+      <view class="action-arrow">›</view>
+    </view>
+    <view class="detail-action" wx:if="{{canReconciliation}}" data-key="reconciliation" bindtap="onAction">
+      <image src="/images/icons/reconcile.svg" mode="aspectFit"/>
+      <view><view class="action-title">{{reconciliationLabel}}</view><view class="action-desc">查看双方明细</view></view>
+      <view class="action-arrow">›</view>
+    </view>
+  </view>
+
+  <view class="contract-panel">
+    <view class="contract-summary">
+      <view class="summary-heading">
+        <view class="summary-eyebrow">CONTRACT LEDGER</view>
+        <view class="summary-title">双方合同</view>
+        <view class="summary-desc">当前企业与该合作方的合同台账</view>
+      </view>
+      <view class="total-contract">
+        <view class="total-line"><text class="total-number">{{contractStats.total}}</text><text class="total-unit">份</text></view>
+        <view class="total-label">合同总数</view>
+      </view>
+    </view>
+
+    <view class="contract-metrics">
+      <view class="contract-metric">
+        <view class="metric-value active-value">{{contractStats.active}}</view>
+        <view class="metric-label"><text class="metric-dot active-dot"></text>履行中</view>
+      </view>
+      <view class="metric-divider"></view>
+      <view class="contract-metric">
+        <view class="metric-value pending-value">{{contractStats.pending}}</view>
+        <view class="metric-label"><text class="metric-dot pending-dot"></text>待签署</view>
+      </view>
+      <view class="metric-divider"></view>
+      <view class="contract-metric amount-metric">
+        <view class="metric-value amount-value">¥{{contractStats.totalAmountText}}</view>
+        <view class="metric-label">合同总额</view>
+      </view>
+    </view>
+
+    <scroll-view class="contract-filter-scroll" scroll-x enhanced show-scrollbar="{{false}}">
+      <view class="contract-filters">
+        <view
+          class="contract-filter {{activeContractFilter === item.key ? 'selected' : ''}}"
+          wx:for="{{contractFilters}}"
+          wx:key="key"
+          data-key="{{item.key}}"
+          bindtap="onContractFilterTap">
+          {{item.label}} <text>{{item.count}}</text>
+        </view>
+      </view>
+    </scroll-view>
+
+    <view class="contract-loading" wx:if="{{contractLoading}}">
+      <view class="loading-line wide"></view>
+      <view class="loading-line"></view>
+    </view>
+
+    <view class="empty-state" wx:elif="{{filteredContracts.length === 0}}">
+      <image src="/images/icons/contracts.svg" mode="aspectFit"/>
+      <view class="empty-title">{{contracts.length === 0 ? '暂无双方合同' : '当前状态下暂无合同'}}</view>
+      <view class="empty-desc">{{contracts.length === 0 ? (canSignContract ? '点击上方签订合同，开启第一笔可信交易' : '需先建立有效企业合作关系，才能发起合同') : '切换其他状态查看合同'}}</view>
+    </view>
+
+    <view
+      class="contract-card"
+      wx:for="{{filteredContracts}}"
+      wx:key="id"
+      data-contract="{{item}}"
+      bindtap="onContractTap">
+      <view class="contract-card-head">
+        <view class="contract-sequence">{{item.sequenceText}}</view>
+        <view class="contract-status status-{{item.status}}"><text class="status-dot"></text>{{item.statusText}}</view>
+      </view>
+      <view class="contract-name">{{item.name}}</view>
+      <view class="contract-code">{{item.contractNo}} · {{item.templateText}}</view>
+      <view class="contract-meta-grid">
+        <view class="contract-meta">
+          <view class="meta-label">合同金额</view>
+          <view class="contract-amount">¥{{item.amountText}}</view>
+        </view>
+        <view class="contract-meta period-meta">
+          <view class="meta-label">合同期限</view>
+          <view class="date-value">{{item.periodText}}</view>
+        </view>
+        <view class="card-arrow">›</view>
+      </view>
+    </view>
+  </view>
+
+  <view class="content-card trend-card">
+    <view class="section-head"><view><view class="section-title">{{trendTitle}}</view><view class="section-sub">近12个月合作趋势</view></view></view>
+    <view class="chart-bar">
+      <view class="bar-col" wx:for="{{monthlySales}}" wx:key="month">
+        <view class="bar-track"><view class="bar" style="height: {{item.percent}}%;"></view></view>
+        <view class="bar-label">{{item.month}}月</view>
+      </view>
+    </view>
+  </view>
+
+  <view class="page-end">两份凭证相互连接 · 交易可信流转</view>
+
+  <view class="mask" wx:if="{{showModal}}" bindtap="closeModal">
+    <view class="modal" catchtap="noop"><view class="modal-title">{{modalTitle}}</view><view class="modal-body">{{modalContent}}</view><button class="modal-btn" bindtap="closeModal">我知道了</button></view>
+  </view>
+</view>
