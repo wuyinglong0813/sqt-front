@@ -196,7 +196,8 @@ Page({
     try {
       const result = await this.readAuthStatus();
       if (!this.isPollingCurrent(generation) || token !== getApp().globalData.token) return;
-      const completed = !!(result && ['VERIFIED', 'FAILED'].includes(result.status));
+      const completed = !!(result && (['VERIFIED', 'FAILED'].includes(result.status)
+        || (scene === 'company' && result.failureReason)));
       if (completed) {
         this.openReturnPage();
         return;

@@ -64,22 +64,20 @@ for (const scene of ['personal', 'company']) {
 }
 
 for (const scene of ['personal', 'company']) {
-  test(`${scene} success confirms server state then waits five seconds before home`, async () => {
+  test(`${scene} success confirms server state then waits one second before the destination`, async () => {
     const h = harness(() => ({ status: 'VERIFIED' })); const p = h.page(returnFile);
     p.data.options = { scene, companyId: '9' };
     await p.syncResult();
     if (scene === 'company') assert.equal(h.app.company, '9');
-    assert.equal(p.data.countdown, 5); assert.equal(h.navigation.length, 0);
-    for (let i = 0; i < 4; i++) await h.tick();
-    assert.equal(h.navigation.length, 0); assert.equal(p.data.countdown, 1);
-    await h.tick(); assert.equal(h.navigation[0], '/pages/index/index');
+    assert.equal(p.data.countdown, 1); assert.equal(h.navigation.length, 0);
+    await h.tick(); assert.equal(h.navigation[0], scene === 'company' ? '/pages/company/company' : '/pages/index/index');
   });
 }
 
 test('personal success during enterprise onboarding continues the draft after countdown', async () => {
   const h = harness(() => ({ status: 'VERIFIED' })); const p = h.page(returnFile);
   p.data.options = { scene: 'personal', flow: 'company-create' };
-  await p.syncResult(); for (let i = 0; i < 5; i++) await h.tick();
+  await p.syncResult(); assert.equal(p.data.countdown, 1); await h.tick();
   assert.deepEqual(h.navigation, ['company:draft']);
 });
 
@@ -87,7 +85,7 @@ test('pending result or failed company switch never starts success countdown', a
   for (const status of ['IN_PROGRESS', 'FAILED', 'VERIFIED']) {
     const h = harness(() => ({ status })); const p = h.page(returnFile);
     h.app.switchCompany = async () => { throw Error('not ready'); };
-    p.data.options = { scene: 'company', companyId: '9' }; await p.syncResult();
+    p.data.options = { scene: 'company', companyId: '9' }; p._syncAttempts = 12; await p.syncResult();
     assert.equal(p.data.failed, true); assert.equal(h.timers.size, 0); assert.equal(h.navigation.length, 0);
   }
 });
@@ -144,4 +142,46 @@ test('already-authorized backend response opens result confirmation without a ne
   await p.loadServiceUrl();
   assert.equal(p.data.errorMessage, '');
   assert.equal(h.navigation[0], '/pages/service-return/service-return?scene=company&companyId=9');
+});
+
+for (const sameSession of [true, false]) {
+  test(`native personal redirect restores only the current session company flow: ${sameSession}`, async () => {
+    const h = harness(() => ({ status: 'VERIFIED' })); const p = h.page(returnFile);
+    h.stack([{ route: 'pages/personal-cert/personal-cert', _companyFlow: true,
+      _flowToken: sameSession ? 'session' : 'old-session', _returnOptions: { companyId: '9007199254740993' } }, p]);
+    p.syncResult = () => {};
+    p.onLoad({ scene: 'personal', authResult: 'success' });
+    assert.equal(p.data.options.flow, sameSession ? 'company-create' : undefined);
+    if (sameSession) assert.equal(p.data.options.companyId, '9007199254740993');
+  });
+}
+
+test('company operator reconciliation issue leaves provider page and shows the actual server reason', async () => {
+  const h = harness(() => ({ status: 'IN_PROGRESS', failureReason: '尚未返回经办人身份' }));
+  const auth = h.page(authFile); auth.data.scene = 'company'; auth.data.options = { companyId: '9' };
+  await auth.pollStatus();
+  assert.equal(h.navigation[0], '/pages/service-return/service-return?scene=company&companyId=9');
+  const result = h.page(returnFile); result.data.options = { scene: 'company', companyId: '9' };
+  await result.syncResult();
+  assert.equal(result.data.failed, true); assert.equal(result.data.message, '尚未返回经办人身份');
+  assert.equal(h.app.company, undefined); assert.equal(h.timers.size, 0);
+});
+
+test('native redirect waits for a delayed callback then continues after one second', async () => {
+  let status = 'IN_PROGRESS';
+  const h = harness(() => ({ status })); const p = h.page(returnFile);
+  p.data.options = { scene: 'company', companyId: '9', authResult: 'success' };
+  await p.syncResult();
+  assert.equal(p.data.loading, true); assert.equal(h.app.company, undefined);
+  status = 'VERIFIED'; await h.tick(); await new Promise(resolve => setImmediate(resolve));
+  assert.equal(h.app.company, '9'); assert.equal(p.data.countdown, 1);
+  await h.tick(); assert.deepEqual(h.navigation, ['/pages/company/company']);
+});
+
+test('pending callback wait is bounded and pauses while hidden', async () => {
+  const h = harness(); const p = h.page(returnFile); p.data.options = { scene: 'personal' };
+  await p.syncResult(); p.onHide(); assert.equal(h.timers.size, 0);
+  p.onShow(); assert.equal(h.timers.size, 1);
+  p._syncAttempts = 12; await p.syncResult();
+  assert.equal(p.data.failed, true); assert.equal(h.timers.size, 0); assert.equal(h.navigation.length, 0);
 });

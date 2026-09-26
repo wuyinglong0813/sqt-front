@@ -41,6 +41,7 @@ Page({
   },
 
   onLoad(options = {}) {
+    this._flowToken = getApp().globalData.token;
     this._companyFlow = options.flow === 'company-create';
     this._returnOptions = options;
     this.setData({ desktopMode: !!getApp().globalData.isDesktopWechat });

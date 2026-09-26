@@ -935,9 +935,9 @@ test('verified company return switches the exact company before home and ignores
     } } });
     await sync;
     assert.deepStrictEqual(navigations, []);
-    assert.strictEqual(page.data.countdown, 5);
+    assert.strictEqual(page.data.countdown, 1);
     page.goBusinessPage();
-    assert.deepStrictEqual(navigations, ['/pages/index/index']);
+    assert.deepStrictEqual(navigations, ['/pages/company/company']);
     assert.strictEqual(storage.tradepass_company_id, '9');
     assert.strictEqual(instance.globalData.memberInfo.roleCode, 'LEGAL');
     refreshRequest.success({ statusCode: 200, data: { code: 0, data: {
@@ -962,6 +962,7 @@ test('company return keeps the target when pending or failed and retries a faile
       const page = pageInstance(loadPage('../pages/service-return/service-return'));
       page.data.options = { scene: 'company', companyId: '9' };
       page.readAuthenticationResult = async () => ({ status });
+      page._syncAttempts = 12;
       await page.syncResult();
       assert.strictEqual(switched, 0);
       assert.strictEqual(page.data.failed, true);
@@ -980,7 +981,7 @@ test('company return keeps the target when pending or failed and retries a faile
     await page.syncResult();
     assert.strictEqual(navigation, undefined);
     page.goBusinessPage();
-    assert.strictEqual(navigation, '/pages/index/index');
+    assert.strictEqual(navigation, '/pages/company/company');
     assert.strictEqual(page.data.failed, false);
 
     const missing = pageInstance(loadPage('../pages/service-return/service-return'));

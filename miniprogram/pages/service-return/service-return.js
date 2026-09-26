@@ -7,11 +7,21 @@ Page({
     message: '请稍候，正在同步最新状态',
     loading: true,
     failed: false,
-    countdown: 5,
+    countdown: 1,
     options: {}
   },
 
   onLoad(options) {
+    // Fadada returns to a fixed personal result route. Recover company continuation
+    // from our own page stack, never from the provider's claimed auth result.
+    if (options.scene === 'personal' && !options.flow) {
+      const source = getCurrentPages().slice(0, -1).reverse().find(page =>
+        page.route === 'pages/personal-cert/personal-cert');
+      if (source && source._companyFlow && source._flowToken === getApp().globalData.token) {
+        options = { ...options, flow: 'company-create',
+          companyId: (source._returnOptions || {}).companyId || '' };
+      }
+    }
     this.setData({ options });
     this.syncResult();
   },
@@ -19,16 +29,28 @@ Page({
   onUnload() {
     this._unloaded = true;
     if (this.returnTimer) clearTimeout(this.returnTimer);
+    if (this.syncTimer) clearTimeout(this.syncTimer);
   },
 
   onHide() {
     this._hidden = true;
     if (this.returnTimer) clearTimeout(this.returnTimer);
+    if (this.syncTimer) clearTimeout(this.syncTimer);
   },
 
   onShow() {
     this._hidden = false;
     if (this._successReady && !this._navigating) this.startCountdown();
+    if (this._awaitingResult) this.scheduleResultSync();
+  },
+
+  scheduleResultSync() {
+    if (this.syncTimer) clearTimeout(this.syncTimer);
+    if (this._hidden || this._unloaded || this._resultToken !== getApp().globalData.token) return;
+    this.syncTimer = setTimeout(() => {
+      if (this._hidden || this._unloaded || this._resultToken !== getApp().globalData.token) return;
+      this.syncResult();
+    }, 2500);
   },
 
   startCountdown() {
@@ -50,9 +72,11 @@ Page({
     const token = this._resultToken = getApp().globalData.token;
     const current = () => !this._unloaded && token === getApp().globalData.token;
     this._successReady = false;
+    this._awaitingResult = false;
     if (this.returnTimer) clearTimeout(this.returnTimer);
-    this.setData({ loading: true, countdown: 5 });
+    if (this.syncTimer) clearTimeout(this.syncTimer);
     const options = this.data.options || {};
+    this.setData({ loading: true, countdown: ['personal', 'company'].includes(options.scene) ? 1 : 5 });
     try {
       let result;
       if (options.scene === 'personal') {
@@ -71,6 +95,18 @@ Page({
       if (!current()) return;
       if (['personal', 'company', 'seal', 'legal'].includes(options.scene)
           && !this.authenticationCompleted(result, options.scene)) {
+        // The native redirect may arrive before the signed callback has been applied.
+        // Wait briefly for server confirmation; query parameters never prove success.
+        if (['personal', 'company'].includes(options.scene) && result
+            && result.status === 'IN_PROGRESS' && !result.failureReason
+            && (this._syncAttempts || 0) < 12) {
+          this._syncAttempts = (this._syncAttempts || 0) + 1;
+          this._awaitingResult = true;
+          this.setData({ loading: true, failed: false, title: '正在确认认证结果',
+            message: '正在同步认证状态，确认后将自动继续，请稍候' });
+          this.scheduleResultSync();
+          return;
+        }
         this.setData({ loading: false, failed: true,
           title: result && result.status === 'FAILED' ? '认证未通过' : '处理结果待确认',
           message: (result && (result.failureReason || result.message || result.statusText)) || '结果尚未更新，请稍后刷新' });
@@ -80,7 +116,7 @@ Page({
         await getApp().switchCompany(options.companyId);
         if (!current()) return;
         this._companyCompleted = true;
-        this.setData({ loading: false, failed: false, title: '企业认证成功', message: '已切换到本次认证企业，即将进入首页' });
+        this.setData({ loading: false, failed: false, title: '企业认证成功', message: '已切换到本次认证企业，即将进入企业中心' });
         this.startCountdown();
         return;
       }
@@ -91,8 +127,9 @@ Page({
       this.setData({
         loading: false,
         failed: false,
-        title: '处理结果已同步',
-        message: (result && (result.statusText || result.status)) || '你可以返回业务页面继续操作'
+        title: options.scene === 'personal' ? '个人认证成功' : '处理结果已同步',
+        message: options.scene === 'personal' ? (options.flow === 'company-create'
+          ? '实名身份已确认，即将继续企业开通流程' : '实名身份已确认，即将进入首页') : (result && (result.statusText || result.status)) || '你可以返回业务页面继续操作'
       });
       if (current()) this.startCountdown();
     } catch (error) {
@@ -158,7 +195,7 @@ Page({
     }
     if (options.scene === 'company' || options.scene === 'seal') {
       if (this._companyCompleted) {
-        wx.switchTab({ url: '/pages/index/index' });
+        wx.switchTab({ url: '/pages/company/company' });
         return;
       }
       if (!options.companyId) {
