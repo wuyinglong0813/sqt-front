@@ -85,7 +85,7 @@ test('pending result or failed company switch never starts success countdown', a
   for (const status of ['IN_PROGRESS', 'FAILED', 'VERIFIED']) {
     const h = harness(() => ({ status })); const p = h.page(returnFile);
     h.app.switchCompany = async () => { throw Error('not ready'); };
-    p.data.options = { scene: 'company', companyId: '9' }; p._syncAttempts = 12; await p.syncResult();
+    p.data.options = { scene: 'company', companyId: '9' }; p._syncAttempts = 24; await p.syncResult();
     assert.equal(p.data.failed, true); assert.equal(h.timers.size, 0); assert.equal(h.navigation.length, 0);
   }
 });
@@ -182,6 +182,56 @@ test('pending callback wait is bounded and pauses while hidden', async () => {
   const h = harness(); const p = h.page(returnFile); p.data.options = { scene: 'personal' };
   await p.syncResult(); p.onHide(); assert.equal(h.timers.size, 0);
   p.onShow(); assert.equal(h.timers.size, 1);
-  p._syncAttempts = 12; await p.syncResult();
+  p._syncAttempts = 24; await p.syncResult();
   assert.equal(p.data.failed, true); assert.equal(h.timers.size, 0); assert.equal(h.navigation.length, 0);
 });
+
+for (const failureReason of ['尚未查询到个人授权，请完成认证页面的全部步骤后再刷新', '认证查询过于频繁，请稍后再刷新']) {
+  test(`personal success survives a cached provider-query error: ${failureReason}`, async () => {
+    let elapsed = 0;
+    const h = harness(() => elapsed < 32500
+      ? { status: 'IN_PROGRESS', failureReason } : { status: 'VERIFIED' });
+    const p = h.page(returnFile); p.data.options = { scene: 'personal', flow: 'company-create' };
+    await p.syncResult();
+    for (let i = 0; i < 13; i++) {
+      assert.equal(p.data.loading, true); assert.equal(p.data.failed, false);
+      assert.equal(h.navigation.length, 0);
+      elapsed += 2500; h.advance(2500); await h.tick();
+    }
+    assert.equal(p.data.title, '个人认证成功'); assert.equal(p.data.countdown, 1);
+    await h.tick(); assert.deepEqual(h.navigation, ['company:draft']);
+    assert.equal(h.calls.filter(o => o.url.endsWith('/auth-url')).length, 0);
+  });
+}
+
+test('unresolved personal authorization stops with actionable text and manual retry starts a fresh wait', async () => {
+  const h = harness(() => ({ status: 'IN_PROGRESS',
+    failureReason: '尚未查询到个人授权，请完成认证页面的全部步骤后再刷新' }));
+  const p = h.page(returnFile); p.data.options = { scene: 'personal' };
+  await p.syncResult();
+  for (let i = 0; i < 24; i++) await h.tick();
+  assert.equal(h.timers.size, 0); assert.equal(p.data.failed, true);
+  assert.match(p.data.message, /无需反复提交认证/); assert.equal(h.navigation.length, 0);
+  await p.retrySync();
+  assert.equal(p.data.loading, true); assert.equal(p.data.failed, false);
+  assert.equal(h.timers.size, 1);
+});
+
+test('personal terminal failure is never retried even with a transient-looking reason', async () => {
+  const h = harness(() => ({ status: 'FAILED', failureReason: '认证查询过于频繁，请稍后再刷新' }));
+  const p = h.page(returnFile); p.data.options = { scene: 'personal' };
+  await p.syncResult();
+  assert.equal(p.data.failed, true); assert.equal(h.timers.size, 0); assert.equal(h.navigation.length, 0);
+});
+
+for (const status of ['IN_PROGRESS', 'VERIFIED']) {
+  test(`personal auth response with nested identity ${status} returns to server confirmation`, async () => {
+    const h = harness(() => ({ authUrl: null, identity: { status } }));
+    const p = h.page(authFile); p.data.scene = 'personal';
+    p.data.options = { flow: 'company-create' };
+    await p.loadServiceUrl();
+    assert.equal(p.data.errorMessage, '');
+    assert.equal(h.navigation[0], '/pages/service-return/service-return?scene=personal&flow=company-create');
+    assert.equal(h.calls.length, 1);
+  });
+}

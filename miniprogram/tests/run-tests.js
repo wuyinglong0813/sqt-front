@@ -962,7 +962,7 @@ test('company return keeps the target when pending or failed and retries a faile
       const page = pageInstance(loadPage('../pages/service-return/service-return'));
       page.data.options = { scene: 'company', companyId: '9' };
       page.readAuthenticationResult = async () => ({ status });
-      page._syncAttempts = 12;
+      page._syncAttempts = 24;
       await page.syncResult();
       assert.strictEqual(switched, 0);
       assert.strictEqual(page.data.failed, true);

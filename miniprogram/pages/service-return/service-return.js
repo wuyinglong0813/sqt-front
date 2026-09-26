@@ -1,6 +1,14 @@
 const { request } = require('../../utils/request');
 const { returnToCompany } = require('../../utils/companyOnboarding');
 
+// Existing identity responses put temporary provider-query errors in failureReason.
+// They can remain cached for 30 seconds after successful provider authorization.
+const PERSONAL_QUERY_PENDING = [
+  '尚未查询到个人授权，请完成认证页面的全部步骤后再刷新',
+  '认证查询过于频繁，请稍后再刷新'
+];
+const MAX_SYNC_ATTEMPTS = 24;
+
 Page({
   data: {
     title: '正在确认处理结果',
@@ -49,8 +57,14 @@ Page({
     if (this._hidden || this._unloaded || this._resultToken !== getApp().globalData.token) return;
     this.syncTimer = setTimeout(() => {
       if (this._hidden || this._unloaded || this._resultToken !== getApp().globalData.token) return;
-      this.syncResult();
+      return this.syncResult();
     }, 2500);
+  },
+
+  retrySync() {
+    if (this._syncing || this._unloaded) return;
+    this._syncAttempts = 0;
+    return this.syncResult();
   },
 
   startCountdown() {
@@ -97,9 +111,11 @@ Page({
           && !this.authenticationCompleted(result, options.scene)) {
         // The native redirect may arrive before the signed callback has been applied.
         // Wait briefly for server confirmation; query parameters never prove success.
+        const personalQueryPending = options.scene === 'personal' && result && result.status === 'IN_PROGRESS'
+          && PERSONAL_QUERY_PENDING.includes(result.failureReason);
         if (['personal', 'company'].includes(options.scene) && result
-            && result.status === 'IN_PROGRESS' && !result.failureReason
-            && (this._syncAttempts || 0) < 12) {
+            && result.status === 'IN_PROGRESS' && (!result.failureReason || personalQueryPending)
+            && (this._syncAttempts || 0) < MAX_SYNC_ATTEMPTS) {
           this._syncAttempts = (this._syncAttempts || 0) + 1;
           this._awaitingResult = true;
           this.setData({ loading: true, failed: false, title: '正在确认认证结果',
@@ -109,7 +125,9 @@ Page({
         }
         this.setData({ loading: false, failed: true,
           title: result && result.status === 'FAILED' ? '认证未通过' : '处理结果待确认',
-          message: (result && (result.failureReason || result.message || result.statusText)) || '结果尚未更新，请稍后刷新' });
+          message: personalQueryPending
+            ? '个人授权结果仍未同步。如法大大已显示开通成功，请稍后重新同步，无需反复提交认证；持续未恢复请联系管理员核验'
+            : (result && (result.failureReason || result.message || result.statusText)) || '结果尚未更新，请稍后刷新' });
         return;
       }
       if (options.scene === 'company') {

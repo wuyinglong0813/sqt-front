@@ -138,7 +138,8 @@ Page({
       });
       if (this._unloaded || token !== getApp().globalData.token) return;
       const serviceUrl = result && (result.url || result.authUrl);
-      if (!serviceUrl && result && result.status && ['personal', 'company'].includes(scene)) {
+      const status = result && (result.status || (result.identity && result.identity.status));
+      if (!serviceUrl && status && ['personal', 'company'].includes(scene)) {
         this.openReturnPage();
         return;
       }
