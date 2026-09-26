@@ -43,7 +43,10 @@ function request(options) {
       success: ({ statusCode, data }) => {
         if (statusCode === 401 || (data && data.code === 401)) {
           if (options.handleUnauthorized !== false && token === app.globalData.token) handleUnauthorized(app);
-          reject(new Error('登录已失效'));
+          const error = new Error((data && data.message) || '登录已失效');
+          error.statusCode = statusCode;
+          error.code = data && data.code;
+          reject(error);
           return;
         }
         if (statusCode >= 200 && statusCode < 300 && data && data.code === 0) {
@@ -60,7 +63,11 @@ function request(options) {
         }
         reject(error);
       },
-      fail: error => reject(new Error((error && error.errMsg) || (error && error.message) || '网络请求失败'))
+      fail: result => {
+        const error = new Error((result && result.errMsg) || (result && result.message) || '网络请求失败');
+        error.errCode = result && result.errCode;
+        reject(error);
+      }
     };
 
     wx.request({

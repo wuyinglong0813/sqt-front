@@ -8,7 +8,7 @@ const vm = require('node:vm');
 
 function harness(platform = 'ios', local = false) {
   let app, page;
-  const requests = [], toasts = [], sessions = [];
+  const requests = [], toasts = [], sessions = [], modals = [], clipboard = [];
   const storage = {};
   const wx = {
     getSystemInfoSync: () => ({ platform }),
@@ -21,7 +21,9 @@ function harness(platform = 'ios', local = false) {
       options.success({ statusCode: 200, data: { code: 0, data: { token: 'server-session' } } });
     },
     showLoading() {}, hideLoading() {}, switchTab() {},
-    showToast: options => toasts.push(options.title)
+    showToast: options => toasts.push(options.title),
+    showModal: options => modals.push(options),
+    setClipboardData: options => clipboard.push(options.data)
   };
   const modules = new Map();
   const root = path.join(__dirname, '..');
@@ -45,7 +47,7 @@ function harness(platform = 'ios', local = false) {
   page.setData = update => Object.assign(page.data, update);
   page.onLoad();
   page.data.agreed = true;
-  return { app, page, wx, requests, toasts, sessions, load };
+  return { app, page, wx, requests, toasts, sessions, modals, clipboard, load };
 }
 
 for (const platform of ['ios', 'android', 'windows', 'mac', 'devtools']) {
@@ -105,7 +107,8 @@ test('failed or empty WeChat login prevents the backend request', async () => {
     await env.page.onWechatPhoneTap();
     assert.equal(env.requests.length, 0);
     assert.equal(env.sessions.length, 0);
-    assert.match(env.toasts[0], /微信登录/);
+    assert.match(env.modals[0].content, /失败步骤：微信登录/);
+    assert.match(env.modals[0].content, /尚未向业务服务器/);
   }
 });
 
@@ -114,6 +117,69 @@ test('phone authorization refusal does not attempt login', async () => {
   env.wx.login = () => assert.fail('must not exchange a code');
   await env.page.quickPhoneLogin({ detail: { errMsg: 'getPhoneNumber:fail user deny' } });
   assert.equal(env.requests.length, 0);
+  assert.equal(env.modals.length, 0);
+});
+
+test('phone authorization failure exposes only error details and allows copying', async () => {
+  const env = harness();
+  env.wx.login = () => assert.fail('must not exchange a code');
+  await env.page.quickPhoneLogin({ detail: {
+    errMsg: 'getPhoneNumber:fail no permission', errCode: 1400001,
+    code: 'private-phone-code', encryptedData: 'private-phone-data'
+  } });
+  assert.equal(env.requests.length, 0);
+  const modal = env.modals[0];
+  assert.match(modal.content, /失败步骤：手机号授权/);
+  assert.match(modal.content, /getPhoneNumber:fail no permission/);
+  assert.match(modal.content, /1400001/);
+  assert.doesNotMatch(modal.content, /private-phone/);
+  modal.success({ confirm: true });
+  assert.equal(env.clipboard[0], modal.content);
+});
+
+test('missing phone code does not silently fall back to login without a phone', async () => {
+  const env = harness();
+  await env.page.quickPhoneLogin({ detail: { errMsg: 'getPhoneNumber:ok' } });
+  assert.equal(env.requests.length, 0);
+  assert.match(env.modals[0].content, /未返回手机号授权凭证/);
+});
+
+test('wx.login failure retains its original message and error code', async () => {
+  const env = harness();
+  env.wx.login = options => options.fail({ errMsg: 'login:fail test failure', errCode: 123 });
+  await env.page.quickPhoneLogin({ detail: { errMsg: 'getPhoneNumber:ok', code: 'phone-code' } });
+  assert.equal(env.requests.length, 0);
+  assert.match(env.modals[0].content, /失败步骤：微信登录/);
+  assert.match(env.modals[0].content, /login:fail test failure/);
+  assert.match(env.modals[0].content, /123/);
+});
+
+test('backend transport failure is distinguished from phone authorization failure', async () => {
+  const env = harness();
+  env.wx.request = options => options.fail({ errMsg: 'request:fail test connection', errCode: 456 });
+  await env.page.quickPhoneLogin({ detail: { errMsg: 'getPhoneNumber:ok', code: 'phone-code' } });
+  assert.match(env.modals[0].content, /失败步骤：服务器登录/);
+  assert.match(env.modals[0].content, /request:fail test connection/);
+  assert.match(env.modals[0].content, /456/);
+  assert.doesNotMatch(env.modals[0].content, /尚未向业务服务器/);
+});
+
+test('backend login rejection retains the server message and HTTP status', async () => {
+  const env = harness();
+  env.wx.reLaunch = () => assert.fail('a rejected login must not redirect away from its error');
+  env.wx.request = options => options.success({ statusCode: 401,
+    data: { code: 401, message: '微信凭证无效' } });
+  await env.page.quickPhoneLogin({ detail: { errMsg: 'getPhoneNumber:ok', code: 'phone-code' } });
+  assert.match(env.modals[0].content, /微信凭证无效/);
+  assert.match(env.modals[0].content, /HTTP 状态：401/);
+});
+
+test('failure after token exchange identifies user information loading', async () => {
+  const env = harness();
+  env.app.establishSession = async () => { throw new Error('读取用户失败'); };
+  await env.page.quickPhoneLogin({ detail: { errMsg: 'getPhoneNumber:ok', code: 'phone-code' } });
+  assert.match(env.modals[0].content, /失败步骤：读取登录用户信息/);
+  assert.match(env.modals[0].content, /读取用户失败/);
 });
 
 test('explicit local development retains simulated login only in developer tools', async () => {
