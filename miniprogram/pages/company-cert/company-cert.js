@@ -141,10 +141,8 @@ Page({
         ]
       });
       if (companyDone && this._awaitingCompanyAuth && !this._unloaded) {
-        await app.switchCompany(companyId);
-        if (this._unloaded) return;
         this._awaitingCompanyAuth = false;
-        wx.switchTab({ url: '/pages/index/index' });
+        wx.redirectTo({ url: `/pages/service-return/service-return?scene=company&companyId=${encodeURIComponent(companyId)}` });
       }
     } catch (error) {
       wx.showToast({ title: error.message || '认证状态加载失败', icon: 'none' });

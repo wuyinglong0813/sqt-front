@@ -7,6 +7,7 @@ Page({
     message: '请稍候，正在同步最新状态',
     loading: true,
     failed: false,
+    countdown: 5,
     options: {}
   },
 
@@ -20,12 +21,37 @@ Page({
     if (this.returnTimer) clearTimeout(this.returnTimer);
   },
 
+  onHide() {
+    this._hidden = true;
+    if (this.returnTimer) clearTimeout(this.returnTimer);
+  },
+
+  onShow() {
+    this._hidden = false;
+    if (this._successReady && !this._navigating) this.startCountdown();
+  },
+
+  startCountdown() {
+    if (this.returnTimer) clearTimeout(this.returnTimer);
+    this._successReady = true;
+    if (this._hidden || this._unloaded || this._resultToken !== getApp().globalData.token) return;
+    this.returnTimer = setTimeout(() => {
+      if (this._hidden || this._unloaded || this._resultToken !== getApp().globalData.token) return;
+      const countdown = this.data.countdown - 1;
+      this.setData({ countdown });
+      if (countdown <= 0) this.goBusinessPage();
+      else this.startCountdown();
+    }, 1000);
+  },
+
   async syncResult() {
     if (this._syncing || this._unloaded) return;
     this._syncing = true;
     const token = this._resultToken = getApp().globalData.token;
     const current = () => !this._unloaded && token === getApp().globalData.token;
-    this.setData({ loading: true });
+    this._successReady = false;
+    if (this.returnTimer) clearTimeout(this.returnTimer);
+    this.setData({ loading: true, countdown: 5 });
     const options = this.data.options || {};
     try {
       let result;
@@ -54,8 +80,8 @@ Page({
         await getApp().switchCompany(options.companyId);
         if (!current()) return;
         this._companyCompleted = true;
-        this.setData({ loading: false, failed: false, title: '企业认证成功', message: '已切换到本次认证企业，正在进入首页' });
-        this.goBusinessPage();
+        this.setData({ loading: false, failed: false, title: '企业认证成功', message: '已切换到本次认证企业，即将进入首页' });
+        this.startCountdown();
         return;
       }
       if (options.scene === 'legal') {
@@ -68,7 +94,7 @@ Page({
         title: '处理结果已同步',
         message: (result && (result.statusText || result.status)) || '你可以返回业务页面继续操作'
       });
-      if (current()) this.returnTimer = setTimeout(() => { if (current()) this.goBusinessPage(); }, 700);
+      if (current()) this.startCountdown();
     } catch (error) {
       if (!current()) return;
       this.setData({
@@ -117,6 +143,10 @@ Page({
       return;
     }
     if (options.scene === 'personal') {
+      if (!this.data.failed && options.flow !== 'company-create') {
+        wx.switchTab({ url: '/pages/index/index' });
+        return;
+      }
       if (options.flow === 'company-create' && !this.data.failed) {
         returnToCompany(options);
         return;

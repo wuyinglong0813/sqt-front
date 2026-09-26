@@ -66,5 +66,14 @@
         "selectedIconPath": "images/tab/tab_me_on.png"
       }
     ]
-  }
+  },
+  "subPackages": [
+    {
+      "root": "pagesFace",
+      "name": "pagesFace",
+      "pages": [
+        "pages/middle/middle"
+      ]
+    }
+  ]
 }

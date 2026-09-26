@@ -28,7 +28,7 @@ Page({
     const config = SCENES[scene];
     this.setData({ scene, options, pageTitle: config.title, loadingText: config.loading });
     wx.setNavigationBarTitle({ title: config.title });
-    this.loadServiceUrl();
+    this.prepareService();
   },
 
   onShow() {
@@ -38,7 +38,80 @@ Page({
   },
 
   onHide() { this._visible = false; this.stopStatusPolling(); },
-  onUnload() { this._unloaded = true; this._visible = false; this.stopStatusPolling(); },
+  onUnload() { this._unloaded = true; this._visible = false; this.stopStatusPolling();
+    if (this._reloadTimer) clearTimeout(this._reloadTimer); },
+
+  async prepareService() {
+    if (this._preparing || this._unloaded) return;
+    this._preparing = true;
+    this.setData({ loading: true, errorMessage: '' });
+    const token = getApp().globalData.token;
+    try {
+      const result = await this.readAuthStatus(true);
+      if (this._unloaded || token !== getApp().globalData.token) return;
+      if (result && result.status === 'VERIFIED') {
+        this.openReturnPage();
+        return;
+      }
+      await this.loadServiceUrl();
+    } catch (error) {
+      if (!this._unloaded && token === getApp().globalData.token) {
+        this.setData({ loading: false, errorMessage: error.message || '认证状态暂时无法确认，请重试' });
+      }
+    } finally {
+      this._preparing = false;
+    }
+  },
+
+  async readAuthStatus(forceSync = false) {
+    const { scene, options } = this.data;
+    if (!['personal', 'company', 'legal'].includes(scene)) return null;
+    const token = getApp().globalData.token;
+    if (scene === 'legal') return request({
+      url: `/fadada/companies/${options.companyId}/legal-representative/sync`,
+      method: 'POST', withCompany: false, token, timeout: 15000
+    });
+    const url = scene === 'personal' ? '/fadada/users/me/identity'
+      : `/fadada/companies/${options.companyId}/identity`;
+    const current = await request({ url, withCompany: false, token, timeout: 15000 });
+    if (this._unloaded || token !== getApp().globalData.token
+        || !current || ['VERIFIED', 'FAILED', 'NOT_STARTED'].includes(current.status)) return current;
+    if (!forceSync && this._lastProviderSync && Date.now() - this._lastProviderSync < 30000) return current;
+    this._lastProviderSync = Date.now();
+    try {
+      return await request({ url: `${url}/sync`, method: 'POST', withCompany: false, token, timeout: 15000 });
+    } catch (error) {
+      // A callback may have completed the identity while the provider query failed.
+      const latest = await request({ url, withCompany: false, token, timeout: 15000 });
+      if (latest && latest.status === 'VERIFIED') return latest;
+      throw error;
+    }
+  },
+
+  // Contract used by the official Fadada face-verification bridge.
+  acceptsReturnUrl(url) {
+    const host = this.extractHost(url).toLowerCase();
+    return !!host && host === this.extractHost(this.data.serviceUrl).toLowerCase()
+      && !String(url).includes('\\');
+  },
+
+  setIsRedirect() { this.stopStatusPolling(); },
+
+  reloadPage(url) {
+    if (!this.acceptsReturnUrl(url) || this._unloaded) return false;
+    this.stopStatusPolling();
+    if (this._reloadTimer) clearTimeout(this._reloadTimer);
+    const token = getApp().globalData.token;
+    // Remount the web-view without requesting another authentication URL.
+    this.setData({ serviceUrl: '', errorMessage: '', loading: true });
+    this._reloadTimer = setTimeout(() => {
+      if (this._unloaded || token !== getApp().globalData.token) return;
+      this.setData({ serviceUrl: url, serviceHost: this.extractHost(url), loading: false });
+      this._lastProviderSync = 0;
+      this.startStatusPolling();
+    }, 0);
+    return true;
+  },
 
   async loadServiceUrl() {
     if (this._loadingServiceUrl || this._unloaded) return;
@@ -65,6 +138,10 @@ Page({
       });
       if (this._unloaded || token !== getApp().globalData.token) return;
       const serviceUrl = result && (result.url || result.authUrl);
+      if (!serviceUrl && result && result.status && ['personal', 'company'].includes(scene)) {
+        this.openReturnPage();
+        return;
+      }
       if (!serviceUrl) throw new Error('未获取到服务地址');
       this.setData({ serviceUrl, serviceHost: this.extractHost(serviceUrl) });
       this.startStatusPolling();
@@ -106,7 +183,8 @@ Page({
   scheduleStatusPoll(generation = this._pollGeneration || 0) {
     if (this.pollTimer) clearTimeout(this.pollTimer);
     this.pollTimer = null;
-    if (!this.isPollingCurrent(generation) || (this.pollAttempts || 0) >= 120) return;
+    if (!this.isPollingCurrent(generation)) return;
+    if ((this.pollAttempts || 0) >= 120) { this.openReturnPage(); return; }
     this.pollTimer = setTimeout(() => this.pollStatus(generation), 2500);
   },
 
@@ -116,21 +194,7 @@ Page({
     const { scene, options } = this.data;
     const token = getApp().globalData.token;
     try {
-      let result;
-      if (scene === 'personal') {
-        result = await request({
-          url: '/fadada/users/me/identity', withCompany: false, token,
-          timeout: 15000
-        });
-      } else {
-        result = await request({
-          url: scene === 'legal'
-            ? `/fadada/companies/${options.companyId}/legal-representative/sync`
-            : `/fadada/companies/${options.companyId}/identity/sync`, method: 'POST', token,
-          withCompany: false,
-          timeout: 15000
-        });
-      }
+      const result = await this.readAuthStatus();
       if (!this.isPollingCurrent(generation) || token !== getApp().globalData.token) return;
       const completed = !!(result && ['VERIFIED', 'FAILED'].includes(result.status));
       if (completed) {
@@ -138,7 +202,7 @@ Page({
         return;
       }
     } catch (error) {
-      // Personal auth reads callback-updated local state; explicit refresh/return syncs the provider.
+      // Keep the provider page open while transient status queries fail.
     }
     if (!this.isPollingCurrent(generation) || token !== getApp().globalData.token) return;
     this.pollAttempts = (this.pollAttempts || 0) + 1;
@@ -169,6 +233,7 @@ Page({
     return match ? match[1] : '';
   },
 
-  retry() { this.loadServiceUrl(); },
+  retry() { this.prepareService(); },
+  checkResult() { this.openReturnPage(); },
   goBack() { wx.navigateBack(); }
 });

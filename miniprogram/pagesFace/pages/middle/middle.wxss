@@ -1,0 +1,6 @@
+page { background: #f4f8fd; }
+.face-page { padding: 220rpx 48rpx 60rpx; text-align: center; }
+.face-title { color: #172b42; font-size: 36rpx; font-weight: 600; }
+.face-message { margin: 28rpx 0 64rpx; color: #66809b; font-size: 28rpx; line-height: 1.7; }
+button { background: #3498ff; color: #fff; border-radius: 24rpx; }
+.face-back { color: #66809b; margin-top: 36rpx; padding: 24rpx; }

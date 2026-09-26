@@ -53,6 +53,7 @@ Page({
   onShow() {
     this.loadPhoneStatus();
     if (!this.data.refreshAfterAuth) return;
+    this._completedAuthReturn = true;
     this.setData({ refreshAfterAuth: false });
     this.loadIdentity(true);
   },
@@ -135,6 +136,14 @@ Page({
         providerEnabled: !!(identity && identity.providerEnabled),
         statusView: STATUS_VIEW[status]
       });
+      if (status === 'VERIFIED' && this._completedAuthReturn && !this._unloaded && !this._returning) {
+        this._returning = true;
+        const query = this._companyFlow ? '&flow=company-create' : '';
+        const company = this._returnOptions && this._returnOptions.companyId
+          ? '&companyId=' + encodeURIComponent(this._returnOptions.companyId) : '';
+        wx.redirectTo({ url: `/pages/service-return/service-return?scene=personal${query}${company}` });
+        return;
+      }
       if (status === 'VERIFIED' && this._companyFlow && !this._unloaded && !this._returning) {
         this._returning = true;
         returnToCompany(this._returnOptions);

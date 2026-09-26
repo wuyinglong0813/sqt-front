@@ -1,6 +1,7 @@
 'use strict';
 
 const assert = require('assert');
+const testTimers = require('node:timers');
 const fs = require('fs');
 const path = require('path');
 const {
@@ -933,6 +934,9 @@ test('verified company return switches the exact company before home and ignores
       companies: [{ companyId: '8' }, { companyId: '9' }]
     } } });
     await sync;
+    assert.deepStrictEqual(navigations, []);
+    assert.strictEqual(page.data.countdown, 5);
+    page.goBusinessPage();
     assert.deepStrictEqual(navigations, ['/pages/index/index']);
     assert.strictEqual(storage.tradepass_company_id, '9');
     assert.strictEqual(instance.globalData.memberInfo.roleCode, 'LEGAL');
@@ -974,6 +978,8 @@ test('company return keeps the target when pending or failed and retries a faile
     assert.strictEqual(page.data.failed, true);
     app.switchCompany = async id => { assert.strictEqual(id, '9'); };
     await page.syncResult();
+    assert.strictEqual(navigation, undefined);
+    page.goBusinessPage();
     assert.strictEqual(navigation, '/pages/index/index');
     assert.strictEqual(page.data.failed, false);
 
@@ -985,7 +991,7 @@ test('company return keeps the target when pending or failed and retries a faile
   } finally { app.switchCompany = previousSwitch; }
 });
 
-test('company status loads the explicit pending company and switches home once certification completes', async () => {
+test('company status loads the explicit pending company and opens confirmation once certification completes', async () => {
   const previousSwitch = app.switchCompany;
   let status = 'IN_PROGRESS';
   let switched;
@@ -993,6 +999,7 @@ test('company status loads the explicit pending company and switches home once c
   const calls = [];
   app.switchCompany = async id => { switched = id; };
   wx.switchTab = options => { navigation = options.url; };
+  wx.redirectTo = options => { navigation = options.url; };
   wx.request = options => {
     calls.push(options.url);
     assert.strictEqual(options.header['X-Company-Id'], undefined);
@@ -1015,8 +1022,8 @@ test('company status loads the explicit pending company and switches home once c
     assert.ok(calls.every(url => !url.endsWith('/me')));
     status = 'VERIFIED';
     await page.loadCompany(true);
-    assert.strictEqual(switched, '9');
-    assert.strictEqual(navigation, '/pages/index/index');
+    assert.strictEqual(switched, undefined);
+    assert.strictEqual(navigation, '/pages/service-return/service-return?scene=company&companyId=9');
   } finally { app.switchCompany = previousSwitch; }
 });
 
@@ -1051,7 +1058,7 @@ test('company auth polling queries the target without the previous tenant and pr
   let navigation;
   wx.redirectTo = options => { navigation = options.url; };
   wx.request = options => {
-    assert.ok(options.url.endsWith('/fadada/companies/9/identity/sync'));
+    assert.ok(options.url.endsWith('/fadada/companies/9/identity'));
     assert.strictEqual(options.header['X-Company-Id'], undefined);
     options.success({ statusCode: 200, data: { code: 0, data: { status: 'VERIFIED' } } });
   };
@@ -1059,7 +1066,7 @@ test('company auth polling queries the target without the previous tenant and pr
   assert.strictEqual(navigation, '/pages/service-return/service-return?scene=company&companyId=9');
 });
 
-test('personal auth polling preserves provider page until verified and only reads local state', async () => {
+test('personal auth polling preserves provider page until backend verification', async () => {
   const page = loadPage('../pages/fadada-auth/fadada-auth');
   let status = 'IN_PROGRESS';
   let returned = 0;
@@ -1841,7 +1848,10 @@ test('return during an unfinished company read still triggers a provider sync af
     let synced = false;
     let complete;
     const switched = new Promise(resolve => { complete = resolve; });
-    env.instance.switchCompany = async id => { assert.strictEqual(id, '9'); complete(); };
+    wx.redirectTo = options => {
+      assert.strictEqual(options.url, '/pages/service-return/service-return?scene=company&companyId=9');
+      complete();
+    };
     wx.request = options => {
       if (!firstRead) { firstRead = options; return; }
       if (options.url.endsWith('/identity/sync')) synced = true;
@@ -1999,12 +2009,15 @@ test('claim failures preserve the draft and re-entry recovers the existing enter
       options.success({ statusCode: 200, data: { code: 0, data } });
     };
     let switched;
+    let resultPage;
+    wx.redirectTo = options => { resultPage = options.url; };
     env.instance.switchCompany = async id => { switched = id; };
     const resumed = pageInstance(loadPage('../pages/company-cert/company-cert'));
     resumed.data.companyId = persisted.id;
     resumed._awaitingCompanyAuth = true;
     await resumed.resumePendingCompany();
-    assert.strictEqual(switched, persisted.id);
+    assert.strictEqual(switched, undefined);
+    assert.strictEqual(resultPage, '/pages/service-return/service-return?scene=company&companyId=' + persisted.id);
     assert.ok(calls[0].endsWith('/me/company-onboarding'));
     assert.ok(calls[1].endsWith('/me/company'));
     assert.strictEqual(drafts.readDraft(), null);
@@ -2040,12 +2053,17 @@ test('enterprise center lists unfinished companies separately from active member
 (async () => {
   let failed = 0;
   for (const { name, fn } of tests) {
+    let timeout;
     try {
-      await fn();
+      await Promise.race([fn(), new Promise((_, reject) => {
+        timeout = testTimers.setTimeout(() => reject(new Error('Test did not complete within 10 seconds')), 10000);
+      })]);
       process.stdout.write(`✓ ${name}\n`);
     } catch (error) {
       failed += 1;
       process.stderr.write(`✗ ${name}\n${error.stack}\n`);
+    } finally {
+      testTimers.clearTimeout(timeout);
     }
   }
   process.stdout.write(`\n${tests.length - failed}/${tests.length} tests passed\n`);

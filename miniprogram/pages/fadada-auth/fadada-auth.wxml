@@ -9,6 +9,7 @@
   <view class="state-title">{{pageTitle}}暂时无法打开</view>
   <view class="state-desc">{{errorMessage}}</view>
   <button class="primary-button" bindtap="retry">重新加载</button>
+  <view class="back-link" bindtap="checkResult" wx:if="{{scene === 'personal' || scene === 'company'}}">已完成认证？刷新认证结果</view>
   <view class="back-link" bindtap="goBack">返回上一页</view>
 </view>
 

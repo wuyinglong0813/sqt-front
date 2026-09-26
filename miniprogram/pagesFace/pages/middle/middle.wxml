@@ -1,0 +1,6 @@
+<view class="face-page">
+  <view class="face-title">完成人脸认证</view>
+  <view class="face-message">{{message}}</view>
+  <button wx:if="{{ready}}" loading="{{jumping}}" disabled="{{jumping}}" bindtap="onJump">前往认证</button>
+  <view class="face-back" bindtap="goBack">返回上一步</view>
+</view>
