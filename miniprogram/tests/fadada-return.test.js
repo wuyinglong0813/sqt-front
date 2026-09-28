@@ -64,20 +64,20 @@ for (const scene of ['personal', 'company']) {
 }
 
 for (const scene of ['personal', 'company']) {
-  test(`${scene} success confirms server state then waits one second before the destination`, async () => {
+  test(`${scene} success confirms server state and immediately continues`, async () => {
     const h = harness(() => ({ status: 'VERIFIED' })); const p = h.page(returnFile);
     p.data.options = { scene, companyId: '9' };
     await p.syncResult();
     if (scene === 'company') assert.equal(h.app.company, '9');
-    assert.equal(p.data.countdown, 1); assert.equal(h.navigation.length, 0);
-    await h.tick(); assert.equal(h.navigation[0], scene === 'company' ? '/pages/company/company' : '/pages/index/index');
+    assert.equal(h.timers.size, 0);
+    assert.equal(h.navigation[0], scene === 'company' ? '/pages/company/company' : '/pages/index/index');
   });
 }
 
-test('personal success during enterprise onboarding continues the draft after countdown', async () => {
+test('personal success during enterprise onboarding immediately continues the draft', async () => {
   const h = harness(() => ({ status: 'VERIFIED' })); const p = h.page(returnFile);
   p.data.options = { scene: 'personal', flow: 'company-create' };
-  await p.syncResult(); assert.equal(p.data.countdown, 1); await h.tick();
+  await p.syncResult(); assert.equal(h.timers.size, 0);
   assert.deepEqual(h.navigation, ['company:draft']);
 });
 
@@ -90,12 +90,22 @@ test('pending result or failed company switch never starts success countdown', a
   }
 });
 
-test('countdown pauses when hidden and never navigates after session changes', async () => {
-  const h = harness(() => ({ status: 'VERIFIED' })); const p = h.page(returnFile);
-  p.data.options = { scene: 'personal' }; await p.syncResult();
-  p.onHide(); assert.equal(h.timers.size, 0); p.onShow(); assert.equal(h.timers.size, 1);
-  h.app.globalData.token = 'different'; await h.tick(); assert.equal(h.navigation.length, 0);
-});
+for (const scene of ['personal', 'company']) {
+  test(`${scene} completion while hidden waits for visibility and respects session changes`, async () => {
+    for (const changed of [false, true]) {
+      let resolve;
+      const h = harness(() => new Promise(r => { resolve = r; }));
+      const p = h.page(returnFile); p.data.options = { scene, companyId: '9' };
+      const syncing = p.syncResult(); p.onHide();
+      resolve({ status: 'VERIFIED' }); await syncing;
+      assert.equal(h.navigation.length, 0); assert.equal(h.timers.size, 0);
+      if (changed) h.app.globalData.token = 'different';
+      p.onShow();
+      assert.equal(h.navigation.length, changed ? 0 : 1);
+      p.onShow(); assert.equal(h.navigation.length, changed ? 0 : 1);
+    }
+  });
+}
 
 function faceHarness() {
   const h = harness(); const parent = h.page(authFile);
@@ -169,7 +179,7 @@ test('pending company evidence preserves the form and is shown only after an exp
   assert.equal(h.app.company, undefined); assert.equal(h.timers.size, 0);
 });
 
-test('native redirect waits for a delayed callback then continues after one second', async () => {
+test('native redirect waits for a delayed callback then immediately continues', async () => {
   let status = 'IN_PROGRESS';
   const h = harness(() => ({ status })); const p = h.page(returnFile);
   p.data.options = { scene: 'company', companyId: '9', authResult: 'success' };
@@ -177,7 +187,8 @@ test('native redirect waits for a delayed callback then continues after one seco
   assert.equal(p.data.loading, true); assert.equal(h.app.company, undefined);
   status = 'VERIFIED'; await h.tick(); await new Promise(resolve => setImmediate(resolve));
   assert.equal(h.app.company, '9'); assert.equal(p.data.countdown, 1);
-  await h.tick(); assert.deepEqual(h.navigation, ['/pages/company/company']);
+  assert.deepEqual(h.navigation, ['/pages/company/company']);
+    assert.equal(h.timers.size, 0);
 });
 
 test('pending callback wait is bounded and pauses while hidden', async () => {
@@ -201,7 +212,8 @@ for (const failureReason of ['尚未查询到个人授权，请完成认证页�
       elapsed += 2500; h.advance(2500); await h.tick();
     }
     assert.equal(p.data.title, '个人认证成功'); assert.equal(p.data.countdown, 1);
-    await h.tick(); assert.deepEqual(h.navigation, ['company:draft']);
+    assert.deepEqual(h.navigation, ['company:draft']);
+    assert.equal(h.timers.size, 0);
     assert.equal(h.calls.filter(o => o.url.endsWith('/auth-url')).length, 0);
   });
 }
@@ -225,6 +237,62 @@ test('personal terminal failure is never retried even with a transient-looking r
   await p.syncResult();
   assert.equal(p.data.failed, true); assert.equal(h.timers.size, 0); assert.equal(h.navigation.length, 0);
 });
+
+const companyQueryPending = [
+  '尚未查询到当前企业的授权记录，请稍后刷新；如已开通，请联系管理员核对授权关联',
+  '认证查询过于频繁，请至少等待30秒后刷新'
+];
+
+for (const failureReason of companyQueryPending) {
+  test(`company confirmation waits through cached provider-query errors: ${failureReason}`, async () => {
+    let elapsed = 0;
+    const h = harness(() => elapsed < 32500
+      ? { status: 'IN_PROGRESS', failureReason } : { status: 'VERIFIED' });
+    const p = h.page(returnFile);
+    p.data.options = { scene: 'company', companyId: '9007199254740993', authResult: 'success' };
+    await p.syncResult();
+    for (let i = 0; i < 13; i++) {
+      assert.equal(p.data.loading, true); assert.equal(p.data.failed, false);
+      assert.equal(h.app.company, undefined); assert.equal(h.navigation.length, 0);
+      elapsed += 2500; h.advance(2500); await h.tick();
+    }
+    assert.equal(p.data.title, '企业认证成功');
+    assert.equal(h.app.company, '9007199254740993');
+    assert.deepEqual(h.navigation, ['/pages/company/company']);
+    assert.equal(h.timers.size, 0);
+    assert.ok(h.calls.every(o => !o.url.endsWith('/auth-url')));
+  });
+}
+
+test('unresolved company authorization has a bounded wait and can resume manually', async () => {
+  const h = harness(() => ({ status: 'IN_PROGRESS', failureReason: companyQueryPending[0] }));
+  const p = h.page(returnFile); p.data.options = { scene: 'company', companyId: '9' };
+  await p.syncResult();
+  p.onHide(); assert.equal(h.timers.size, 0);
+  p.onShow(); assert.equal(h.timers.size, 1);
+  for (let i = 0; i < 24; i++) await h.tick();
+  assert.equal(h.timers.size, 0); assert.equal(p.data.failed, true);
+  assert.match(p.data.message, /企业授权结果仍未同步/);
+  assert.equal(h.app.company, undefined); assert.equal(h.navigation.length, 0);
+  await p.retrySync();
+  assert.equal(p.data.loading, true); assert.equal(p.data.failed, false);
+  h.app.globalData.token = 'another-session'; await h.tick();
+  assert.equal(h.timers.size, 0); assert.equal(h.app.company, undefined);
+});
+
+for (const result of [
+  { status: 'FAILED', failureReason: companyQueryPending[0] },
+  { status: 'IN_PROGRESS', failureReason: '企业实名已通过，但经办人标识与当前账号的个人实名标识不一致' }
+]) {
+  test(`company verification failures still stop confirmation: ${result.failureReason}`, async () => {
+    const h = harness(() => result); const p = h.page(returnFile);
+    p.data.options = { scene: 'company', companyId: '9', authResult: 'success' };
+    await p.syncResult();
+    assert.equal(p.data.failed, true); assert.equal(p.data.message, result.failureReason);
+    assert.equal(h.timers.size, 0); assert.equal(h.app.company, undefined);
+    assert.equal(h.navigation.length, 0);
+  });
+}
 
 for (const status of ['IN_PROGRESS', 'VERIFIED']) {
   test(`personal auth response with nested identity ${status} returns to server confirmation`, async () => {

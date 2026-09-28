@@ -3,16 +3,22 @@ const { returnToCompany } = require('../../utils/companyOnboarding');
 
 // Existing identity responses put temporary provider-query errors in failureReason.
 // They can remain cached for 30 seconds after successful provider authorization.
-const PERSONAL_QUERY_PENDING = [
-  '尚未查询到个人授权，请完成认证页面的全部步骤后再刷新',
-  '认证查询过于频繁，请稍后再刷新'
-];
+const AUTH_QUERY_PENDING = {
+  personal: [
+    '尚未查询到个人授权，请完成认证页面的全部步骤后再刷新',
+    '认证查询过于频繁，请稍后再刷新'
+  ],
+  company: [
+    '尚未查询到当前企业的授权记录，请稍后刷新；如已开通，请联系管理员核对授权关联',
+    '认证查询过于频繁，请至少等待30秒后刷新'
+  ]
+};
 const MAX_SYNC_ATTEMPTS = 24;
 
 Page({
   data: {
-    title: '正在确认处理结果',
-    message: '请稍候，正在同步最新状态',
+    title: '正在继续办理',
+    message: '请稍候',
     loading: true,
     failed: false,
     countdown: 1,
@@ -71,6 +77,12 @@ Page({
     if (this.returnTimer) clearTimeout(this.returnTimer);
     this._successReady = true;
     if (this._hidden || this._unloaded || this._resultToken !== getApp().globalData.token) return;
+    if (['personal', 'company'].includes((this.data.options || {}).scene)) {
+      // The server has confirmed the result; continue without a second success screen.
+      this._successReady = false;
+      this.goBusinessPage();
+      return;
+    }
     this.returnTimer = setTimeout(() => {
       if (this._hidden || this._unloaded || this._resultToken !== getApp().globalData.token) return;
       const countdown = this.data.countdown - 1;
@@ -111,22 +123,22 @@ Page({
           && !this.authenticationCompleted(result, options.scene)) {
         // The native redirect may arrive before the signed callback has been applied.
         // Wait briefly for server confirmation; query parameters never prove success.
-        const personalQueryPending = options.scene === 'personal' && result && result.status === 'IN_PROGRESS'
-          && PERSONAL_QUERY_PENDING.includes(result.failureReason);
+        const queryPending = result && result.status === 'IN_PROGRESS'
+          && (AUTH_QUERY_PENDING[options.scene] || []).includes(result.failureReason);
         if (['personal', 'company'].includes(options.scene) && result
-            && result.status === 'IN_PROGRESS' && (!result.failureReason || personalQueryPending)
+            && result.status === 'IN_PROGRESS' && (!result.failureReason || queryPending)
             && (this._syncAttempts || 0) < MAX_SYNC_ATTEMPTS) {
           this._syncAttempts = (this._syncAttempts || 0) + 1;
           this._awaitingResult = true;
-          this.setData({ loading: true, failed: false, title: '正在确认认证结果',
-            message: '正在同步认证状态，确认后将自动继续，请稍候' });
+          this.setData({ loading: true, failed: false, title: '正在接收认证结果',
+            message: '收到结果后将自动继续，无需重复认证' });
           this.scheduleResultSync();
           return;
         }
         this.setData({ loading: false, failed: true,
           title: result && result.status === 'FAILED' ? '认证未通过' : '处理结果待确认',
-          message: personalQueryPending
-            ? '个人授权结果仍未同步。如法大大已显示开通成功，请稍后重新同步，无需反复提交认证；持续未恢复请联系管理员核验'
+          message: queryPending
+            ? `${options.scene === 'company' ? '企业' : '个人'}授权结果仍未同步。如法大大已显示开通成功，请稍后重新同步，无需反复提交认证；持续未恢复请联系管理员核验`
             : (result && (result.failureReason || result.message || result.statusText)) || '结果尚未更新，请稍后刷新' });
         return;
       }

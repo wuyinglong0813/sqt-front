@@ -934,9 +934,6 @@ test('verified company return switches the exact company before home and ignores
       companies: [{ companyId: '8' }, { companyId: '9' }]
     } } });
     await sync;
-    assert.deepStrictEqual(navigations, []);
-    assert.strictEqual(page.data.countdown, 1);
-    page.goBusinessPage();
     assert.deepStrictEqual(navigations, ['/pages/company/company']);
     assert.strictEqual(storage.tradepass_company_id, '9');
     assert.strictEqual(instance.globalData.memberInfo.roleCode, 'LEGAL');
@@ -979,8 +976,6 @@ test('company return keeps the target when pending or failed and retries a faile
     assert.strictEqual(page.data.failed, true);
     app.switchCompany = async id => { assert.strictEqual(id, '9'); };
     await page.syncResult();
-    assert.strictEqual(navigation, undefined);
-    page.goBusinessPage();
     assert.strictEqual(navigation, '/pages/company/company');
     assert.strictEqual(page.data.failed, false);
 
