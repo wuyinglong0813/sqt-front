@@ -185,20 +185,22 @@ Page({
     if (this.pollTimer) clearTimeout(this.pollTimer);
     this.pollTimer = null;
     if (!this.isPollingCurrent(generation)) return;
-    if ((this.pollAttempts || 0) >= 120) { this.openReturnPage(); return; }
-    this.pollTimer = setTimeout(() => this.pollStatus(generation), 2500);
+    // Filling details or choosing a license photo can take several minutes.
+    // Back off polling without navigating away from an unfinished provider form.
+    const delay = (this.pollAttempts || 0) >= 120 ? 10000 : 2500;
+    this.pollTimer = setTimeout(() => this.pollStatus(generation), delay);
   },
 
   async pollStatus(generation = this._pollGeneration || 0) {
     if (!this.isPollingCurrent(generation) || this.data.scene === 'seal') return;
     this.pollTimer = null;
-    const { scene, options } = this.data;
     const token = getApp().globalData.token;
     try {
       const result = await this.readAuthStatus();
       if (!this.isPollingCurrent(generation) || token !== getApp().globalData.token) return;
-      const completed = !!(result && (['VERIFIED', 'FAILED'].includes(result.status)
-        || (scene === 'company' && result.failureReason)));
+      // Missing authorization is expected before the user finishes this form.
+      // failureReason can also contain cached query errors; it is not completion.
+      const completed = !!(result && ['VERIFIED', 'FAILED'].includes(result.status));
       if (completed) {
         this.openReturnPage();
         return;
@@ -207,7 +209,7 @@ Page({
       // Keep the provider page open while transient status queries fail.
     }
     if (!this.isPollingCurrent(generation) || token !== getApp().globalData.token) return;
-    this.pollAttempts = (this.pollAttempts || 0) + 1;
+    this.pollAttempts = Math.min((this.pollAttempts || 0) + 1, 120);
     this.scheduleStatusPoll(generation);
   },
 

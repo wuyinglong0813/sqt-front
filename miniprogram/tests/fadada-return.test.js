@@ -156,10 +156,12 @@ for (const sameSession of [true, false]) {
   });
 }
 
-test('company operator reconciliation issue leaves provider page and shows the actual server reason', async () => {
+test('pending company evidence preserves the form and is shown only after an explicit result check', async () => {
   const h = harness(() => ({ status: 'IN_PROGRESS', failureReason: '尚未返回经办人身份' }));
   const auth = h.page(authFile); auth.data.scene = 'company'; auth.data.options = { companyId: '9' };
   await auth.pollStatus();
+  assert.equal(h.navigation.length, 0);
+  auth.checkResult();
   assert.equal(h.navigation[0], '/pages/service-return/service-return?scene=company&companyId=9');
   const result = h.page(returnFile); result.data.options = { scene: 'company', companyId: '9' };
   await result.syncResult();
@@ -233,5 +235,43 @@ for (const status of ['IN_PROGRESS', 'VERIFIED']) {
     assert.equal(p.data.errorMessage, '');
     assert.equal(h.navigation[0], '/pages/service-return/service-return?scene=personal&flow=company-create');
     assert.equal(h.calls.length, 1);
+  });
+}
+
+for (const failureReason of [
+  '尚未查询到当前企业的授权记录，请稍后刷新；如已开通，请联系管理员核对授权关联',
+  '认证查询过于频繁，请至少等待30秒后刷新',
+  '企业实名已通过，但经办人标识与当前账号的个人实名标识不一致'
+]) {
+  test(`pending company query cannot interrupt provider input: ${failureReason}`, async () => {
+    const h = harness(() => ({ status: 'IN_PROGRESS', failureReason }));
+    const p = h.page(authFile); p.data.scene = 'company'; p.data.options = { companyId: '9' };
+    p.data.serviceUrl = 'https://auth.fadada.com/company-form';
+    p.startStatusPolling();
+    for (let i = 0; i < 4; i++) { h.advance(31000); await h.tick(); }
+    assert.equal(h.navigation.length, 0);
+    assert.equal(p.data.serviceUrl, 'https://auth.fadada.com/company-form');
+    assert.ok(h.calls.every(o => !o.url.endsWith('/auth-url')));
+    p.onHide(); assert.equal(h.timers.size, 0);
+    p.onShow(); await h.tick();
+    assert.equal(h.navigation.length, 0);
+    assert.equal(p.data.serviceUrl, 'https://auth.fadada.com/company-form');
+  });
+}
+
+for (const finalStatus of ['VERIFIED', 'FAILED']) {
+  test(`long-running company input stays open beyond polling limit and still handles ${finalStatus}`, async () => {
+    let status = 'IN_PROGRESS';
+    const h = harness(() => ({ status })); const p = h.page(authFile);
+    p.data.scene = 'company'; p.data.options = { companyId: '9' }; p.pollAttempts = 119;
+    await p.pollStatus();
+    assert.equal(h.navigation.length, 0);
+    assert.equal(p.pollAttempts, 120);
+    assert.equal([...h.timers.values()][0].delay, 10000);
+    await h.tick(); assert.equal(h.navigation.length, 0);
+    assert.equal(p.pollAttempts, 120);
+    status = finalStatus; await h.tick();
+    assert.equal(h.navigation[0], '/pages/service-return/service-return?scene=company&companyId=9');
+    assert.equal(h.timers.size, 0);
   });
 }
