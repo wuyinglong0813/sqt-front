@@ -337,6 +337,25 @@ test('desktop signing opens the provider page directly', async () => {
   assert.equal(p.data.serviceHost, '80005620.uat-e.fadada.com');
 });
 
+test('desktop signing widens a narrow window and restores it on leave', () => {
+  const h = harness();
+  h.app.globalData.isDesktopWechat = true;
+  const sizes = [];
+  let width = 420;
+  h.wx.getWindowInfo = () => ({ windowWidth: width, windowHeight: 700, screenWidth: 1440, screenHeight: 900 });
+  h.wx.setWindowSize = options => { sizes.push({ width: options.width, height: options.height }); if (options.complete) options.complete(); };
+  const p = h.page(authFile);
+  p.onLoad({ scene: 'contract', contractId: '12' });
+  assert.equal(sizes[0].width, 1280);
+  assert.equal(sizes[0].height, 700);
+  width = 1280;
+  p.onResize();
+  assert.equal(sizes.length, 1);
+  p.onUnload();
+  assert.equal(sizes[1].width, 420);
+  assert.equal(sizes[1].height, 700);
+});
+
 for (const finalStatus of ['VERIFIED', 'FAILED']) {
   test(`long-running company input stays open beyond polling limit and still handles ${finalStatus}`, async () => {
     let status = 'IN_PROGRESS';

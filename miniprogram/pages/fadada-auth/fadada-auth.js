@@ -1,5 +1,8 @@
 const { request } = require('../../utils/request');
 
+// Fadada's desktop signing page keeps fixed side columns. Below this width the contract collapses.
+const DESKTOP_SIGN_WIDTH = 1280;
+
 const SCENES = {
   personal: { title: '个人认证', loading: '正在打开个人认证', endpoint: '/fadada/users/me/auth-url', withCompany: false },
   company: { title: '企业认证', loading: '正在打开企业认证', withCompany: false },
@@ -28,18 +31,61 @@ Page({
     const config = SCENES[scene];
     this.setData({ scene, options, pageTitle: config.title, loadingText: config.loading });
     wx.setNavigationBarTitle({ title: config.title });
+    this.ensureDesktopSignWidth();
     this.prepareService();
   },
 
   onShow() {
     if (this._unloaded) return;
     this._visible = true;
+    this.ensureDesktopSignWidth();
     if (this.data.serviceUrl && !this.pollTimer) this.startStatusPolling();
   },
 
+  onResize() { this.ensureDesktopSignWidth(); },
+
   onHide() { this._visible = false; this.stopStatusPolling(); },
   onUnload() { this._unloaded = true; this._visible = false; this.stopStatusPolling();
-    if (this._reloadTimer) clearTimeout(this._reloadTimer); },
+    if (this._reloadTimer) clearTimeout(this._reloadTimer);
+    this.restoreDesktopSignWidth(); },
+
+  desktopSignScene() {
+    return this.data.scene === 'contract' || this.data.scene === 'abolish';
+  },
+
+  readWindowSize() {
+    try {
+      if (typeof wx.getWindowInfo === 'function') return wx.getWindowInfo();
+      if (typeof wx.getSystemInfoSync === 'function') return wx.getSystemInfoSync();
+    } catch (e) {}
+    return null;
+  },
+
+  ensureDesktopSignWidth() {
+    if (!getApp().globalData.isDesktopWechat || !this.desktopSignScene()) return;
+    if (typeof wx.setWindowSize !== 'function' || this._signWidthPending || this._signWidthAttempts >= 2) return;
+    const info = this.readWindowSize();
+    const width = info && info.windowWidth;
+    const height = info && info.windowHeight;
+    if (!width || !height) return;
+    const target = Math.max(width, Math.min(DESKTOP_SIGN_WIDTH, (info.screenWidth || DESKTOP_SIGN_WIDTH)));
+    if (target - width < 40) return;
+    if (!this._previousWindowSize) this._previousWindowSize = { width, height };
+    this._signWidthPending = true;
+    this._signWidthAttempts = (this._signWidthAttempts || 0) + 1;
+    wx.setWindowSize({
+      width: target,
+      height,
+      complete: () => { this._signWidthPending = false; }
+    });
+  },
+
+  restoreDesktopSignWidth() {
+    const previous = this._previousWindowSize;
+    this._previousWindowSize = null;
+    if (!previous || typeof wx.setWindowSize !== 'function') return;
+    wx.setWindowSize({ width: previous.width, height: previous.height, fail() {} });
+  },
 
   async prepareService() {
     if (this._preparing || this._unloaded) return;
