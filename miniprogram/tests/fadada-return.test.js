@@ -327,37 +327,14 @@ for (const failureReason of [
   });
 }
 
-test('narrow desktop signing keeps the contract ratio by scaling the whole Fadada page', () => {
-  const h = harness(); const p = h.page(authFile);
-  const target = 'https://80005620.uat-e.fadada.com/connect?ticket=one-time';
-  const framed = p.desktopSignFrameUrl(target, 720, true, 'https://sqt.org.cn/api');
-  assert.equal(framed, `https://sqt.org.cn/api/contracts/desktop-sign-frame?target=${encodeURIComponent(target)}`);
-  assert.equal(p.desktopSignFrameUrl(target, 1400, true, 'https://sqt.org.cn/api'), target);
-  assert.equal(p.desktopSignFrameUrl(target, 720, false, 'https://sqt.org.cn/api'), target);
-  assert.equal(p.desktopSignFrameUrl('https://evil.test/connect', 720, true, 'https://sqt.org.cn/api'), 'https://evil.test/connect');
-});
-
-test('scaled desktop signing returns after the current company finishes', async () => {
-  const h = harness(() => ({ canSign: false })); const p = h.page(authFile);
+test('desktop signing opens the provider page directly', async () => {
+  const h = harness(() => ({ url: 'https://80005620.uat-e.fadada.com/connect?ticket=one-time' }));
+  const p = h.page(authFile);
   p.data.scene = 'contract';
   p.data.options = { contractId: '12' };
-  p.data.serviceUrl = 'https://sqt.org.cn/api/contracts/desktop-sign-frame?target=https%3A%2F%2Fe.fadada.com%2Fconnect';
-  p._rawServiceUrl = 'https://e.fadada.com/connect';
-  p._frameGeneration = 1;
-  await p.pollSigningFinished(1);
-  assert.equal(h.calls[0].url, '/contracts/12/signing/sync');
-  assert.equal(h.navigation[0], '/pages/service-return/service-return?scene=contract&contractId=12');
-});
-
-test('scaled frame falls back to the provider page when the frame itself cannot open', () => {
-  const h = harness(); const p = h.page(authFile);
-  p._rawServiceUrl = 'https://e.fadada.com/connect?ticket=1';
-  p.data.serviceUrl = 'https://sqt.org.cn/api/contracts/desktop-sign-frame?target=1';
-  p.data.serviceHost = 'sqt.org.cn';
-  p.onWebViewError();
-  assert.equal(p.data.serviceUrl, p._rawServiceUrl);
-  assert.equal(p.data.errorMessage, '');
-  assert.equal(h.navigation.length, 0);
+  await p.loadServiceUrl();
+  assert.equal(p.data.serviceUrl, 'https://80005620.uat-e.fadada.com/connect?ticket=one-time');
+  assert.equal(p.data.serviceHost, '80005620.uat-e.fadada.com');
 });
 
 for (const finalStatus of ['VERIFIED', 'FAILED']) {

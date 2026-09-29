@@ -35,7 +35,6 @@ Page({
     if (this._unloaded) return;
     this._visible = true;
     if (this.data.serviceUrl && !this.pollTimer) this.startStatusPolling();
-    if (this.data.serviceUrl && !this.frameTimer) this.startDesktopFrameWatch();
   },
 
   onHide() { this._visible = false; this.stopStatusPolling(); },
@@ -92,38 +91,8 @@ Page({
   // Contract used by the official Fadada face-verification bridge.
   acceptsReturnUrl(url) {
     const host = this.extractHost(url).toLowerCase();
-    const expected = this.extractHost(this._rawServiceUrl || this.data.serviceUrl).toLowerCase();
-    return !!host && host === expected && !String(url).includes('\\');
-  },
-
-  desktopWindowWidth() {
-    try {
-      const info = wx.getWindowInfo ? wx.getWindowInfo() : wx.getSystemInfoSync();
-      return info && (info.windowWidth || info.screenWidth) || 0;
-    } catch (error) {
-      return 0;
-    }
-  },
-
-  // Fadada's desktop page keeps fixed side columns. Below this width the contract
-  // pane collapses, so the whole page is scaled from a 1280px layout instead.
-  desktopSignFrameUrl(target, windowWidth, desktop, baseUrl) {
-    const width = Number(windowWidth) || 0;
-    if (!desktop || width <= 0 || width >= 1280 || !target) return target;
-    const match = String(target).match(/^https:\/\/([^/?#]+)/i);
-    const host = match ? match[1].toLowerCase().replace(/:\d+$/, '') : '';
-    if (String(target).includes('\\') || String(target).includes('@')) return target;
-    if (!(host === 'fadada.com' || host.endsWith('.fadada.com'))) return target;
-    const base = String(baseUrl || '').replace(/\/$/, '');
-    if (!/^https?:\/\//i.test(base)) return target;
-    return `${base}/contracts/desktop-sign-frame?target=${encodeURIComponent(target)}`;
-  },
-
-  presentServiceUrl(target) {
-    this._rawServiceUrl = target;
-    const app = getApp();
-    const globalData = app.globalData || {};
-    return this.desktopSignFrameUrl(target, this.desktopWindowWidth(), !!globalData.isDesktopWechat, globalData.baseUrl);
+    return !!host && host === this.extractHost(this.data.serviceUrl).toLowerCase()
+      && !String(url).includes('\\');
   },
 
   setIsRedirect() { this.stopStatusPolling(); },
@@ -137,11 +106,9 @@ Page({
     this.setData({ serviceUrl: '', errorMessage: '', loading: true });
     this._reloadTimer = setTimeout(() => {
       if (this._unloaded || token !== getApp().globalData.token) return;
-      const presented = this.presentServiceUrl(url);
-      this.setData({ serviceUrl: presented, serviceHost: this.extractHost(url), loading: false });
+      this.setData({ serviceUrl: url, serviceHost: this.extractHost(url), loading: false });
       this._lastProviderSync = 0;
       this.startStatusPolling();
-      this.startDesktopFrameWatch();
     }, 0);
     return true;
   },
@@ -177,10 +144,8 @@ Page({
         return;
       }
       if (!serviceUrl) throw new Error('未获取到服务地址');
-      const presented = this.presentServiceUrl(serviceUrl);
-      this.setData({ serviceUrl: presented, serviceHost: this.extractHost(serviceUrl) });
+      this.setData({ serviceUrl, serviceHost: this.extractHost(serviceUrl) });
       this.startStatusPolling();
-      this.startDesktopFrameWatch();
     } catch (error) {
       if (!this._unloaded && token === getApp().globalData.token) {
         this.setData({ errorMessage: error.message || '服务页面加载失败' });
@@ -192,17 +157,6 @@ Page({
   },
 
   onWebViewError() {
-    if (this._rawServiceUrl && this.data.serviceUrl !== this._rawServiceUrl && !this._frameFallback) {
-      this._frameFallback = true;
-      this.stopDesktopFrameWatch();
-      this.setData({
-        serviceUrl: this._rawServiceUrl,
-        serviceHost: this.extractHost(this._rawServiceUrl),
-        errorMessage: '',
-        loading: false
-      });
-      return;
-    }
     this.stopStatusPolling();
     const host = this.data.serviceHost;
     this.setData({
@@ -272,57 +226,10 @@ Page({
       fail: () => { this._returning = false; } });
   },
 
-  startDesktopFrameWatch() {
-    if (!['contract', 'abolish'].includes(this.data.scene)) return;
-    if (!String(this.data.serviceUrl).includes('/contracts/desktop-sign-frame?')) return;
-    if (this.frameTimer || this._visible === false || this._unloaded) return;
-    const generation = this._frameGeneration = (this._frameGeneration || 0) + 1;
-    this.scheduleDesktopFrameWatch(generation);
-  },
-
-  scheduleDesktopFrameWatch(generation = this._frameGeneration || 0) {
-    if (this.frameTimer) clearTimeout(this.frameTimer);
-    this.frameTimer = null;
-    if (this._unloaded || this._visible === false || generation !== (this._frameGeneration || 0)) return;
-    this.frameTimer = setTimeout(() => this.pollSigningFinished(generation), 4000);
-  },
-
-  async pollSigningFinished(generation = this._frameGeneration || 0) {
-    this.frameTimer = null;
-    if (this._unloaded || this._visible === false || generation !== (this._frameGeneration || 0)) return;
-    const token = getApp().globalData.token;
-    const contractId = this.data.options && this.data.options.contractId;
-    if (!contractId) return;
-    try {
-      const result = await request({
-        url: `/contracts/${contractId}/signing/sync`,
-        method: 'POST',
-        token
-      });
-      if (this._unloaded || token !== getApp().globalData.token
-          || generation !== (this._frameGeneration || 0)) return;
-      if (result && result.canSign === false) {
-        this.openReturnPage();
-        return;
-      }
-    } catch (error) {
-      // Keep the signing page open while a status query fails.
-    }
-    if (this._unloaded || this._visible === false || generation !== (this._frameGeneration || 0)) return;
-    this.scheduleDesktopFrameWatch(generation);
-  },
-
-  stopDesktopFrameWatch() {
-    this._frameGeneration = (this._frameGeneration || 0) + 1;
-    if (this.frameTimer) clearTimeout(this.frameTimer);
-    this.frameTimer = null;
-  },
-
   stopStatusPolling() {
     this._pollGeneration = (this._pollGeneration || 0) + 1;
     if (this.pollTimer) clearTimeout(this.pollTimer);
     this.pollTimer = null;
-    this.stopDesktopFrameWatch();
   },
 
   extractHost(value) {
