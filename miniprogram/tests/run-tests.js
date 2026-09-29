@@ -239,7 +239,8 @@ test('home exposes the ordered approval center with a message indicator', () => 
   assert.ok(approvalScript.includes('sales-order-detail'));
   assert.ok(approvalScript.includes("label: '合同'"));
   assert.ok(approvalScript.includes("label: '履约资料'"));
-  assert.ok(approvalScript.includes('substring(0, 19)'));
+  assert.ok(approvalScript.includes('formatDateTime'));
+  assert.ok(approvalScript.includes("${matched[1]} ${matched[2]}:${matched[3] || '00'}"));
   assert.ok(approvalTemplate.includes('result-reason'));
   assert.ok(!approvalTemplate.includes('approval-hero'));
   const approvalStyles = fs.readFileSync(
@@ -1730,10 +1731,13 @@ test('approval lists preserve contract, attachment and notification source IDs',
   await withIdPage('../pages/contract-approval/contract-approval', async page => {
     wx.request = options => options.success({ statusCode: 200, data: { code: 0,
       data: [{ id: largeIds[0], contractId: largeIds[1], sourceId: largeIds[1],
-        approvalType: 'INVOICE', resultType: 'INVOICE', status: 'ACTIVE', isRead: true }]
+        approvalType: 'INVOICE', resultType: 'INVOICE', status: 'ACTIVE', isRead: true,
+        createdAt: '2026-09-29T10:38:22.123', contractNo: 'HT-20260929-47E4515D' }]
     } });
     await page.loadPending();
     assert.strictEqual(page.data.contracts[0].id, largeIds[0]);
+    assert.strictEqual(page.data.contracts[0].createdDate, '2026-09-29 10:38:22');
+    assert.strictEqual(page.data.results[0].timeText, '2026-09-29 10:38:22');
     assert.strictEqual(page.data.fulfillmentItems[0].id, largeIds[0]);
     assert.strictEqual(page.data.fulfillmentItems[0].contractId, largeIds[1]);
     assert.strictEqual(page.data.results[0].id, largeIds[0]);

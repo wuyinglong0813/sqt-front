@@ -74,7 +74,7 @@
             <view class="type-icon contract">合</view>
             <view class="card-copy">
               <view class="card-title">{{contract.name}}</view>
-              <view class="card-meta">{{contract.contractNo}} · {{contract.createdDate}}</view>
+              <view class="card-meta card-meta-wrap">{{contract.contractNo}} · {{contract.createdDate}}</view>
             </view>
             <view class="pending-badge">待签署</view>
           </view>

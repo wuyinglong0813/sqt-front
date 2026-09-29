@@ -36,6 +36,7 @@ page { background: #f4f8fd; }
 .card-copy { flex: 1; margin-left: 14rpx; min-width: 0; }
 .card-title { color: #20344b; font-size: 26rpx; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .card-meta { color: #929eac; font-size: 20rpx; margin-top: 6rpx; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.card-meta-wrap { white-space: normal; }
 .signature-hint { color: #b26e13; font-size: 19rpx; margin-top: 7rpx; }
 .pending-badge { background: #fff3d8; border-radius: 16rpx; color: #a36a11; flex-shrink: 0; font-size: 19rpx; margin-left: 10rpx; padding: 5rpx 10rpx; }
 .contract-summary { background: #f7faff; border-radius: 16rpx; display: grid; gap: 16rpx; grid-template-columns: .8fr 1.2fr; margin-top: 18rpx; padding: 16rpx; }

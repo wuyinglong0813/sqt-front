@@ -28,9 +28,12 @@ function resultIcon(type) {
   return '款';
 }
 
-function formatResultTime(value) {
-  const text = String(value || '').replace('T', ' ');
-  return text ? text.substring(0, 19) : '';
+function formatDateTime(value) {
+  const text = String(value || '').trim().replace('T', ' ').replace(/\.\d+/, '');
+  const matched = text.match(/^(\d{4}-\d{2}-\d{2})(?: (\d{2}:\d{2})(?::(\d{2}))?)?/);
+  if (!matched) return text.slice(0, 19);
+  if (!matched[2]) return matched[1];
+  return `${matched[1]} ${matched[2]}:${matched[3] || '00'}`;
 }
 
 Page({
@@ -84,7 +87,7 @@ Page({
         companyId: String(item.viewerCounterpartyCompanyId || item.companyId || ''),
         companyName: item.viewerCounterpartyName || item.counterpartyName || '往来公司',
         amountText: money(item.amount),
-        createdDate: String(item.createdAt || '').substring(0, 10)
+        createdDate: formatDateTime(item.createdAt)
       }));
       const fulfillmentItems = (fulfillmentList || []).map(item => ({
         ...item,
@@ -113,7 +116,7 @@ Page({
           ? 'rejected' : (item.resultStatus === 'CANCELLED' ? 'cancelled' : 'approved'),
         canOpen: item.resultType === 'SALES_ORDER' || item.resultType === 'RETURN_ORDER' || !!item.contractId,
         isRead: !!item.isRead,
-        timeText: formatResultTime(item.createdAt)
+        timeText: formatDateTime(item.createdAt)
       }));
       const unreadResultCount = results.filter(item => !item.isRead).length;
       this.setData({
