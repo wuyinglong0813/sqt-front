@@ -1,4 +1,5 @@
 const { request } = require('../../utils/request');
+const { formatDateTime } = require('../../utils/datetime');
 const { DEFAULT_TEMPLATE } = require('../../utils/chineseCurrency');
 
 Page({
@@ -52,7 +53,7 @@ Page({
         name: t.name,
         category: t.category || '通用',
         createdBy: t.createdByName || '',
-        updatedAt: String(t.updatedAt || t.createdAt || '').substring(0, 10)
+        updatedAt: formatDateTime(t.updatedAt || t.createdAt)
       }));
       this.setData({
         templates: reset ? templates : this.data.templates.concat(templates),

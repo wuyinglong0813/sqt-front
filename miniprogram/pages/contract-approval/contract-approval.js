@@ -1,4 +1,5 @@
 const { request } = require('../../utils/request');
+const { formatDateTime, submissionText } = require('../../utils/datetime');
 const {
   downloadChunkedApiFile,
   localFileReady,
@@ -26,14 +27,6 @@ function resultIcon(type) {
   if (type === 'INVOICE') return '票';
   if (type === 'BILATERAL_ACTION') return '废';
   return '款';
-}
-
-function formatDateTime(value) {
-  const text = String(value || '').trim().replace('T', ' ').replace(/\.\d+/, '');
-  const matched = text.match(/^(\d{4}-\d{2}-\d{2})(?: (\d{2}:\d{2})(?::(\d{2}))?)?/);
-  if (!matched) return text.slice(0, 19);
-  if (!matched[2]) return matched[1];
-  return `${matched[1]} ${matched[2]}:${matched[3] || '00'}`;
 }
 
 Page({
@@ -96,7 +89,7 @@ Page({
         companyId: String(item.sourceCompanyId || ''),
         companyName: item.sourceCompanyName || '往来公司',
         amountText: item.amount == null ? '' : money(item.amount),
-        dateText: item.businessDate || String(item.createdAt || '').substring(0, 10),
+        dateText: submissionText(item.createdAt, item.businessDate),
         iconText: item.approvalType === 'BILATERAL_ACTION' ? '审'
           : (item.approvalType === 'SALES_ORDER' ? '销'
           : (item.approvalType === 'RETURN_ORDER' ? '退'

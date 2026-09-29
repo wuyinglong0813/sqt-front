@@ -240,7 +240,11 @@ test('home exposes the ordered approval center with a message indicator', () => 
   assert.ok(approvalScript.includes("label: '合同'"));
   assert.ok(approvalScript.includes("label: '履约资料'"));
   assert.ok(approvalScript.includes('formatDateTime'));
-  assert.ok(approvalScript.includes("${matched[1]} ${matched[2]}:${matched[3] || '00'}"));
+  assert.ok(approvalScript.includes('submissionText'));
+  const dateTimeScript = fs.readFileSync(
+    path.join(__dirname, '..', 'utils', 'datetime.js'), 'utf8'
+  );
+  assert.ok(dateTimeScript.includes("${matched[1]} ${matched[2]}:${matched[3] || '00'}"));
   assert.ok(approvalTemplate.includes('result-reason'));
   assert.ok(!approvalTemplate.includes('approval-hero'));
   const approvalStyles = fs.readFileSync(
@@ -1738,6 +1742,7 @@ test('approval lists preserve contract, attachment and notification source IDs',
     assert.strictEqual(page.data.contracts[0].id, largeIds[0]);
     assert.strictEqual(page.data.contracts[0].createdDate, '2026-09-29 10:38:22');
     assert.strictEqual(page.data.results[0].timeText, '2026-09-29 10:38:22');
+    assert.strictEqual(page.data.fulfillmentItems[0].dateText, '2026-09-29 10:38:22');
     assert.strictEqual(page.data.fulfillmentItems[0].id, largeIds[0]);
     assert.strictEqual(page.data.fulfillmentItems[0].contractId, largeIds[1]);
     assert.strictEqual(page.data.results[0].id, largeIds[0]);

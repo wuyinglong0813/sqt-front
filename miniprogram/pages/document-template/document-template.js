@@ -1,4 +1,5 @@
 const { request } = require('../../utils/request');
+const { formatDateTime } = require('../../utils/datetime');
 
 const TYPE_META = {
   SALES_ORDER: {
@@ -45,7 +46,7 @@ Page({
       ]);
       const decorate = list => (list || []).map(item => ({
         ...item,
-        dateText: String(item.updatedAt || item.createdAt || '').slice(0, 10),
+        dateText: formatDateTime(item.updatedAt || item.createdAt),
         sourceText: item.sourceFileName || '标准版式'
       }));
       const salesTemplates = decorate(sales);

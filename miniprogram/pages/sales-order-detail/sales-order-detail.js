@@ -1,4 +1,5 @@
 const { request } = require('../../utils/request');
+const { formatDateTime } = require('../../utils/datetime');
 const { downloadApiFile, uploadSignatureApiFile } = require('../../utils/fileTransfer');
 
 Page({
@@ -88,7 +89,7 @@ Page({
         memo: (memo && memo.content) || '',
         memoDraft: (memo && memo.content) || '',
         memoPreview: this.memoPreviewText((memo && memo.content) || ''),
-        memoUpdatedAt: memo && memo.updatedAt ? String(memo.updatedAt).replace('T', ' ').slice(0, 16) : ''
+        memoUpdatedAt: memo && memo.updatedAt ? formatDateTime(memo.updatedAt) : ''
       });
       wx.setNavigationBarTitle({ title: detail.documentNo || `${documentLabel}详情` });
     } catch (error) {
@@ -135,7 +136,7 @@ Page({
         memoDraft: (memo && memo.content) || '',
         memoPreview: this.memoPreviewText((memo && memo.content) || ''),
         showMemoEditor: false,
-        memoUpdatedAt: memo && memo.updatedAt ? String(memo.updatedAt).replace('T', ' ').slice(0, 16) : ''
+        memoUpdatedAt: memo && memo.updatedAt ? formatDateTime(memo.updatedAt) : ''
       });
       wx.showToast({ title: '个人备忘录已保存', icon: 'success' });
     } catch (error) {

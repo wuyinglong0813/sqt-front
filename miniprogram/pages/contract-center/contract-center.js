@@ -1,4 +1,5 @@
 const { request } = require('../../utils/request');
+const { formatDateTime } = require('../../utils/datetime');
 const app = getApp();
 
 Page({
@@ -70,7 +71,7 @@ Page({
           id: String(item.id),
           amount: Number(item.amount || 0),
           statusText: statusText[item.status] || item.status,
-          createdDate: (item.createdAt || '').substring(0, 10)
+          createdDate: formatDateTime(item.createdAt)
         };
       });
       const contracts = reset ? nextContracts : this.data.contracts.concat(nextContracts);

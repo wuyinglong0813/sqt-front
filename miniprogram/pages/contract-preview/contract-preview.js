@@ -5,6 +5,7 @@ const {
   uploadMultipartApiFile
 } = require('../../utils/fileTransfer');
 const { normalizeContractTable } = require('../../utils/chineseCurrency');
+const { formatDateTime } = require('../../utils/datetime');
 
 function today() {
   const now = new Date();
@@ -843,7 +844,7 @@ Page({
       });
       const logisticsList = (list || []).map(item => ({
         ...item,
-        dateText: String(item.createdAt || '').slice(0, 10),
+        dateText: formatDateTime(item.createdAt),
         fileSizeText: this.formatFileSize(item.fileSize)
       }));
       this.setData({ logisticsList }, () => this.updateFulfillmentCount());
@@ -1008,13 +1009,13 @@ Page({
       ]);
       const logisticsList = (logistics || []).map(item => ({
         ...item,
-        dateText: String(item.createdAt || '').slice(0, 10),
+        dateText: formatDateTime(item.createdAt),
         fileSizeText: this.formatFileSize(item.fileSize)
       }));
       const mapAttachment = item => ({
         ...item,
         fileSizeText: this.formatFileSize(item.fileSize),
-        dateText: String(item.createdAt || '').replace('T', ' ').slice(0, 16),
+        dateText: formatDateTime(item.createdAt),
         isImage: String(item.contentType || '').indexOf('image/') === 0,
         voucherAmountText: item.voucherAmount === null || item.voucherAmount === undefined
           ? '金额未填写'
@@ -1060,7 +1061,7 @@ Page({
         personalMemo: (memo && memo.content) || '',
         memoDraft: (memo && memo.content) || '',
         memoPreview: this.memoPreviewText((memo && memo.content) || ''),
-        memoUpdatedAt: memo && memo.updatedAt ? String(memo.updatedAt).replace('T', ' ').slice(0, 16) : ''
+        memoUpdatedAt: memo && memo.updatedAt ? formatDateTime(memo.updatedAt) : ''
       });
     } catch (error) {
       wx.showToast({ title: error.message || '备忘录加载失败', icon: 'none' });
@@ -1105,7 +1106,7 @@ Page({
         memoDraft: (memo && memo.content) || '',
         memoPreview: this.memoPreviewText((memo && memo.content) || ''),
         showMemoEditor: false,
-        memoUpdatedAt: memo && memo.updatedAt ? String(memo.updatedAt).replace('T', ' ').slice(0, 16) : ''
+        memoUpdatedAt: memo && memo.updatedAt ? formatDateTime(memo.updatedAt) : ''
       });
       wx.showToast({ title: '个人备忘录已保存', icon: 'success' });
     } catch (error) {
@@ -1126,7 +1127,7 @@ Page({
       const attachments = (list || []).map(item => ({
         ...item,
         fileSizeText: this.formatFileSize(item.fileSize),
-        dateText: String(item.createdAt || '').replace('T', ' ').slice(0, 16),
+        dateText: formatDateTime(item.createdAt),
         isImage: String(item.contentType || '').indexOf('image/') === 0,
         voucherAmountText: item.voucherAmount === null || item.voucherAmount === undefined
           ? '金额未填写'
@@ -1749,7 +1750,7 @@ Page({
       });
       const documents = (list || []).map(item => ({
         ...item,
-        dateText: String(item.createdAt || '').slice(0, 10)
+        dateText: formatDateTime(item.createdAt)
       }));
       if (requestSeq !== this.documentRequestSeq[documentType]) return;
       const key = documentType === 'RETURN_ORDER' ? 'returnDocuments' : 'salesDocuments';

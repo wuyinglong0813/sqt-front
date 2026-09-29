@@ -1,4 +1,5 @@
 const { request } = require('../../utils/request');
+const { formatDateTime } = require('../../utils/datetime');
 const { downloadApiFile } = require('../../utils/fileTransfer');
 
 const app = getApp();
@@ -46,7 +47,7 @@ Page({
       ...item,
       entryCount: Number(item.entryCount || 0),
       updatedText: item.updatedAt
-        ? String(item.updatedAt).replace('T', ' ').slice(0, 16)
+        ? formatDateTime(item.updatedAt)
         : '暂无已确认单据'
     };
   },
