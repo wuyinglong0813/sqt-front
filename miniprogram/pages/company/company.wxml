@@ -61,11 +61,17 @@
       <view class="brand-list">
         <view class="list-row" wx:if="{{companyDraft}}" bindtap="resumeDraft">
           <view class="row-copy"><view class="row-title">{{companyDraft.companyName}}</view><view class="row-desc">创建资料已保存，点击继续创建</view></view>
-          <view class="row-arrow">›</view>
+          <view class="onboarding-actions">
+            <view class="onboarding-cancel" catchtap="cancelDraft">取消</view>
+            <view class="row-arrow">›</view>
+          </view>
         </view>
         <view class="list-row" wx:for="{{onboardingCompanies}}" wx:key="id" data-company-id="{{item.id}}" bindtap="resumeCompany">
           <view class="row-copy"><view class="row-title">{{item.name}}</view><view class="row-desc">{{item.statusText}}</view></view>
-          <view class="row-arrow">›</view>
+          <view class="onboarding-actions">
+            <view class="onboarding-cancel" catchtap="cancelOnboarding" data-company-id="{{item.id}}" data-name="{{item.name}}" data-credit-code="{{item.creditCode}}">取消</view>
+            <view class="row-arrow">›</view>
+          </view>
         </view>
         <view class="list-row" wx:if="{{onboardingError}}" bindtap="loadOnboarding">
           <view class="row-copy"><view class="row-title">待认证企业加载失败</view><view class="row-desc">点击重试，已提交的资料会保留</view></view><view class="row-arrow">›</view>

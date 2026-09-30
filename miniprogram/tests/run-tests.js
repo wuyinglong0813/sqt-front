@@ -1684,6 +1684,8 @@ test('home partner list is driven only by bound enterprise relations', () => {
   assert.ok(!script.includes('ranking.concat(relations)'));
   assert.ok(script.includes("if (!name || !counterpartyCompanyId"));
   assert.ok(detail.includes("canSignContract: !!counterpartyCompanyId && hasPerm('contract_sign')"));
+  assert.ok(detail.includes('viewerDirection=${viewerDirection}'));
+  assert.ok(detail.includes("this.data.role === 'buyer' ? 'PURCHASE' : 'SALE'"));
 });
 
 const largeIds = ['2098123456789012345', '2098123456789012346'];
@@ -2052,6 +2054,42 @@ test('enterprise center lists unfinished companies separately from active member
     await page.loadOnboarding();
     assert.strictEqual(page.data.onboardingError, true);
     assert.strictEqual(page.data.onboardingCompanies.length, 1);
+  } finally { env.restore(); }
+});
+
+test('enterprise center can cancel an unfinished company certification without continuing it', async () => {
+  const env = onboardingEnvironment();
+  try {
+    const drafts = require('../utils/companyOnboarding');
+    drafts.saveDraft({ companyName: '待认证企业', creditCode: 'CODE', legalPersonName: '张三', agreed: true, companyId: '9' });
+    const page = pageInstance(loadPage('../pages/company/company'));
+    page.data.onboardingCompanies = [{ id: '9', name: '待认证企业', creditCode: 'CODE' }];
+    page.data.certificationApplications = [{ id: 'a1', companyId: '9', status: 'SUBMITTED', companyName: '待认证企业' }];
+    let modal;
+    wx.showModal = options => { modal = options; options.success({ confirm: true }); };
+    const calls = [];
+    wx.request = options => {
+      calls.push(options);
+      const data = options.url.endsWith('/me/company-onboarding') ? [] : null;
+      options.success({ statusCode: 200, data: { code: 0, data } });
+    };
+    const cancelled = await page.cancelOnboarding({ currentTarget: { dataset: { companyId: '9', name: '待认证企业', creditCode: 'CODE' } } });
+    assert.strictEqual(cancelled, true);
+    assert.strictEqual(modal.confirmText, '取消认证');
+    const deletion = calls.find(call => call.method === 'DELETE');
+    assert.ok(deletion.url.endsWith('/me/company-onboarding/9'));
+    assert.strictEqual(deletion.header['X-Company-Id'], undefined);
+    assert.strictEqual(page.data.onboardingCompanies.length, 0);
+    assert.strictEqual(page.data.certificationApplications.length, 0);
+    assert.strictEqual(drafts.readDraft(), null);
+    wx.showModal = options => { modal = options; options.success({ confirm: false }); };
+    page.data.companyDraft = { companyName: '未提交企业' };
+    page.cancelDraft();
+    assert.strictEqual(modal.confirmText, '取消创建');
+    assert.strictEqual(page.data.companyDraft.companyName, '未提交企业');
+    wx.showModal = options => options.success({ confirm: true });
+    page.cancelDraft();
+    assert.strictEqual(page.data.companyDraft, null);
   } finally { env.restore(); }
 });
 

@@ -27,6 +27,11 @@ function clearDraft(creditCode) {
   if (draft && draft.creditCode === creditCode) wx.removeStorageSync(draftKey());
 }
 
+function discardDraft() {
+  const key = draftKey();
+  if (key) wx.removeStorageSync(key);
+}
+
 function returnToCompany(options = {}) {
   const pages = getCurrentPages();
   for (let i = pages.length - 2; i >= 0; i--) {
@@ -54,4 +59,4 @@ async function loadSummary() {
   }
 }
 
-module.exports = { readDraft, saveDraft, clearDraft, returnToCompany, loadSummary };
+module.exports = { readDraft, saveDraft, clearDraft, discardDraft, returnToCompany, loadSummary };

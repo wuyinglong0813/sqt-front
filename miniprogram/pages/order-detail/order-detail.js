@@ -35,7 +35,7 @@ Page({
     // 快捷操作（带权限控制）
     canSignContract: false,
     canReconciliation: false,
-    // 合同列表（我方与该公司签订的所有合同）
+    // 合同列表（当前身份下与该公司签订的合同）
     contracts: [],
     filteredContracts: [],
     activeContractFilter: 'ALL',
@@ -127,8 +127,9 @@ Page({
     const requestSeq = this.contractRequestSeq;
     if (!silent) this.setData({ contractLoading: true });
     try {
+      const viewerDirection = this.data.role === 'buyer' ? 'PURCHASE' : 'SALE';
       const payload = await request({
-        url: `/contracts?counterpartyName=${encodeURIComponent(counterpartyName)}&page=1&size=100`
+        url: `/contracts?counterpartyName=${encodeURIComponent(counterpartyName)}&viewerDirection=${viewerDirection}&page=1&size=100`
       });
       const list = Array.isArray(payload) ? payload : (payload.items || []);
       if (requestSeq !== this.contractRequestSeq) return;

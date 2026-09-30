@@ -545,11 +545,13 @@ Page({
           trackWidth: track ? track.width : viewport.width
         };
         this.tableScrollOffset = 0;
+        this.tableScrollProgrammatic = false;
         const width = Math.min(100, Math.max(28, viewport.width / content.width * 100));
         this.setData({
           tableScrollbarVisible: content.width > viewport.width + 1,
           tableScrollbarThumbWidth: width,
-          tableScrollbarThumbLeft: 0
+          tableScrollbarThumbLeft: 0,
+          tableScrollLeft: 0
         });
       });
     }, 30);
@@ -560,14 +562,13 @@ Page({
     if (!metrics || metrics.contentWidth <= metrics.viewportWidth) return;
     const scrollLeft = Number(e.detail.scrollLeft || 0);
     this.tableScrollOffset = scrollLeft;
+    if (this.tableScrollbarDrag || this.tableScrollProgrammatic) return;
     const maxScroll = metrics.contentWidth - metrics.viewportWidth;
     const maxLeft = 100 - this.data.tableScrollbarThumbWidth;
     const left = Math.max(0, Math.min(maxLeft,
       (scrollLeft / maxScroll) * maxLeft));
-    this.setData({
-      tableScrollLeft: scrollLeft,
-      tableScrollbarThumbLeft: left
-    });
+    if (Math.abs(left - Number(this.data.tableScrollbarThumbLeft || 0)) < 0.2) return;
+    this.setData({ tableScrollbarThumbLeft: left });
   },
 
   onTableScrollbarTouchStart(e) {
@@ -593,14 +594,18 @@ Page({
       drag.startScrollLeft + (currentX - drag.startX) / trackTravel * maxScroll));
     const maxLeft = 100 - this.data.tableScrollbarThumbWidth;
     this.tableScrollOffset = scrollLeft;
+    this.tableScrollProgrammatic = true;
     this.setData({
       tableScrollLeft: scrollLeft,
       tableScrollbarThumbLeft: maxScroll > 0 ? scrollLeft / maxScroll * maxLeft : 0
+    }, () => {
+      this.tableScrollProgrammatic = false;
     });
   },
 
   onTableScrollbarTouchEnd() {
     this.tableScrollbarDrag = null;
+    this.tableScrollProgrammatic = false;
   },
 
   onClauseTitleInput(e) {

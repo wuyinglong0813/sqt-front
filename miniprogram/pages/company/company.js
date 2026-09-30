@@ -1,5 +1,5 @@
 const { request } = require('../../utils/request');
-const { readDraft } = require('../../utils/companyOnboarding');
+const { readDraft, clearDraft, discardDraft } = require('../../utils/companyOnboarding');
 const { captureCompanyContext, isCompanyContextCurrent } = require('../../utils/companyContext');
 const dict = require('../../utils/dict');
 const { setTabBarHidden, syncTabBar } = require('../../utils/tabBar');
@@ -115,7 +115,7 @@ Page({
         canCompanyManage,
         canVerifyLegal: member.memberStatus === 'ACTIVE' && member.roleCode !== 'LEGAL',
         companies: companyItems,
-        certificationApplications: (certificationApplications || []).map(item => ({
+        certificationApplications: (certificationApplications || []).filter(item => item.status !== 'CANCELLED').map(item => ({
           ...item,
           statusText: item.status === 'APPROVED' ? '已通过' : item.status === 'REJECTED' ? '已驳回' : '审核中'
         })),
@@ -153,6 +153,67 @@ Page({
   },
 
   resumeDraft() { wx.navigateTo({ url: '/pages/company-cert/company-cert?resume=1' }); },
+
+  cancelDraft() {
+    const draft = this.data.companyDraft;
+    if (!draft) return;
+    wx.showModal({
+      title: '取消企业创建',
+      content: `确定不再继续「${draft.companyName}」的企业资料吗？`,
+      confirmText: '取消创建',
+      confirmColor: '#e35d5d',
+      success: result => {
+        if (!result.confirm) return;
+        discardDraft();
+        this.setData({ companyDraft: null });
+        wx.showToast({ title: '已取消', icon: 'none' });
+      }
+    });
+  },
+
+  cancelOnboarding(e) {
+    const companyId = String(e.currentTarget.dataset.companyId || '');
+    const name = e.currentTarget.dataset.name || '该企业';
+    const creditCode = e.currentTarget.dataset.creditCode || '';
+    if (!companyId || this._cancellingOnboarding) return Promise.resolve(false);
+    return new Promise(resolve => {
+      wx.showModal({
+        title: '取消企业认证',
+        content: `确定不再继续「${name}」的企业认证吗？取消后不会继续办理这家企业。`,
+        confirmText: '取消认证',
+        confirmColor: '#e35d5d',
+        success: async result => {
+          if (!result.confirm) {
+            resolve(false);
+            return;
+          }
+          await this.confirmCancelOnboarding(companyId, creditCode);
+          resolve(true);
+        },
+        fail: () => resolve(false)
+      });
+    });
+  },
+
+  async confirmCancelOnboarding(companyId, creditCode) {
+    if (this._cancellingOnboarding) return;
+    this._cancellingOnboarding = true;
+    try {
+      await request({ url: `/me/company-onboarding/${companyId}`, method: 'DELETE', withCompany: false });
+      if (creditCode) clearDraft(creditCode);
+      this.setData({
+        onboardingCompanies: this.data.onboardingCompanies.filter(item => String(item.id) !== String(companyId)),
+        certificationApplications: (this.data.certificationApplications || [])
+          .filter(item => String(item.companyId || '') !== String(companyId))
+      });
+      wx.showToast({ title: '已取消该企业认证', icon: 'none' });
+      await this.loadOnboarding();
+    } catch (error) {
+      wx.showToast({ title: error.message || '取消失败', icon: 'none' });
+    } finally {
+      this._cancellingOnboarding = false;
+    }
+  },
 
   async loadEnterpriseMetrics(companyId, canManage, canContractTemplate) {
     const context = captureCompanyContext(app);

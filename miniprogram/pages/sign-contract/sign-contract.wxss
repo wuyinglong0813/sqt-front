@@ -71,7 +71,7 @@ page { background: #f4f8fd; }
 .table-wrap { min-width: 1030rpx; }
 .table-scrollbar { align-items: center; display: flex; height: 34rpx; margin: 7rpx 5rpx 1rpx; position: relative; }
 .table-scrollbar-track { background: #e9eef4; border-radius: 7rpx; height: 10rpx; position: relative; width: 100%; }
-.table-scrollbar-thumb { align-items: center; background: linear-gradient(90deg,#62b2ff,#3498ff); border-radius: 7rpx; box-shadow: 0 2rpx 7rpx rgba(52,152,255,.28); display: flex; height: 12rpx; justify-content: center; position: absolute; top: -1rpx; transition: left .05s linear; }
+.table-scrollbar-thumb { align-items: center; background: linear-gradient(90deg,#62b2ff,#3498ff); border-radius: 7rpx; box-shadow: 0 2rpx 7rpx rgba(52,152,255,.28); display: flex; height: 12rpx; justify-content: center; position: absolute; top: -1rpx; }
 .table-scrollbar-grip { background: rgba(255,255,255,.8); border-radius: 2rpx; height: 3rpx; width: 28rpx; }
 .table-row { display: flex; align-items: center; }
 .table-header { background: #eaf4ff; border-radius: 8rpx 8rpx 0 0; }

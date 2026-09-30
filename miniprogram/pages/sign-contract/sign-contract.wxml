@@ -69,7 +69,7 @@
     <view class="card" wx:if="{{tableSection}}">
       <view class="section-title">{{tableSection.title}}</view>
       <view class="table-scroll-hint">左右滑动可编辑全部列</view>
-      <scroll-view class="table-scroll" scroll-x enhanced show-scrollbar="{{false}}" scroll-left="{{tableScrollLeft}}" bindscroll="onTableScroll" enable-flex>
+      <scroll-view class="table-scroll" scroll-x enhanced bounces="{{false}}" show-scrollbar="{{false}}" scroll-with-animation="{{false}}" scroll-left="{{tableScrollLeft}}" bindscroll="onTableScroll" enable-flex>
         <view class="table-wrap">
           <view class="table-row table-header">
             <view class="th" wx:for="{{tableSection.columns}}" wx:for-item="col" wx:key="*this">
