@@ -1,4 +1,6 @@
 const { request } = require('../../utils/request');
+const { downloadApiFile } = require('../../utils/fileTransfer');
+const { captureCompanyContext, isCompanyContextCurrent } = require('../../utils/companyContext');
 
 function money(value) {
   const amount = Number(value || 0);
@@ -18,11 +20,36 @@ function decorateContract(item) {
   return { ...item, amountText: money(item.amount), selected: false };
 }
 
+function decorateLedger(detail) {
+  const fields = ['contractAmount', 'amount', 'paymentAmount', 'unpaidAmount', 'invoiceAmount', 'unbilledAmount'];
+  const amounts = row => fields.reduce((result, field) => {
+    result[`${field}Text`] = row[field] === null || row[field] === undefined ? '' : money(row[field]);
+    return result;
+  }, {});
+  return {
+    ...detail,
+    groups: (detail.groups || []).map(group => ({
+      ...group,
+      rows: (group.rows || []).map(row => ({
+        ...row,
+        dateText: row.date ? String(row.date).slice(0, 10) : '—',
+        ...amounts(row)
+      })),
+      totals: { ...group.totals, ...amounts(group.totals || {}) }
+    }))
+  };
+}
+
 Page({
   data: {
     loading: false,
     projects: [],
     activeProject: null,
+    projectTab: 'ledger',
+    ledger: null,
+    ledgerLoading: false,
+    ledgerError: '',
+    exportingLedger: false,
     showCreate: false,
     projectName: '',
     projectNo: '',
@@ -48,7 +75,7 @@ Page({
   },
 
   async onShow() {
-    await this.loadProjects();
+    await this.refresh();
     this.startPendingContractFlow();
   },
 
@@ -139,17 +166,71 @@ Page({
         activeProject: {
           ...decorateProject(project),
           contracts: (project.contracts || []).map(decorateContract)
-        }
+        },
+        ledger: null
       });
     } catch (error) {
       wx.showToast({ title: error.message || '项目加载失败', icon: 'none' });
     } finally {
       wx.hideLoading();
     }
+    if (this.data.activeProject && String(this.data.activeProject.id) === String(id)) {
+      await this.loadLedger(id);
+    }
+  },
+
+  async loadLedger(id) {
+    const projectId = id || (this.data.activeProject && this.data.activeProject.id);
+    if (!projectId) return;
+    const sequence = (this.ledgerSequence || 0) + 1;
+    this.ledgerSequence = sequence;
+    const app = getApp();
+    const companyContext = captureCompanyContext(app);
+    const current = () => this.ledgerSequence === sequence && isCompanyContextCurrent(app, companyContext)
+      && this.data.activeProject && String(this.data.activeProject.id) === String(projectId);
+    this.setData({ ledger: null, ledgerLoading: true, ledgerError: '' });
+    try {
+      const detail = await request({ url: `/project-ledgers/${projectId}/ledger` });
+      if (current()) this.setData({ ledger: decorateLedger(detail) });
+    } catch (error) {
+      if (current()) this.setData({ ledgerError: error.message || '台账明细加载失败' });
+    } finally {
+      if (current()) this.setData({ ledgerLoading: false });
+    }
+  },
+
+  retryLedger() { return this.loadLedger(); },
+
+  selectProjectTab(e) {
+    this.setData({ projectTab: e.currentTarget.dataset.tab });
+  },
+
+  async exportLedger() {
+    const project = this.data.activeProject;
+    if (!project || this.data.exportingLedger || !this.data.ledger) return;
+    this.setData({ exportingLedger: true });
+    const app = getApp();
+    const context = captureCompanyContext(app);
+    const safeName = String(project.name || project.id).replace(/[\\/:*?"<>|\r\n]/g, '_').slice(0, 80);
+    wx.showLoading({ title: '生成 Excel' });
+    try {
+      const result = await downloadApiFile(`/project-ledgers/${project.id}/ledger/workbook-data`,
+        `${wx.env.USER_DATA_PATH}/${safeName}-${project.id}-台账明细.xlsx`);
+      if (isCompanyContextCurrent(app, context)) wx.openDocument({
+        filePath: result.filePath, fileType: 'xlsx', showMenu: true,
+        fail: () => wx.showToast({ title: 'Excel 打开失败', icon: 'none' })
+      });
+    } catch (error) {
+      if (isCompanyContextCurrent(app, context)) wx.showToast({ title: error.message || '台账导出失败', icon: 'none' });
+    } finally {
+      wx.hideLoading();
+      this.setData({ exportingLedger: false });
+    }
   },
 
   closeProject() {
-    this.setData({ activeProject: null });
+    this.ledgerSequence = (this.ledgerSequence || 0) + 1;
+    this.setData({ activeProject: null, ledger: null, ledgerLoading: false, ledgerError: '', projectTab: 'ledger' });
   },
 
   openCreate() {
@@ -261,12 +342,14 @@ Page({
       });
       this.setData({
         showAssign: false,
+        projectTab: 'ledger',
         activeProject: {
           ...decorateProject(project),
           contracts: (project.contracts || []).map(decorateContract)
         }
       });
       wx.showToast({ title: '合同已划分', icon: 'success' });
+      await this.loadLedger(project.id);
       await this.loadProjects();
     } catch (error) {
       wx.showToast({ title: error.message || '划分失败', icon: 'none' });
@@ -295,6 +378,7 @@ Page({
             }
           });
           wx.showToast({ title: '合同已移出', icon: 'success' });
+          await this.loadLedger(project.id);
           await this.loadProjects();
         } catch (error) {
           wx.showToast({ title: error.message || '移出失败', icon: 'none' });
@@ -306,4 +390,4 @@ Page({
   noop() {}
 });
 
-module.exports = { money, decorateProject, decorateContract };
+module.exports = { money, decorateProject, decorateContract, decorateLedger };

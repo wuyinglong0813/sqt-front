@@ -52,8 +52,56 @@
         <view><label>销售收入</label><text>¥{{activeProject.salesIncomeText}}</text></view>
         <view><label>预计毛利</label><text class="{{activeProject.estimatedProfit < 0 ? 'negative' : ''}}">¥{{activeProject.estimatedProfitText}}</text></view>
       </view>
-      <view class="contract-head"><view><view class="contract-title">已划分合同</view><view class="contract-sub">只统计当前仍为已生效状态的合同金额</view></view><button bindtap="openAssign">＋ 划分合同</button></view>
-      <scroll-view class="contract-list" scroll-y>
+      <view class="detail-tabs">
+        <view class="detail-tab {{projectTab === 'ledger' ? 'active' : ''}}" data-tab="ledger" bindtap="selectProjectTab">台账明细</view>
+        <view class="detail-tab {{projectTab === 'contracts' ? 'active' : ''}}" data-tab="contracts" bindtap="selectProjectTab">已划分合同（{{activeProject.contracts.length}}）</view>
+        <button bindtap="openAssign">＋ 划分合同</button>
+      </view>
+      <view class="ledger-head" wx:if="{{projectTab === 'ledger'}}">
+        <view><view class="ledger-title">项目账套台账明细</view><view class="contract-sub">截至 {{ledger.asOfDate || '今天'}} · 金额单位：元</view></view>
+        <button bindtap="exportLedger" loading="{{exportingLedger}}" disabled="{{exportingLedger || ledgerLoading || !ledger}}">导出 Excel</button>
+      </view>
+      <scroll-view class="ledger-list" scroll-y wx:if="{{projectTab === 'ledger'}}">
+        <view class="empty-inline" wx:if="{{ledgerLoading}}">台账明细加载中...</view>
+        <view class="ledger-error" wx:elif="{{ledgerError}}"><text>{{ledgerError}}</text><button bindtap="retryLedger">重新加载</button></view>
+        <block wx:else>
+          <view class="ledger-note">按已生效合同归集已确认单据，退货和作废冲销自动扣减。左右滑动查看完整表格。</view>
+          <view class="ledger-excluded" wx:if="{{ledger.excludedContractCount > 0}}">{{ledger.excludedContractCount}} 份未生效或不可用合同未计入台账</view>
+          <view class="ledger-group" wx:for="{{ledger.groups}}" wx:key="key" wx:for-item="group">
+            <view class="ledger-company"><view>{{group.counterpartyName}}</view><text class="direction {{group.direction === 'PURCHASE' ? 'purchase' : 'sale'}}">{{group.directionText}}</text></view>
+            <scroll-view class="ledger-table-scroll" scroll-x>
+              <view class="ledger-table">
+                <view class="ledger-row ledger-header">
+                  <view class="ledger-cell ledger-date">日期</view><view class="ledger-cell ledger-name">名称</view>
+                  <view class="ledger-cell">合同金额</view><view class="ledger-cell">金额</view><view class="ledger-cell">转款</view><view class="ledger-cell">未转款</view><view class="ledger-cell">已开发票</view><view class="ledger-cell">未开发票</view>
+                </view>
+                <view class="ledger-row" wx:for="{{group.rows}}" wx:key="key" wx:for-item="row">
+                  <view class="ledger-cell ledger-date">{{row.dateText}}</view>
+                  <view class="ledger-cell ledger-name"><view>{{row.name}}</view><text>{{row.documentNo}}</text><text wx:if="{{row.contractNo !== row.documentNo}}">{{row.contractNo}}</text></view>
+                  <view class="ledger-cell ledger-number">{{row.contractAmountText}}</view>
+                  <view class="ledger-cell ledger-number {{row.amount < 0 ? 'negative' : ''}}">{{row.amountText}}</view>
+                  <view class="ledger-cell ledger-number {{row.paymentAmount < 0 ? 'negative' : ''}}">{{row.paymentAmountText}}</view>
+                  <view class="ledger-cell ledger-number {{row.unpaidAmount < 0 ? 'negative' : ''}}">{{row.unpaidAmountText}}</view>
+                  <view class="ledger-cell ledger-number {{row.invoiceAmount < 0 ? 'negative' : ''}}">{{row.invoiceAmountText}}</view>
+                  <view class="ledger-cell ledger-number {{row.unbilledAmount < 0 ? 'negative' : ''}}">{{row.unbilledAmountText}}</view>
+                </view>
+                <view class="ledger-row ledger-total">
+                  <view class="ledger-cell ledger-date"></view><view class="ledger-cell ledger-name"></view><view class="ledger-cell">合计</view>
+                  <view class="ledger-cell ledger-number">{{group.totals.amountText}}</view>
+                  <view class="ledger-cell ledger-number">{{group.totals.paymentAmountText}}</view>
+                  <view class="ledger-cell ledger-number {{group.totals.unpaidAmount < 0 ? 'negative' : ''}}">{{group.totals.unpaidAmountText}}</view>
+                  <view class="ledger-cell ledger-number">{{group.totals.invoiceAmountText}}</view>
+                  <view class="ledger-cell ledger-number {{group.totals.unbilledAmount < 0 ? 'negative' : ''}}">{{group.totals.unbilledAmountText}}</view>
+                </view>
+              </view>
+            </scroll-view>
+          </view>
+          <view class="empty-inline" wx:if="{{!ledger.groups.length}}">暂无已生效合同，点击“划分合同”生成台账明细</view>
+          <view class="ledger-formula" wx:if="{{ledger.groups.length}}"><view>未转款＝金额－转款</view><view>未开发票＝转款－已开发票（按提供的 Excel 口径）</view></view>
+        </block>
+      </scroll-view>
+      <view class="contract-head" wx:if="{{projectTab === 'contracts'}}"><view><view class="contract-title">已划分合同</view><view class="contract-sub">只统计当前仍为已生效状态的合同金额</view></view></view>
+      <scroll-view class="contract-list" scroll-y wx:if="{{projectTab === 'contracts'}}">
         <view class="contract-card" wx:for="{{activeProject.contracts}}" wx:key="id">
           <view class="contract-row"><view class="direction {{item.direction === 'PURCHASE' ? 'purchase' : 'sale'}}">{{item.directionText}}</view><view class="contract-amount">¥{{item.amountText}}</view></view>
           <view class="contract-name">{{item.name}}</view>
