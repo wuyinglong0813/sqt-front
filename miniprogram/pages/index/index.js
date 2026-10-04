@@ -32,6 +32,7 @@ Page({
     counterparties: [],
     relationCounterparties: [],
     partnerCompanies: [],
+    partnerContractCounts: [],
     counterpartiesLoading: false,
     counterpartiesLoaded: false,
     counterpartiesError: '',
@@ -230,6 +231,7 @@ Page({
           counterparties: [],
           relationCounterparties: [],
           partnerCompanies: [],
+          partnerContractCounts: [],
           counterpartiesLoaded: false,
           counterpartiesError: '',
           stats: { totalAmount: 0, totalOrders: 0, counterpartyCount: 0 },
@@ -257,6 +259,7 @@ Page({
       relationCounterparties: Array.isArray(payload.relationCounterparties)
         ? payload.relationCounterparties : [],
       partnerCompanies: Array.isArray(payload.partnerCompanies) ? payload.partnerCompanies : [],
+      partnerContractCounts: Array.isArray(payload.partnerContractCounts) ? payload.partnerContractCounts : [],
       counterpartiesLoaded: true,
       approvalHasMessage: !!payload.approvalHasMessage,
       loading: false,
@@ -280,6 +283,7 @@ Page({
       counterparties: this.data.counterparties || [],
       relationCounterparties: this.data.relationCounterparties || [],
       partnerCompanies: this.data.partnerCompanies || [],
+      partnerContractCounts: this.data.partnerContractCounts || [],
       approvalHasMessage: !!this.data.approvalHasMessage
     });
     if (!snapshot) return;
@@ -558,6 +562,7 @@ Page({
         companyName: payload.companyName,
         companyDisplayName: payload.companyName || '企业信息加载中',
         ranking,
+        partnerContractCounts: payload.partnerContractCounts || [],
         rankingTitle: role === 'supplier' ? '客户销售业绩排名' : '采购业绩排名',
         stats: {
           totalAmount: totalAmount.toFixed(0),
@@ -651,6 +656,8 @@ Page({
   refreshPartnerCompanies() {
     const ranking = this.data.ranking || [];
     const relations = this.data.relationCounterparties || [];
+    const contractCounts = new Map((this.data.partnerContractCounts || [])
+      .map(item => [String(item.counterpartyCompanyId), Number(item.contractCount) || 0]));
     const seen = new Set();
     const partnerCompanies = [];
     relations.forEach(item => {
@@ -665,10 +672,12 @@ Page({
         counterpartyName: name,
         initial: name.substring(0, 1),
         status: item.status || 'ACTIVE',
+        contractCount: contractCounts.get(String(counterpartyCompanyId)) || 0,
         orderCount: rankItem.orderCount || 0,
         amount: rankItem.amount || 0
       });
     });
+    partnerCompanies.sort((a, b) => b.contractCount - a.contractCount);
     this.setData({
       partnerCompanies,
       'stats.counterpartyCount': partnerCompanies.length

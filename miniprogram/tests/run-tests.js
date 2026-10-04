@@ -1688,6 +1688,39 @@ test('home partner list is driven only by bound enterprise relations', () => {
   assert.ok(detail.includes("this.data.role === 'buyer' ? 'PURCHASE' : 'SALE'"));
 });
 
+test('home partner companies sort by lifetime signed contracts and preserve ties for both roles', () => {
+  for (const role of ['buyer', 'supplier']) {
+    const page = pageInstance(loadPage('../pages/index/index'));
+    page.data.role = role;
+    page.data.period = 'month';
+    const ids = ['2098123456789012345', '2098123456789012346', '2098123456789012347', '2098123456789012348'];
+    page.data.relationCounterparties = ids.map((id, index) => ({
+      id: `relation-${index}`, counterpartyCompanyId: id,
+      counterpartyName: index < 2 ? '同名企业' : `公司${index}`
+    }));
+    page.data.partnerContractCounts = [
+      { counterpartyCompanyId: ids[0], contractCount: 1 },
+      { counterpartyCompanyId: ids[1], contractCount: 3 },
+      { counterpartyCompanyId: ids[2], contractCount: 3 },
+      { counterpartyCompanyId: 'unbound-company', contractCount: 99 }
+    ];
+    // Monthly amount and standalone order counts must not drive partner ordering.
+    page.data.ranking = [{ counterpartyName: '公司3', amount: 99999, orderCount: 100 }];
+
+    page.refreshPartnerCompanies();
+
+    assert.deepStrictEqual(page.data.partnerCompanies.map(item => item.counterpartyCompanyId),
+      [ids[1], ids[2], ids[0], ids[3]]);
+    assert.deepStrictEqual(page.data.partnerCompanies.map(item => item.contractCount), [3, 3, 1, 0]);
+    assert.strictEqual(page.data['stats.counterpartyCount'], 4);
+    assert.deepStrictEqual(page.data.relationCounterparties.map(item => item.counterpartyCompanyId), ids);
+    page.data.period = 'year';
+    page.refreshPartnerCompanies();
+    assert.deepStrictEqual(page.data.partnerCompanies.map(item => item.counterpartyCompanyId),
+      [ids[1], ids[2], ids[0], ids[3]]);
+  }
+});
+
 const largeIds = ['2098123456789012345', '2098123456789012346'];
 
 async function withIdPage(relativePath, check) {

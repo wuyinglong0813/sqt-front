@@ -65,8 +65,6 @@
         <view class="empty-inline" wx:if="{{ledgerLoading}}">台账明细加载中...</view>
         <view class="ledger-error" wx:elif="{{ledgerError}}"><text>{{ledgerError}}</text><button bindtap="retryLedger">重新加载</button></view>
         <block wx:else>
-          <view class="ledger-note">按已生效合同归集已确认单据，退货和作废冲销自动扣减。左右滑动查看完整表格。</view>
-          <view class="ledger-excluded" wx:if="{{ledger.excludedContractCount > 0}}">{{ledger.excludedContractCount}} 份未生效或不可用合同未计入台账</view>
           <view class="ledger-group" wx:for="{{ledger.groups}}" wx:key="key" wx:for-item="group">
             <view class="ledger-company"><view>{{group.counterpartyName}}</view><text class="direction {{group.direction === 'PURCHASE' ? 'purchase' : 'sale'}}">{{group.directionText}}</text></view>
             <scroll-view class="ledger-table-scroll" scroll-x>
@@ -96,17 +94,16 @@
               </view>
             </scroll-view>
           </view>
-          <view class="empty-inline" wx:if="{{!ledger.groups.length}}">暂无已生效合同，点击“划分合同”生成台账明细</view>
-          <view class="ledger-formula" wx:if="{{ledger.groups.length}}"><view>未转款＝金额－转款</view><view>未开发票＝转款－已开发票（按提供的 Excel 口径）</view></view>
+          <view class="empty-inline" wx:if="{{!ledger.groups.length}}">暂无台账明细</view>
         </block>
       </scroll-view>
-      <view class="contract-head" wx:if="{{projectTab === 'contracts'}}"><view><view class="contract-title">已划分合同</view><view class="contract-sub">只统计当前仍为已生效状态的合同金额</view></view></view>
+      <view class="contract-head" wx:if="{{projectTab === 'contracts'}}"><view class="contract-title">已划分合同</view></view>
       <scroll-view class="contract-list" scroll-y wx:if="{{projectTab === 'contracts'}}">
         <view class="contract-card" wx:for="{{activeProject.contracts}}" wx:key="id">
           <view class="contract-row"><view class="direction {{item.direction === 'PURCHASE' ? 'purchase' : 'sale'}}">{{item.directionText}}</view><view class="contract-amount">¥{{item.amountText}}</view></view>
           <view class="contract-name">{{item.name}}</view>
           <view class="contract-meta">{{item.contractNo}} · {{item.counterpartyName}}</view>
-          <view class="inactive-tip" wx:if="{{item.status !== 'ACTIVE'}}">合同已失效，当前金额不计入汇总</view>
+          <view class="inactive-tip" wx:if="{{item.status !== 'ACTIVE'}}">{{item.status === 'COMPLETED' ? '已结束' : '已失效'}}</view>
           <view class="remove" data-id="{{item.id}}" catchtap="removeContract">移出项目</view>
         </view>
         <view class="empty-inline" wx:if="{{activeProject.contracts.length === 0}}">暂无合同，点击“划分合同”添加</view>
