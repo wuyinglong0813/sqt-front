@@ -11,6 +11,7 @@ page { background: #f4f8fd; }
 .section-title { font-size: 30rpx; font-weight: 600; margin: 32rpx 6rpx 18rpx; }
 .quota-panel,.usage-list,.empty-panel { background: #fff; border: 1rpx solid #dfeaf6; border-radius: 24rpx; padding: 28rpx; }
 .quota-value { font-size: 46rpx; font-weight: 600; color: #2478df; }
+.quota-label { color: #728198; font-size: 22rpx; margin-bottom: 10rpx; }
 .quota-stats { display: flex; flex-wrap: wrap; gap: 24rpx; margin-top: 22rpx; font-size: 24rpx; color: #728198; }
 .quota-stats text { color: #1b2a3c; }
 .quota-total { color: #728198; font-size: 22rpx; margin-top: 16rpx; }

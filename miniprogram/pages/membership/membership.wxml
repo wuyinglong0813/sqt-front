@@ -16,6 +16,7 @@
     </view>
     <view class="section-title">{{status.modeText}}</view>
     <view class="quota-panel">
+      <view class="quota-label">{{status.quotaLabel}}</view>
       <view class="quota-value">{{status.quotaText}}</view>
       <view class="quota-stats">
         <view>已使用 <text>{{status.used}}</text> 份</view>
@@ -24,7 +25,7 @@
       <view wx:if="{{!status.unlimited && status.quotaTotal !== null}}" class="quota-total">免费累计总额 {{status.quotaTotal}} 份</view>
       <view class="quota-total">独立已购可用额度 {{status.paidRemaining}} 份</view>
     </view>
-    <view class="status-note">{{status.reason}}</view>
+    <view class="status-note">{{status.overviewNote}}</view>
     <view class="basic-note">额度限制只影响新发起电子签。接收方签署、已有任务及基础业务协作继续可用。</view>
     <button wx:if="{{!status.canInitiate}}" class="secondary-button" bindtap="openHelp">查看帮助与反馈</button>
     <view class="section-title">最近使用记录</view>
