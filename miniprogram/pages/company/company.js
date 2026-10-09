@@ -321,6 +321,7 @@ Page({
   goAuthManage() { wx.navigateTo({ url: '/pages/auth-manage/auth-manage' }); },
   goRoleManage() { wx.navigateTo({ url: '/pages/role-manage/role-manage' }); },
   goContractTemplate() { wx.navigateTo({ url: '/pages/contract-template/contract-template' }); },
+  goMembership() { wx.navigateTo({ url: '/pages/membership/membership' }); },
   goDocumentTemplate() { wx.navigateTo({ url: '/pages/document-template/document-template' }); },
   goInventory() { wx.navigateTo({ url: '/pages/inventory/inventory' }); },
   goProjectLedger() { wx.navigateTo({ url: '/pages/project-ledger/project-ledger' }); },

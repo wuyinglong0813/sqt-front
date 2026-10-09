@@ -123,6 +123,14 @@
           <view class="metric-item"><view class="metric-value">{{templateCount}}</view><view class="metric-label">合同模板</view></view>
         </view>
 
+        <view class="brand-list">
+          <view class="list-row" bindtap="goMembership">
+            <view class="row-icon"><image src="/images/icons/company.svg" mode="aspectFit"/></view>
+            <view class="row-copy"><view class="row-title">会员与签署额度</view><view class="row-desc">当前企业权益、份额和使用记录</view></view>
+            <view class="row-arrow">›</view>
+          </view>
+        </view>
+
         <block wx:if="{{todos.length > 0}}">
           <view class="section-head">
             <view><view class="section-title">企业待办</view><view class="section-sub">需要你处理的组织与合同事项</view></view>

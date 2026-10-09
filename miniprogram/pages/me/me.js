@@ -157,6 +157,7 @@ Page({
   goCompanyCenter() {
     wx.switchTab({ url: '/pages/company/company' });
   },
+  goMembership() { wx.navigateTo({ url: '/pages/membership/membership' }); },
 
   goAuthManage() {
     wx.navigateTo({ url: '/pages/auth-manage/auth-manage' });

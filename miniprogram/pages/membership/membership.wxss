@@ -1,0 +1,28 @@
+page { background: #f4f8fd; }
+.membership-page { padding: 28rpx 24rpx calc(44rpx + env(safe-area-inset-bottom)); color: #1b2a3c; }
+.company-panel { padding: 8rpx 6rpx 26rpx; }
+.company-name { font-size: 30rpx; font-weight: 600; word-break: break-all; }
+.company-id { color: #728198; font-size: 22rpx; margin-top: 10rpx; word-break: break-all; }
+.member-card { background: linear-gradient(138deg,#45a8ff,#2478df); color: #fff; border-radius: 30rpx; padding: 32rpx; }
+.member-tag { font-size: 22rpx; }
+.member-title { font-size: 40rpx; font-weight: 600; margin-top: 18rpx; }
+.member-validity { font-size: 24rpx; margin-top: 14rpx; }
+.member-note { font-size: 21rpx; color: rgba(255,255,255,.8); margin-top: 20rpx; line-height: 1.6; }
+.section-title { font-size: 30rpx; font-weight: 600; margin: 32rpx 6rpx 18rpx; }
+.quota-panel,.usage-list,.empty-panel { background: #fff; border: 1rpx solid #dfeaf6; border-radius: 24rpx; padding: 28rpx; }
+.quota-value { font-size: 46rpx; font-weight: 600; color: #2478df; }
+.quota-stats { display: flex; flex-wrap: wrap; gap: 24rpx; margin-top: 22rpx; font-size: 24rpx; color: #728198; }
+.quota-stats text { color: #1b2a3c; }
+.quota-total { color: #728198; font-size: 22rpx; margin-top: 16rpx; }
+.status-note { font-size: 25rpx; margin: 22rpx 6rpx 12rpx; line-height: 1.6; }
+.basic-note { font-size: 22rpx; color: #728198; margin: 0 6rpx 22rpx; line-height: 1.7; }
+.secondary-button { background: #fff; color: #2478df; font-size: 26rpx; border: 1rpx solid #dfeaf6; border-radius: 18rpx; margin-top: 20rpx; }
+.secondary-button::after { border: 0; }
+.usage-list { padding: 0 24rpx; }
+.usage-row { padding: 24rpx 0; border-bottom: 1rpx solid #eaf0f7; }
+.usage-row:last-child { border-bottom: 0; }
+.usage-top { display: flex; justify-content: space-between; gap: 12rpx; font-size: 25rpx; }
+.usage-state { color: #2478df; flex-shrink: 0; }
+.usage-detail,.usage-time { color: #728198; font-size: 21rpx; margin-top: 10rpx; word-break: break-all; }
+.message { color: #728198; font-size: 25rpx; padding: 28rpx 6rpx; }
+.empty-panel { font-size: 26rpx; text-align: center; }

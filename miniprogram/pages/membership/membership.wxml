@@ -1,0 +1,41 @@
+<view class="membership-page">
+  <view wx:if="{{loading}}" class="message">正在加载当前企业权益…</view>
+  <view wx:elif="{{errorMessage}}" class="empty-panel">
+    <view>{{errorMessage}}</view><button class="secondary-button" bindtap="retry">重新加载</button>
+  </view>
+  <block wx:elif="{{status}}">
+    <view class="company-panel">
+      <view class="company-name">{{status.companyName}}</view>
+      <view class="company-id" bindtap="copyCompanyId">企业 ID：{{status.companyId}}　复制</view>
+    </view>
+    <view class="member-card">
+      <view class="member-tag">{{status.vip ? '企业会员' : '基础企业'}}</view>
+      <view class="member-title">{{status.membershipText}}</view>
+      <view class="member-validity">{{status.validityText}}</view>
+      <view class="member-note">当前企业的有效成员共享权益，操作仍需对应业务权限</view>
+    </view>
+    <view class="section-title">{{status.modeText}}</view>
+    <view class="quota-panel">
+      <view class="quota-value">{{status.quotaText}}</view>
+      <view class="quota-stats">
+        <view>已使用 <text>{{status.used}}</text> 份</view>
+        <view>处理中 <text>{{status.reserved}}</text> 份</view>
+      </view>
+      <view wx:if="{{!status.unlimited && status.quotaTotal !== null}}" class="quota-total">免费累计总额 {{status.quotaTotal}} 份</view>
+      <view class="quota-total">独立已购可用额度 {{status.paidRemaining}} 份</view>
+    </view>
+    <view class="status-note">{{status.reason}}</view>
+    <view class="basic-note">额度限制只影响新发起电子签。接收方签署、已有任务及基础业务协作继续可用。</view>
+    <button wx:if="{{!status.canInitiate}}" class="secondary-button" bindtap="openHelp">查看帮助与反馈</button>
+    <view class="section-title">最近使用记录</view>
+    <view wx:if="{{usageError}}" class="message">{{usageError}}</view>
+    <view wx:elif="{{!usage.length}}" class="message">暂无签署额度使用记录</view>
+    <view wx:else class="usage-list">
+      <view class="usage-row" wx:for="{{usage}}" wx:key="id" data-id="{{item.contractId}}" bindtap="openContract">
+        <view class="usage-top"><view>{{item.sourceText}}</view><view class="usage-state">{{item.statusText}}</view></view>
+        <view class="usage-detail">合同 {{item.contractId}} · 第 {{item.version}} 版</view>
+        <view class="usage-time">{{item.createdAt}}（北京时间）</view>
+      </view>
+    </view>
+  </block>
+</view>

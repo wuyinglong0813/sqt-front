@@ -1,4 +1,5 @@
 const { request } = require('../../utils/request');
+const { captureCompanyContext, isCompanyContextCurrent } = require('../../utils/companyContext');
 
 // Fadada's desktop signing page keeps fixed side columns. Below this width the contract collapses.
 const DESKTOP_SIGN_WIDTH = 1280;
@@ -92,9 +93,33 @@ Page({
     this._preparing = true;
     this.setData({ loading: true, errorMessage: '' });
     const token = getApp().globalData.token;
+    const context = captureCompanyContext(getApp());
     try {
+      if (this.data.scene === 'contract') {
+        const quote = await request({
+          url: '/contracts/' + this.data.options.contractId + '/signing/quote',
+          token: context.token, companyId: context.companyId
+        });
+        if (this._unloaded || !isCompanyContextCurrent(getApp(), context)) return;
+        if (!quote || !quote.canSign) throw new Error((quote && quote.message) || '当前不能发起签署');
+        if (quote.newTask) {
+          const accepted = await new Promise(resolve => wx.showModal({
+            title: '确认发起电子签',
+            content: quote.message + '。\n成功创建签署任务后计入使用量，双方签完后合同生效。',
+            confirmText: '确认发起',
+            success: result => resolve(!!result.confirm),
+            fail: () => resolve(false)
+          }));
+          if (this._unloaded || !isCompanyContextCurrent(getApp(), context)) return;
+          if (!accepted) {
+            this.setData({ loading: false, errorMessage: '已取消发起，未创建签署任务' });
+            return;
+          }
+        }
+      }
       const result = await this.readAuthStatus(true);
-      if (this._unloaded || token !== getApp().globalData.token) return;
+      if (this._unloaded || token !== getApp().globalData.token
+          || (this.data.scene === 'contract' && !isCompanyContextCurrent(getApp(), context))) return;
       if (result && result.status === 'VERIFIED') {
         this.openReturnPage();
         return;
@@ -163,6 +188,7 @@ Page({
     if (this._loadingServiceUrl || this._unloaded) return;
     this._loadingServiceUrl = true;
     const token = getApp().globalData.token;
+    const context = captureCompanyContext(getApp());
     const { scene, options } = this.data;
     const config = SCENES[scene];
     this.setData({ loading: true, serviceUrl: '', errorMessage: '' });
@@ -182,7 +208,8 @@ Page({
         withCompany: config.withCompany !== false,
         timeout: 30000
       });
-      if (this._unloaded || token !== getApp().globalData.token) return;
+      if (this._unloaded || token !== getApp().globalData.token
+          || (scene === 'contract' && !isCompanyContextCurrent(getApp(), context))) return;
       const serviceUrl = result && (result.url || result.authUrl);
       const status = result && (result.status || (result.identity && result.identity.status));
       if (!serviceUrl && status && ['personal', 'company'].includes(scene)) {

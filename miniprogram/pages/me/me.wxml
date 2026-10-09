@@ -60,6 +60,9 @@
         <view class="company-avatar">企</view><view class="company-copy"><view class="company-name">{{hasOnboarding ? (onboardingName || onboardingStatus) : '暂未加入企业'}}</view><view class="company-meta">{{hasOnboarding ? onboardingStatus + '，点击继续' : '创建或加入企业后开始业务协作'}}</view></view><view class="row-arrow">›</view>
       </view>
 
+      <view class="settings-list" wx:if="{{companies.length > 0}}" style="margin-top:24rpx">
+        <view class="setting-row" bindtap="goMembership"><image src="/images/icons/company.svg" mode="aspectFit"/><view class="setting-copy"><view class="setting-title">会员与签署额度</view><view class="setting-desc">查看当前企业权益、份额和使用记录</view></view><view class="row-arrow">›</view></view>
+      </view>
       <view class="section-head service-head"><view><view class="section-title">账号与身份</view><view class="section-sub">个人信息、认证与账号安全</view></view></view>
       <view class="settings-list">
         <view class="setting-row" bindtap="openPersonalInfo"><image src="/images/icons/security.svg" mode="aspectFit"/><view class="setting-copy"><view class="setting-title">账号与个人信息</view><view class="setting-desc">手机号、个人认证与身份状态</view></view><view class="setting-status">{{personalIdentityStatusText}}</view><view class="row-arrow">›</view></view>

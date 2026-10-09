@@ -21,6 +21,7 @@ function harness(handler = async () => ({ status: 'IN_PROGRESS' })) {
     clearTimeout: key => timers.delete(key),
     require: name => {
       if (name.endsWith('/request')) return { request: async o => { calls.push(o); return handler(o); } };
+      if (name.endsWith('/companyContext')) return require('../utils/companyContext');
       if (name.endsWith('/companyOnboarding')) return { returnToCompany: o => navigation.push(`company:${o.companyId || 'draft'}`) };
       throw Error(name);
     }
