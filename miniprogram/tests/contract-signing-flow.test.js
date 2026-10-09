@@ -23,7 +23,8 @@ function harness({ signing, action = {}, permissions = ['all'] }) {
   vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../pages/contract-preview/contract-preview.js'), 'utf8'), {
     Page: value => { page = value; }, wx, getApp: () => app, setTimeout: () => 0, clearTimeout() {},
     require: id => id.endsWith('/request') ? { request }
-      : id.endsWith('/chineseCurrency') ? require('../utils/chineseCurrency') : {}
+      : id.endsWith('/chineseCurrency') ? require('../utils/chineseCurrency')
+      : id.endsWith('/retail') ? require('../utils/retail') : {}
   });
   page.data.contractId = '12';
   page.setData = (value, callback) => { Object.assign(page.data, value); if (callback) callback(); };

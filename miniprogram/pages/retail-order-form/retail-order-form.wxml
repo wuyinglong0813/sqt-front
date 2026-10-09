@@ -1,0 +1,35 @@
+<view class="retail-page">
+  <view class="retail-error" wx:if="{{error}}">{{error}}</view>
+  <view class="retail-loading" wx:if="{{loading}}">加载中…</view>
+  <block wx:if="{{customer}}">
+    <view class="retail-card"><view class="retail-head"><view><view class="retail-sub">客户</view><view class="retail-title">{{customer.name}}</view></view><view class="retail-badge {{isReturn ? 'return' : ''}}">{{isReturn ? '零售退货' : '零售'}}</view></view><view class="retail-field"><view class="retail-label">单据日期 *</view><picker mode="date" value="{{orderDate}}" data-field="orderDate" bindchange="onInput" disabled="{{saving}}"><view class="retail-picker">{{orderDate}} ⌄</view></picker></view></view>
+    <block wx:if="{{isReturn && !originalDocumentId}}">
+      <view class="retail-note">选择原销售单，带入原单价和可退商品。支持分次退货。</view>
+      <view class="retail-card"><view class="retail-title">选择原销售单</view>
+        <view class="retail-orderrow" wx:for="{{originals}}" wx:key="id" data-id="{{item.id}}" bindtap="selectOriginal"><view class="retail-head"><view class="retail-name">{{item.documentNo}}</view><view class="retail-badge CONFIRMED">已生效</view></view><view class="retail-info"><view class="retail-info-label">{{item.orderDate}}</view><view class="retail-orderamount">¥{{item.amountText}} ›</view></view></view>
+        <view class="retail-empty" wx:if="{{!loading && originals.length === 0}}">暂无已生效销售单</view><button class="retail-secondary" wx:if="{{originalHasMore}}" disabled="{{loading}}" bindtap="moreOriginals">加载更多</button>
+      </view>
+    </block>
+    <block wx:else>
+    <view class="retail-note" wx:if="{{isReturn}}"><view class="retail-head"><view>原销售单：{{originalDocumentNo}}</view><view class="retail-link" wx:if="{{!id}}" bindtap="changeOriginal">重选</view></view>填写本次退货数量，未填写的商品不退货。金额按累计退货数量计算，可能包含舍入尾差。</view>
+      <view class="retail-card" wx:for="{{items}}" wx:key="key" wx:for-index="index">
+        <view class="retail-head"><view class="retail-title">{{item.lineType === 'FEE' ? '费用' : '商品'}}明细 {{index + 1}}</view><view class="retail-link" wx:if="{{!isReturn}}" data-index="{{index}}" bindtap="removeItem">移除</view></view>
+        <block wx:if="{{!isReturn}}">
+          <view class="retail-field"><view class="retail-label">{{item.lineType === 'FEE' ? '费用名称' : '商品名称'}} *</view><input class="retail-input" value="{{item.productName}}" data-index="{{index}}" data-field="productName" bindinput="onItemInput" maxlength="128" disabled="{{saving}}" placeholder="{{item.lineType === 'FEE' ? '例如：运费' : '输入商品名称'}}"/></view>
+          <view class="retail-row" wx:if="{{item.lineType !== 'FEE'}}"><view class="retail-field"><view class="retail-label">规格</view><input class="retail-input" value="{{item.specification}}" data-index="{{index}}" data-field="specification" bindinput="onItemInput" maxlength="256" disabled="{{saving}}"/></view><view class="retail-field"><view class="retail-label">单位 *</view><input class="retail-input" value="{{item.baseUnit}}" data-index="{{index}}" data-field="baseUnit" bindinput="onItemInput" maxlength="32" disabled="{{saving}}" placeholder="米、件、箱等"/></view></view>
+        </block>
+        <block wx:else><view class="retail-name" style="margin-top:24rpx">{{item.productName}}</view><view class="retail-sub">{{item.specification}} · {{item.baseUnit}} · 原单价 ¥{{item.unitPrice}}</view><view class="retail-note" style="margin-top:20rpx">本次最多可退 {{item.returnableQuantity}} {{item.baseUnit}}</view></block>
+        <view class="retail-row"><view class="retail-field" wx:if="{{isReturn || item.lineType !== 'FEE'}}"><view class="retail-label">{{isReturn ? '本次退货数量' : '数量 *'}}</view><input class="retail-input" type="digit" value="{{item.quantity}}" data-index="{{index}}" data-field="quantity" bindinput="onItemInput" maxlength="19" disabled="{{saving}}" placeholder="{{isReturn ? '不退该商品可留空' : '销售数量'}}"/></view><view class="retail-field" wx:if="{{!isReturn}}"><view class="retail-label">{{item.lineType === 'FEE' ? '费用金额' : '单价'}}（元）*</view><input class="retail-input" type="digit" value="{{item.unitPrice}}" data-index="{{index}}" data-field="unitPrice" bindinput="onItemInput" maxlength="19" disabled="{{saving}}" placeholder="0.00"/></view></view>
+        <view class="retail-field"><view class="retail-label">明细备注</view><input class="retail-input" value="{{item.remark}}" data-index="{{index}}" data-field="remark" bindinput="onItemInput" maxlength="500" disabled="{{saving}}"/></view>
+        <view class="retail-total"><view>明细金额</view><view class="retail-total-value">¥{{item.amountText}}</view></view>
+      </view>
+      <view class="retail-actions" wx:if="{{!isReturn}}"><button class="retail-secondary" disabled="{{saving}}" bindtap="addItem">＋ 添加商品</button><button class="retail-secondary" disabled="{{saving}}" data-fee="1" bindtap="addItem">＋ 添加费用</button></view>
+      <view class="retail-card" style="margin-top:24rpx"><view class="retail-label">{{isReturn ? '退货原因 *' : '单据备注'}}</view><input class="retail-input" value="{{remark}}" data-field="remark" bindinput="onInput" maxlength="500" disabled="{{saving}}" placeholder="{{isReturn ? '例如：多余材料退回' : '选填'}}"/>
+        <view wx:if="{{customer.canManageStock}}"><view class="retail-info"><view class="retail-info-label">{{isReturn ? '确认并退货入库' : '确认并销售出库'}}</view><switch checked="{{processStock}}" bindchange="toggleStock" disabled="{{saving}}" color="#2784fa"/></view><picker wx:if="{{processStock && warehouses.length}}" range="{{warehouses}}" range-key="name" value="{{warehouseIndex}}" bindchange="selectWarehouse" disabled="{{saving}}"><view class="retail-picker">{{warehouses[warehouseIndex].name}} ⌄</view></picker><view class="retail-sub" wx:if="{{processStock && !warehouses.length}}">暂无可用仓库，请先在库存管理中创建。</view></view>
+        <view class="retail-total"><view>{{isReturn ? '退货金额' : '销售单金额'}}</view><view class="retail-total-value">¥{{totalText}}</view></view>
+      </view>
+      <view class="retail-footer-note">{{isReturn ? '本公司确认后冲减客户往来及净销售额；退款另行记录。' : '本公司确认后计入销售额及客户往来，客户无需线上确认。'}}库存可在单据详情中后续处理。</view>
+      <view class="retail-actions"><button class="retail-secondary" loading="{{saving}}" disabled="{{saving || loading}}" bindtap="save">保存草稿</button><button class="retail-primary" loading="{{saving}}" disabled="{{saving || loading}}" data-confirm="1" bindtap="save">{{isReturn ? '确认退货' : '确认开单'}}</button></view>
+    </block>
+  </block>
+</view>

@@ -8,10 +8,16 @@ const {
   writeHomeSnapshot
 } = require('../../utils/homeSnapshot');
 const app = getApp();
+const { context: retailContext, retailRequest, customerView, money } = require('../../utils/retail');
 
 Page({
   data: {
     role: 'supplier',
+    businessMode: 'partner',
+    retailCustomers: [],
+    retailCanCreate: false,
+    retailLoading: false,
+    retailError: '',
     roleIndex: 0,
     roleOptions: [
       { value: 'supplier', text: '供应商' },
@@ -232,6 +238,9 @@ Page({
           relationCounterparties: [],
           partnerCompanies: [],
           partnerContractCounts: [],
+          retailCustomers: [],
+          retailCanCreate: false,
+          retailError: '',
           counterpartiesLoaded: false,
           counterpartiesError: '',
           stats: { totalAmount: 0, totalOrders: 0, counterpartyCount: 0 },
@@ -260,6 +269,9 @@ Page({
         ? payload.relationCounterparties : [],
       partnerCompanies: Array.isArray(payload.partnerCompanies) ? payload.partnerCompanies : [],
       partnerContractCounts: Array.isArray(payload.partnerContractCounts) ? payload.partnerContractCounts : [],
+      retailCustomers: [],
+      retailCanCreate: false,
+      retailError: '',
       counterpartiesLoaded: true,
       approvalHasMessage: !!payload.approvalHasMessage,
       loading: false,
@@ -301,11 +313,12 @@ Page({
     const results = await Promise.all([
       this.loadHome(),
       this.loadCounterparties(),
-      this.loadApprovalIndicator()
+      this.loadApprovalIndicator(),
+      this.loadRetailCustomers()
     ]);
     if (identity !== snapshotKey(this.homeSnapshotContext())) return;
     const coreUpdated = results[0] === true;
-    const fullyUpdated = results.every(result => result === true);
+    const fullyUpdated = results.slice(0, 3).every(result => result === true);
     if (coreUpdated && results[1] === true) this.saveHomeSnapshot();
     this.setData({
       homeRefreshing: false,
@@ -556,7 +569,7 @@ Page({
         || String(currentCompanyId) !== String(app.getCurrentCompanyId())) return false;
       const ranking = payload.ranking || [];
       // 计算统计数据
-      const totalAmount = ranking.reduce((sum, item) => sum + (item.amount || 0), 0);
+      const totalAmount = ranking.reduce((sum, item) => sum + Number(item.amount || 0), 0);
       const totalOrders = ranking.reduce((sum, item) => sum + (item.orderCount || 0), 0);
       this.setData({
         companyName: payload.companyName,
@@ -565,9 +578,14 @@ Page({
         partnerContractCounts: payload.partnerContractCounts || [],
         rankingTitle: role === 'supplier' ? '客户销售业绩排名' : '采购业绩排名',
         stats: {
-          totalAmount: totalAmount.toFixed(0),
-          totalOrders,
-          counterpartyCount: ranking.length
+          totalAmount: money(payload.stats && payload.stats.totalAmount !== undefined ? payload.stats.totalAmount : totalAmount.toFixed(2)),
+          totalOrders: payload.stats ? Number(payload.stats.totalOrders || 0) : totalOrders,
+          counterpartyCount: ranking.length,
+          partnerAmount: money(payload.stats ? payload.stats.partnerAmount : totalAmount.toFixed(2)),
+          retailAmount: money(payload.stats ? payload.stats.retailAmount : 0),
+          returnAmount: money(payload.stats ? payload.stats.returnAmount : 0),
+          netSalesAmount: money(payload.stats ? payload.stats.netSalesAmount : totalAmount.toFixed(2)),
+          retailCustomerCount: payload.stats ? Number(payload.stats.retailCustomerCount || 0) : 0
         }
       });
       this.refreshPartnerCompanies();
@@ -665,7 +683,8 @@ Page({
       const counterpartyCompanyId = item.counterpartyCompanyId;
       if (!name || !counterpartyCompanyId || seen.has(String(counterpartyCompanyId))) return;
       seen.add(String(counterpartyCompanyId));
-      const rankItem = ranking.find(rank => rank.counterpartyName === name) || {};
+      const rankItem = ranking.find(rank => rank.counterpartyCompanyId
+        ? String(rank.counterpartyCompanyId) === String(counterpartyCompanyId) : rank.counterpartyName === name) || {};
       partnerCompanies.push({
         id: item.id,
         counterpartyCompanyId,
@@ -677,12 +696,36 @@ Page({
         amount: rankItem.amount || 0
       });
     });
-    partnerCompanies.sort((a, b) => b.contractCount - a.contractCount);
+    partnerCompanies.sort((a, b) => Number(b.amount) - Number(a.amount));
+    partnerCompanies.forEach(item => { item.amountText = money(item.amount); });
     this.setData({
       partnerCompanies,
       'stats.counterpartyCount': partnerCompanies.length
     });
   },
+
+  async loadRetailCustomers() {
+    if (this.data.role !== 'supplier' || !app.getCurrentCompanyId()) return true;
+    const company = retailContext();
+    const seq = this.retailRequestSeq = (this.retailRequestSeq || 0) + 1;
+    this.setData({ retailLoading: true, retailError: '' });
+    try {
+      const payload = await retailRequest(company, { url: '/retail/customers?page=1&size=5' });
+      if (seq !== this.retailRequestSeq || this.data.role !== 'supplier') return false;
+      this.setData({ retailCustomers: (payload.items || []).map(customerView), retailCanCreate: !!payload.canCreate });
+      return true;
+    } catch (e) {
+      if (seq === this.retailRequestSeq) this.setData({ retailCustomers: [], retailCanCreate: false, retailError: e.message });
+      return false;
+    } finally { if (seq === this.retailRequestSeq) this.setData({ retailLoading: false }); }
+  },
+  switchBusinessMode(e) {
+    this.setData({ businessMode: e.currentTarget.dataset.mode === 'retail' ? 'retail' : 'partner' });
+    if (this.data.businessMode === 'retail') this.loadRetailCustomers();
+  },
+  addRetailCustomer() { wx.navigateTo({ url: '/pages/retail-customers/retail-customers?create=1' }); },
+  allRetailCustomers() { wx.navigateTo({ url: '/pages/retail-customers/retail-customers' }); },
+  openRetailCustomer(e) { wx.navigateTo({ url: `/pages/retail-customer-detail/retail-customer-detail?id=${e.currentTarget.dataset.id}` }); },
 
   goLogin() {
     wx.navigateTo({ url: '/pages/login/login' });

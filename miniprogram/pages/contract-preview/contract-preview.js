@@ -6,6 +6,7 @@ const {
 } = require('../../utils/fileTransfer');
 const { normalizeContractTable } = require('../../utils/chineseCurrency');
 const { formatDateTime } = require('../../utils/datetime');
+const { money } = require('../../utils/retail');
 
 function today() {
   const now = new Date();
@@ -288,7 +289,11 @@ Page({
                 : (activeContractAction.actionType === 'RESUME' ? '恢复履约待确认' : '作废待确认'))
               : `${activeContractAction.targetText || '履约资料'}作废待确认`)
             : (statusMap[contract.status] || contract.status),
-          amount: contract.amount || 0
+          amount: contract.amount || 0,
+          contractAmountText: money(contract.amount),
+          salesAmountText: money(contract.salesAmount),
+          returnAmountText: money(contract.returnAmount),
+          netSalesAmountText: money((Number(contract.salesAmount || 0) - Number(contract.returnAmount || 0)).toFixed(2))
         },
         contractName: contract.name || this.data.contractName,
         counterpartyName: viewerCounterpartyName || this.data.counterpartyName,

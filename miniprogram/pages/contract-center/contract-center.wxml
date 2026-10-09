@@ -1,8 +1,9 @@
 <view class="contract-page">
   <view class="contract-hero">
     <image class="hero-mark" src="/images/brand-logo.svg" mode="aspectFit"/>
-    <view class="hero-label">企业合同资产</view>
-    <view class="hero-amount">¥{{summary.amount}}</view>
+    <view class="hero-label">销售单累计金额</view>
+    <view class="hero-amount">¥{{summary.salesAmount || '0.00'}}</view>
+    <view class="hero-label">合同总金额 ¥{{summary.amount}}</view>
     <view class="hero-summary">
       <view><view class="summary-value">{{summary.total}}</view><view class="summary-label">全部合同</view></view>
       <view><view class="summary-value">{{summary.pending}}</view><view class="summary-label">待签署</view></view>
@@ -12,7 +13,7 @@
 
   <view class="current-company">
     <image src="/images/icons/company.svg" mode="aspectFit"/>
-    <view class="current-company-copy"><view class="current-company-name">{{currentCompanyName}}</view><view class="current-company-desc">当前企业的合同台账</view></view>
+    <view class="current-company-copy"><view class="current-company-name">{{currentCompanyName}}</view><view class="current-company-desc">按已生效销售单累计金额从高到低排列</view></view>
     <view class="current-company-badge">当前企业</view>
   </view>
 
@@ -42,10 +43,11 @@
         <view class="item-top"><view class="contract-name">{{contract.name}}</view><view class="status status-{{contract.status}}">{{contract.statusText}}</view></view>
         <view class="counterparty">{{contract.contractNo}}</view>
         <view class="item-bottom">
-          <view><view class="meta-label">合同金额</view><view class="amount">¥{{contract.amount}}</view></view>
-          <view><view class="meta-label">合同期限</view><view class="meta-value">{{contract.startDate || '—'}} 至 {{contract.endDate || '—'}}</view></view>
+          <view><view class="meta-label">销售单累计金额</view><view class="amount">¥{{contract.salesAmountText}}</view></view>
+          <view><view class="meta-label">合同金额</view><view class="meta-value">¥{{contract.amountText}}</view></view>
           <view class="arrow">›</view>
         </view>
+        <view class="counterparty">期限：{{contract.startDate || '—'}} 至 {{contract.endDate || '—'}}</view>
       </view>
     </view>
   </view>

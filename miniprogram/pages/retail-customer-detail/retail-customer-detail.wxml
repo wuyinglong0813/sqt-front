@@ -1,0 +1,20 @@
+<view class="retail-page">
+  <view class="retail-error" wx:if="{{error}}">{{error}}</view>
+  <block wx:if="{{customer}}">
+    <view class="retail-card">
+      <view class="retail-head"><view class="retail-title">{{customer.name}}</view><view class="retail-badge">{{customer.typeText}}</view></view>
+      <view class="retail-sub">{{customer.contact || '未填写联系人'}} · {{customer.phone || '未填写电话'}}</view>
+      <view class="retail-sub" wx:if="{{customer.address}}">{{customer.address}}</view>
+      <view class="retail-grid"><view class="retail-stat"><view class="retail-stat-label">销售单累计金额</view><view class="retail-stat-value">¥{{customer.salesAmountText}}</view></view><view class="retail-stat"><view class="retail-stat-label">退货累计金额</view><view class="retail-stat-value">¥{{customer.returnAmountText}}</view></view></view>
+      <view class="retail-info"><view class="retail-info-label">净销售金额</view><view class="retail-info-value">¥{{customer.netSalesAmountText}}</view></view>
+      <view class="retail-actions" wx:if="{{customer.canEdit}}"><button class="retail-primary" data-type="SALES_ORDER" bindtap="createDocument">＋ 开销售单</button><button class="retail-secondary" data-type="RETURN_ORDER" bindtap="createDocument">开退货单</button></view>
+      <view class="retail-link" wx:if="{{customer.canEdit}}" bindtap="editCustomer">编辑客户资料 ›</view>
+    </view>
+    <view class="retail-card">
+      <view class="retail-tabs"><view class="retail-tab {{activeTab === 'SALES_ORDER' ? 'active' : ''}}" data-type="SALES_ORDER" bindtap="switchTab">销售单</view><view class="retail-tab {{activeTab === 'RETURN_ORDER' ? 'active' : ''}}" data-type="RETURN_ORDER" bindtap="switchTab">退货单</view></view>
+      <view class="retail-orderrow" wx:for="{{documents}}" wx:key="id" data-id="{{item.id}}" bindtap="openDocument"><view class="retail-head"><view class="retail-name">{{item.documentNo}}</view><view class="retail-badge {{item.status}}">{{item.statusText}}</view></view><view class="retail-info"><view class="retail-info-label">{{item.orderDate}}</view><view class="retail-orderamount">{{item.documentType === 'RETURN_ORDER' ? '−' : ''}}¥{{item.amountText}}</view></view></view>
+      <view class="retail-loading" wx:if="{{loading}}">加载中…</view><view class="retail-empty" wx:elif="{{documents.length === 0 && !error}}">暂无{{activeTab === 'SALES_ORDER' ? '销售单' : '退货单'}}</view>
+    </view>
+    <view class="retail-footer-note">单据由本公司确认生效，客户无需线上确认。退货冲减净销售额，退款另行记录。</view>
+  </block>
+</view>

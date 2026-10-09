@@ -1,4 +1,4 @@
-const SNAPSHOT_PREFIX = 'tradepass_home_snapshot_v1_';
+const SNAPSHOT_PREFIX = 'tradepass_home_snapshot_v2_';
 const SNAPSHOT_INDEX_KEY = 'tradepass_home_snapshot_keys';
 const USER_ID_KEY = 'tradepass_user_id';
 const MAX_SNAPSHOT_AGE = 30 * 24 * 60 * 60 * 1000;
@@ -44,7 +44,7 @@ function readHomeSnapshot(context, now = Date.now()) {
   if (!key) return null;
   try {
     const snapshot = wx.getStorageSync(key);
-    if (!snapshot || snapshot.version !== 1 || !snapshot.payload
+    if (!snapshot || snapshot.version !== 2 || !snapshot.payload
       || String(snapshot.userId || '') !== expected.userId
       || String(snapshot.companyId || '') !== expected.companyId
       || snapshot.role !== expected.role || snapshot.period !== expected.period
@@ -64,7 +64,7 @@ function writeHomeSnapshot(context, payload, now = Date.now()) {
   const key = snapshotKey(value);
   if (!key || !payload) return null;
   const snapshot = {
-    version: 1,
+    version: 2,
     ...value,
     updatedAt: now,
     payload

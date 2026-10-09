@@ -1,0 +1,47 @@
+page { background: #f3f7fc; color: #12263b; }
+.retail-page { padding: 28rpx; padding-bottom: 64rpx; }
+.retail-card { background: #fff; border: 1rpx solid #e3edf8; border-radius: 30rpx; padding: 28rpx; margin-bottom: 24rpx; }
+.retail-head { display: flex; justify-content: space-between; align-items: center; gap: 16rpx; }
+.retail-title { font-size: 34rpx; font-weight: 650; overflow-wrap: anywhere; }
+.retail-sub { color: #8594a3; font-size: 24rpx; line-height: 1.6; margin-top: 8rpx; overflow-wrap: anywhere; }
+.retail-link { font-size: 26rpx; color: #2784fa; padding: 16rpx 0 16rpx 16rpx; flex-shrink: 0; }
+.retail-badge { background: #eaf3ff; color: #2784fa; border-radius: 10rpx; font-size: 22rpx; padding: 5rpx 12rpx; flex-shrink: 0; }
+.retail-badge.CONFIRMED { background: #e8f6ef; color: #218263; }
+.retail-badge.return { background: #fff1e6; color: #b56a30; }
+.retail-tabs { display: flex; background: #e6eef8; padding: 8rpx; border-radius: 22rpx; margin-bottom: 26rpx; gap: 8rpx; }
+.retail-tab { flex: 1; text-align: center; padding: 20rpx 12rpx; font-size: 28rpx; color: #8797a6; border-radius: 16rpx; }
+.retail-tab.active { background: #fff; color: #2784fa; font-weight: 600; }
+.retail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16rpx; margin: 26rpx 0; }
+.retail-stat { background: #f0f6ff; padding: 20rpx; border-radius: 20rpx; min-width: 0; }
+.retail-stat-label { color: #8394a9; font-size: 23rpx; }
+.retail-stat-value { font-size: 34rpx; font-weight: 650; margin-top: 10rpx; overflow-wrap: anywhere; }
+.retail-actions { display: flex; gap: 20rpx; margin-top: 24rpx; }
+.retail-actions button { flex: 1; min-width: 0; margin: 0; }
+.retail-primary, .retail-secondary, .retail-danger { width: 100%; font-size: 28rpx; font-weight: 600; border-radius: 20rpx; padding: 4rpx 12rpx; }
+.retail-primary { background: #2784fa; color: #fff; }
+.retail-secondary { background: #edf5ff; color: #2784fa; }
+.retail-danger { background: #fff1f1; color: #c95151; }
+button::after { border: 0; }
+button[disabled] { opacity: .5; }
+.retail-field { margin-top: 26rpx; }
+.retail-label { font-size: 26rpx; font-weight: 550; margin-bottom: 12rpx; display: block; }
+.retail-input, .retail-picker { box-sizing: border-box; width: 100%; height: 88rpx; padding: 20rpx; border-radius: 16rpx; border: 1rpx solid #e3edf8; background: #f5f8fd; font-size: 30rpx; }
+.retail-input-placeholder { color: #92a0b0; }
+.retail-row { display: flex; gap: 18rpx; }
+.retail-row .retail-field { flex: 1; min-width: 0; }
+.retail-note { background: #eaf3ff; color: #2784fa; font-size: 24rpx; line-height: 1.65; padding: 20rpx; border-radius: 18rpx; margin-bottom: 24rpx; }
+.retail-empty, .retail-loading { text-align: center; color: #8797a6; padding: 48rpx 16rpx; font-size: 26rpx; }
+.retail-error { background: #fff2ed; color: #a95839; padding: 24rpx; border-radius: 20rpx; font-size: 26rpx; margin-bottom: 24rpx; }
+.retail-total { display: flex; justify-content: space-between; align-items: center; gap: 12rpx; padding-top: 24rpx; margin-top: 24rpx; border-top: 1rpx solid #e6edf7; font-size: 26rpx; }
+.retail-total-value { font-size: 38rpx; font-weight: 700; color: #2784fa; overflow-wrap: anywhere; }
+.retail-listrow { display: flex; align-items: center; gap: 20rpx; padding: 26rpx 0; border-top: 1rpx solid #e6edf7; }
+.retail-avatar { flex-shrink: 0; width: 80rpx; height: 80rpx; display: flex; justify-content: center; align-items: center; background: #eef5ff; color: #2784fa; font-size: 36rpx; border-radius: 20rpx; }
+.retail-listmain { flex: 1; min-width: 0; }
+.retail-name { font-size: 30rpx; font-weight: 600; overflow-wrap: anywhere; }
+.retail-arrow { color: #a1adbb; font-size: 40rpx; }
+.retail-orderrow { border-top: 1rpx solid #e6edf7; padding: 26rpx 0; }
+.retail-orderamount { font-size: 34rpx; font-weight: 600; }
+.retail-info { display: flex; justify-content: space-between; gap: 24rpx; margin-top: 18rpx; font-size: 26rpx; }
+.retail-info-label { color: #8394a9; flex-shrink: 0; }
+.retail-info-value { text-align: right; overflow-wrap: anywhere; min-width: 0; }
+.retail-footer-note { font-size: 24rpx; color: #8394a9; line-height: 1.65; margin: 24rpx 0; }

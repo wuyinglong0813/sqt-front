@@ -438,6 +438,11 @@ page {
   position: relative;
 }
 
+.hero-sales-detail { display: flex; flex-wrap: wrap; gap: 8rpx 24rpx; margin-top: 12rpx; color: rgba(255,255,255,.84); font-size: 22rpx; position: relative; }
+.home-business-tabs { display: flex; background: #e5eef8; padding: 8rpx; border-radius: 24rpx; gap: 8rpx; margin: 26rpx 24rpx 0; }
+.home-business-tab { flex: 1; text-align: center; color: #8697a8; font-size: 28rpx; padding: 20rpx 12rpx; border-radius: 18rpx; }
+.home-business-tab.active { background: #fff; color: #2784fa; font-weight: 650; box-shadow: 0 3rpx 10rpx rgba(36,120,223,.07); }
+
 .hero-metric-value {
   font-size: 28rpx;
   font-weight: 700;

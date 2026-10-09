@@ -7,6 +7,8 @@
     </view>
     <view class="ch-name">{{contractName}}</view>
     <view class="ch-party">与 {{counterpartyName}} 的合同</view>
+    <view class="contract-amount-summary" wx:if="{{contract}}"><view><view class="contract-amount-label">销售单累计金额</view><view class="contract-amount-number">¥{{contract.salesAmountText}}</view></view><view><view class="contract-amount-label">合同金额</view><view class="contract-amount-number">¥{{contract.contractAmountText}}</view></view></view>
+    <view class="contract-amount-note" wx:if="{{contract}}">退货 ¥{{contract.returnAmountText}} · 净销售 ¥{{contract.netSalesAmountText}}</view>
   </view>
 
   <!-- 当前账号的合同进展入口始终显示，避免埋在长合同底部。 -->

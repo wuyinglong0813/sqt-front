@@ -400,7 +400,7 @@ page {
   border-top: 1rpx solid #edf2f7;
   display: grid;
   gap: 18rpx;
-  grid-template-columns: minmax(120rpx, .75fr) minmax(0, 1.45fr) 24rpx;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 24rpx;
   margin-top: 18rpx;
   padding-top: 17rpx;
 }
@@ -419,7 +419,9 @@ page {
   font-size: 27rpx;
   font-weight: 720;
   margin-top: 4rpx;
+  overflow-wrap: anywhere;
 }
+.contract-amount.agreed-amount { color: #4c5d70; font-weight: 600; }
 
 .date-value {
   color: #4c5d70;

@@ -70,6 +70,8 @@ Page({
           direction: item.viewerDirection || item.direction,
           id: String(item.id),
           amount: Number(item.amount || 0),
+          amountText: Number(item.amount || 0).toFixed(2),
+          salesAmountText: Number(item.salesAmount || 0).toFixed(2),
           statusText: statusText[item.status] || item.status,
           createdDate: formatDateTime(item.createdAt)
         };
@@ -80,12 +82,14 @@ Page({
         total: Number(summaryPayload.total || 0),
         pending: Number(summaryPayload.pending || 0),
         active: Number(summaryPayload.active || 0),
-        amount: Number(summaryPayload.amount || 0).toFixed(0)
+        amount: Number(summaryPayload.amount || 0).toFixed(2),
+        salesAmount: Number(summaryPayload.salesAmount || 0).toFixed(2)
       } : {
         total: contracts.length,
         pending: contracts.filter(item => item.status === 'PENDING').length,
         active: contracts.filter(item => item.status === 'ACTIVE').length,
-        amount: localAmount.toFixed(0)
+        amount: localAmount.toFixed(2),
+        salesAmount: contracts.reduce((sum, item) => sum + Number(item.salesAmount || 0), 0).toFixed(2)
       };
       this.setData({
         contracts,

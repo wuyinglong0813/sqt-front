@@ -206,15 +206,19 @@
         <image class="hero-watermark" src="/images/brand-logo.svg" mode="aspectFit"/>
         <view class="hero-top"><view>{{periodText}}{{role === 'supplier' ? '销售总额' : '采购总额'}}</view><view>{{periodText}}</view></view>
         <view class="hero-amount">¥{{stats.totalAmount}}</view>
+        <view class="hero-sales-detail" wx:if="{{role === 'supplier'}}"><text>合作 ¥{{stats.partnerAmount || '0.00'}}</text><text>零售 ¥{{stats.retailAmount || '0.00'}}</text></view>
+        <view class="hero-sales-detail"><text>退货 ¥{{stats.returnAmount || '0.00'}}</text><text>净{{role === 'supplier' ? '销售' : '采购'}} ¥{{stats.netSalesAmount || '0.00'}}</text></view>
         <view class="hero-metrics">
-          <view><view class="hero-metric-value">{{stats.totalOrders}}</view><view class="hero-metric-label">交易订单</view></view>
+          <view><view class="hero-metric-value">{{stats.totalOrders}}</view><view class="hero-metric-label">{{role === 'supplier' ? '销售单' : '采购单'}}</view></view>
           <view class="hero-divider"></view>
           <view><view class="hero-metric-value">{{stats.counterpartyCount}}</view><view class="hero-metric-label">合作企业</view></view>
-          <view class="hero-trust">可信流转中</view>
+          <view wx:if="{{role === 'supplier'}}"><view class="hero-metric-value">{{stats.retailCustomerCount || 0}}</view><view class="hero-metric-label">零售客户</view></view>
+          <view class="hero-trust" wx:else>可信流转中</view>
         </view>
       </view>
 
-      <view class="section" id="partner-section">
+      <view class="home-business-tabs" wx:if="{{role === 'supplier'}}"><view class="home-business-tab {{businessMode === 'partner' ? 'active' : ''}}" data-mode="partner" bindtap="switchBusinessMode">合作企业</view><view class="home-business-tab {{businessMode === 'retail' ? 'active' : ''}}" data-mode="retail" bindtap="switchBusinessMode">零售</view></view>
+      <view class="section" id="partner-section" wx:if="{{role === 'buyer' || businessMode === 'partner'}}">
         <view class="section-head">
           <view><view class="section-title">{{role === 'supplier' ? '我供应的公司' : '我采购的公司'}}</view><view class="section-sub">选择具体公司后签合同、看合同和对账</view></view>
           <view class="section-link">全部 ›</view>
@@ -234,13 +238,22 @@
             <view class="partner-avatar">{{item.initial}}</view>
             <view class="partner-main">
               <view class="partner-name-row"><view class="partner-name">{{item.counterpartyName}}</view><view class="status-pill">{{item.status === 'ACTIVE' ? '合作中' : item.status}}</view></view>
-              <view class="partner-meta">点击查看双方合同与对账</view>
+              <view class="partner-meta">{{periodText}}{{role === 'supplier' ? '销售' : '采购'}}单金额 ¥{{item.amountText}}</view>
             </view>
             <view class="row-arrow">›</view>
           </view>
         </view>
         <button class="invite-btn" wx:if="{{isLegalPerson}}" loading="{{preparingInvite}}" disabled="{{preparingInvite}}" bindtap="addCounterparty">＋ 生成{{role === 'supplier' ? '客户' : '供应商'}}企业邀请</button>
         <button class="invite-btn" open-type="share" data-invite-type="counterparty" wx:if="{{isLegalPerson && counterpartyInviteCode && inviteCompanyId === currentCompanyId && inviteRole === role}}">发送合作邀请给微信好友</button>
+      </view>
+
+      <view class="section" wx:if="{{role === 'supplier' && businessMode === 'retail'}}">
+        <view class="section-head"><view><view class="section-title">零售客户</view><view class="section-sub">客户无需注册或绑定，录入后即可开单</view></view><view class="section-link" bindtap="allRetailCustomers">全部 ›</view></view>
+        <view class="empty-state" wx:if="{{retailError}}"><view class="empty-title">零售客户暂未加载</view><view class="empty-desc">{{retailError}}</view><view class="section-link" bindtap="loadRetailCustomers">重新加载 ›</view></view>
+        <view class="loading-hint" wx:elif="{{retailLoading}}">客户加载中…</view>
+        <view class="empty-state" wx:elif="{{retailCustomers.length === 0}}"><view class="empty-title">还没有零售客户</view><view class="empty-desc">支持录入企业、个体工商户和个人</view></view>
+        <view class="partner-row" wx:for="{{retailCustomers}}" wx:key="id" data-id="{{item.id}}" bindtap="openRetailCustomer"><view class="partner-avatar">{{item.initial}}</view><view class="partner-main"><view class="partner-name-row"><view class="partner-name">{{item.name}}</view><view class="status-pill">{{item.typeText}}</view></view><view class="partner-meta">销售 ¥{{item.salesAmountText}} · {{item.salesOrderCount}} 张销售单</view></view><view class="row-arrow">›</view></view>
+        <button class="invite-btn" wx:if="{{retailCanCreate}}" bindtap="addRetailCustomer">＋ 新增零售客户</button>
       </view>
 
       <view class="section">
@@ -262,7 +275,7 @@
         </view>
         <view class="loading-hint" wx:if="{{loading}}">经营数据加载中...</view>
         <view class="empty-ranking" wx:elif="{{ranking.length === 0}}">暂无交易排行数据</view>
-        <view class="rank-row" wx:for="{{ranking}}" wx:key="counterpartyName" data-name="{{item.counterpartyName}}" bindtap="openCounterparty">
+        <view class="rank-row" wx:for="{{ranking}}" wx:key="counterpartyCompanyId" data-name="{{item.counterpartyName}}" data-company-id="{{item.counterpartyCompanyId}}" bindtap="openCounterparty">
           <view class="rank-no {{item.rank <= 3 ? 'top' : ''}}">{{item.rank}}</view>
           <view class="rank-main"><view class="rank-name">{{item.counterpartyName}}</view><view class="rank-meta">{{item.orderCount}} 笔订单</view></view>
           <view class="rank-amount">¥{{item.amount}}</view><view class="row-arrow">›</view>

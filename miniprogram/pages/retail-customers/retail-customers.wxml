@@ -1,0 +1,32 @@
+<view class="retail-page">
+  <view class="retail-error" wx:if="{{error}}">{{error}}</view>
+  <block wx:if="{{!formMode}}">
+    <view class="retail-card">
+      <view class="retail-head"><view><view class="retail-title">零售客户</view><view class="retail-sub">按已生效销售单累计金额排序</view></view><view class="retail-link" wx:if="{{canCreate}}" bindtap="addCustomer">＋ 新增客户</view></view>
+      <view class="retail-listrow" wx:for="{{customers}}" wx:key="id" data-id="{{item.id}}" bindtap="openCustomer">
+        <view class="retail-avatar">{{item.initial}}</view><view class="retail-listmain"><view class="retail-head"><view class="retail-name">{{item.name}}</view><view class="retail-badge">{{item.typeText}}</view></view><view class="retail-sub">{{item.contact || '未填写联系人'}} · {{item.phone || '未填写电话'}}</view><view class="retail-sub">销售 ¥{{item.salesAmountText}} · {{item.salesOrderCount}} 张销售单</view></view><view class="retail-arrow">›</view>
+      </view>
+      <view class="retail-empty" wx:if="{{!loading && customers.length === 0 && !error}}">暂无零售客户，录入后即可开单</view>
+      <view class="retail-loading" wx:if="{{loading}}">加载中…</view>
+    </view>
+    <view class="retail-footer-note">客户无需注册或绑定，支持企业、个体工商户和个人。</view>
+  </block>
+  <block wx:else>
+    <view class="retail-note">保存客户信息后，即可开销售单；客户无需使用小程序。</view>
+    <view class="retail-card">
+      <view class="retail-label">客户类型 *</view><picker range="{{types}}" value="{{typeIndex}}" bindchange="selectType" disabled="{{saving}}"><view class="retail-picker">{{types[typeIndex]}} ⌄</view></picker>
+      <view class="retail-field"><view class="retail-label">客户名称 *</view><input class="retail-input" value="{{form.name}}" data-field="name" bindinput="onInput" maxlength="128" disabled="{{saving}}" placeholder="公司、门店或个人姓名"/></view>
+      <view class="retail-field"><view class="retail-label">联系人</view><input class="retail-input" value="{{form.contact}}" data-field="contact" bindinput="onInput" maxlength="64" disabled="{{saving}}" placeholder="联系人姓名（选填）"/></view>
+      <view class="retail-field"><view class="retail-label">联系电话</view><input class="retail-input" value="{{form.phone}}" data-field="phone" bindinput="onInput" maxlength="64" disabled="{{saving}}" placeholder="手机或固定电话（选填）"/></view>
+      <view class="retail-field"><view class="retail-label">收货地址</view><input class="retail-input" value="{{form.address}}" data-field="address" bindinput="onInput" maxlength="256" disabled="{{saving}}" placeholder="详细收货地址（选填）"/></view>
+      <view class="retail-link" bindtap="toggleInvoice">{{showInvoice ? '收起' : '展开'}}开票信息与备注（选填） ⌄</view>
+      <block wx:if="{{showInvoice}}">
+        <view class="retail-field"><view class="retail-label">开票抬头</view><input class="retail-input" value="{{form.invoiceTitle}}" data-field="invoiceTitle" bindinput="onInput" maxlength="128" disabled="{{saving}}"/></view>
+        <view class="retail-field" wx:if="{{typeIndex !== 2}}"><view class="retail-label">税号</view><input class="retail-input" value="{{form.taxNo}}" data-field="taxNo" bindinput="onInput" maxlength="64" disabled="{{saving}}"/></view>
+        <view class="retail-field"><view class="retail-label">备注</view><input class="retail-input" value="{{form.remark}}" data-field="remark" bindinput="onInput" maxlength="500" disabled="{{saving}}"/></view>
+      </block>
+    </view>
+    <view class="retail-footer-note">客户档案由本公司管理。已开单据保留开单时的客户信息。</view>
+    <view class="retail-actions"><button class="retail-secondary" loading="{{saving}}" disabled="{{saving || loading}}" bindtap="save">保存客户</button><button class="retail-primary" loading="{{saving}}" disabled="{{saving || loading}}" data-sale="1" bindtap="save">保存并开单</button></view>
+  </block>
+</view>

@@ -55,8 +55,8 @@
       </view>
       <view class="metric-divider"></view>
       <view class="contract-metric amount-metric">
-        <view class="metric-value amount-value">¥{{contractStats.totalAmountText}}</view>
-        <view class="metric-label">合同总额</view>
+        <view class="metric-value amount-value">¥{{contractStats.salesAmountText || '0'}}</view>
+        <view class="metric-label">销售单累计金额</view>
       </view>
     </view>
 
@@ -96,17 +96,19 @@
       </view>
       <view class="contract-name">{{item.name}}</view>
       <view class="contract-code">{{item.contractNo}} · {{item.templateText}}</view>
-      <view class="contract-meta-grid">
+    <view class="contract-meta-grid">
+        <view class="contract-meta">
+          <view class="meta-label">销售单累计金额</view>
+          <view class="contract-amount">¥{{item.salesAmountText}}</view>
+          <view class="meta-label">{{item.salesOrderCount}} 张已生效销售单</view>
+        </view>
         <view class="contract-meta">
           <view class="meta-label">合同金额</view>
-          <view class="contract-amount">¥{{item.amountText}}</view>
-        </view>
-        <view class="contract-meta period-meta">
-          <view class="meta-label">合同期限</view>
-          <view class="date-value">{{item.periodText}}</view>
+          <view class="contract-amount agreed-amount">¥{{item.amountText}}</view>
         </view>
         <view class="card-arrow">›</view>
       </view>
+      <view class="contract-code">合同期限：{{item.periodText}}</view>
     </view>
   </view>
 

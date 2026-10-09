@@ -142,6 +142,9 @@ Page({
         endDate: c.endDate || '',
         amount: c.amount || 0,
         amountText: formatAmount(c.amount),
+        salesAmount: c.salesAmount || 0,
+        salesAmountText: formatAmount(c.salesAmount),
+        salesOrderCount: Number(c.salesOrderCount || 0),
         templateName: c.templateName || '',
         templateText: c.templateName ? `模板：${c.templateName}` : '双方自定义合同',
         contractNo: c.contractNo || `TP-${String(c.id).padStart(6, '0')}`,
@@ -162,7 +165,8 @@ Page({
           pending,
           active,
           closed,
-          totalAmountText: formatAmount(totalAmount)
+          totalAmountText: formatAmount(totalAmount),
+          salesAmountText: formatAmount(contracts.reduce((sum, item) => sum + Number(item.salesAmount), 0))
         },
         contractFilters: [
           { key: 'ALL', label: '全部', count: total },
@@ -195,7 +199,7 @@ Page({
     const { request } = require('../../utils/request');
     try {
       const list = await request({
-        url: `/orders/monthly-summary?counterpartyName=${encodeURIComponent(counterpartyName)}&direction=${this.data.role === 'supplier' ? 'SALE' : 'PURCHASE'}`
+        url: `/orders/monthly-summary?counterpartyName=${encodeURIComponent(counterpartyName)}&direction=${this.data.role === 'supplier' ? 'SALE' : 'PURCHASE'}${this.data.counterpartyCompanyId ? '&counterpartyCompanyId=' + encodeURIComponent(this.data.counterpartyCompanyId) : ''}`
       });
       const now = new Date();
       const buckets = [];

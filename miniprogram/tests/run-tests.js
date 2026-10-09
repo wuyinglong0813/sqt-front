@@ -1688,7 +1688,7 @@ test('home partner list is driven only by bound enterprise relations', () => {
   assert.ok(detail.includes("this.data.role === 'buyer' ? 'PURCHASE' : 'SALE'"));
 });
 
-test('home partner companies sort by lifetime signed contracts and preserve ties for both roles', () => {
+test('home partner companies sort by sales document amounts and distinguish equally named companies', () => {
   for (const role of ['buyer', 'supplier']) {
     const page = pageInstance(loadPage('../pages/index/index'));
     page.data.role = role;
@@ -1704,20 +1704,24 @@ test('home partner companies sort by lifetime signed contracts and preserve ties
       { counterpartyCompanyId: ids[2], contractCount: 3 },
       { counterpartyCompanyId: 'unbound-company', contractCount: 99 }
     ];
-    // Monthly amount and standalone order counts must not drive partner ordering.
-    page.data.ranking = [{ counterpartyName: '公司3', amount: 99999, orderCount: 100 }];
+    page.data.ranking = [
+      { counterpartyCompanyId: ids[0], counterpartyName: '同名企业', amount: 40, orderCount: 1 },
+      { counterpartyCompanyId: ids[1], counterpartyName: '同名企业', amount: 20, orderCount: 1 },
+      { counterpartyCompanyId: ids[2], counterpartyName: '公司2', amount: 20, orderCount: 1 },
+      { counterpartyCompanyId: ids[3], counterpartyName: '公司3', amount: 100, orderCount: 1 }
+    ];
 
     page.refreshPartnerCompanies();
 
     assert.deepStrictEqual(page.data.partnerCompanies.map(item => item.counterpartyCompanyId),
-      [ids[1], ids[2], ids[0], ids[3]]);
-    assert.deepStrictEqual(page.data.partnerCompanies.map(item => item.contractCount), [3, 3, 1, 0]);
+      [ids[3], ids[0], ids[1], ids[2]]);
+    assert.deepStrictEqual(page.data.partnerCompanies.map(item => item.contractCount), [0, 1, 3, 3]);
     assert.strictEqual(page.data['stats.counterpartyCount'], 4);
     assert.deepStrictEqual(page.data.relationCounterparties.map(item => item.counterpartyCompanyId), ids);
     page.data.period = 'year';
     page.refreshPartnerCompanies();
     assert.deepStrictEqual(page.data.partnerCompanies.map(item => item.counterpartyCompanyId),
-      [ids[1], ids[2], ids[0], ids[3]]);
+      [ids[3], ids[0], ids[1], ids[2]]);
   }
 });
 

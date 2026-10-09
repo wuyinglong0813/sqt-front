@@ -12,7 +12,9 @@ function page(relativePath, request, app) {
   vm.runInNewContext(fs.readFileSync(path.join(__dirname, relativePath), 'utf8'), {
     Page: value => { definition = value; },
     getApp: () => app,
-    require: name => name.endsWith('/request') ? { request } : {},
+    require: name => name.endsWith('/request') ? { request }
+      : name.endsWith('/datetime') ? require('../utils/datetime')
+      : name.endsWith('/retail') ? require('../utils/retail') : {},
     wx: { showToast: value => notices.push(value), navigateTo: value => notices.push(value) },
     setTimeout, clearTimeout
   });
