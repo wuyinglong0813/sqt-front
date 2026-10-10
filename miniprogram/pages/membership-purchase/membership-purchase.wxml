@@ -1,0 +1,20 @@
+<view class="purchase-page">
+  <view wx:if="{{loading}}" class="message">正在加载企业套餐…</view>
+  <view wx:elif="{{errorMessage}}" class="panel"><view>{{errorMessage}}</view><button bindtap="retry">重新加载</button></view>
+  <block wx:elif="{{catalog}}">
+    <view class="company-name">{{catalog.companyName}}</view>
+    <view class="note">购买的会员和额度归属当前企业，由企业有效成员共享。</view>
+    <view wx:if="{{!catalog.purchaseEnabled}}" class="notice">{{catalog.reason}}</view>
+    <view wx:for="{{products}}" wx:key="id" class="panel product-panel">
+      <view class="product-name">{{item.name}}</view>
+      <view class="price">¥{{item.priceText}}<text wx:if="{{item.firstOffer}}" class="offer">首次开通优惠</text></view>
+      <view class="rights">{{item.rightsText}}</view>
+      <view class="note">{{item.expiryText}}</view>
+      <view wx:if="{{item.type === 'VIP'}}" class="note">有效会员续费时长自动顺延，包含的签署额度到账即可使用。</view>
+      <button class="primary-button" disabled="{{!item.canBuy || creating}}" loading="{{creating}}"
+        data-id="{{item.id}}" bindtap="buy">{{item.canBuy ? '确认企业并下单' : item.reason}}</button>
+    </view>
+    <view wx:if="{{!products.length}}" class="message">暂未开放可购买的套餐</view>
+    <view class="link" bindtap="openOrders">查看企业购买记录 ›</view>
+  </block>
+</view>

@@ -13,6 +13,7 @@
       <view class="member-title">{{status.membershipText}}</view>
       <view class="member-validity">{{status.validityText}}</view>
       <view class="member-note">当前企业的有效成员共享权益，操作仍需对应业务权限</view>
+      <button wx:if="{{status.canPurchaseHere}}" class="member-purchase-button" bindtap="openPurchase">{{status.paidVipUntil ? '续费 VIP／购买额度' : '开通 VIP／购买额度'}}</button>
     </view>
     <view class="section-title">{{status.modeText}}</view>
     <view class="quota-panel">
@@ -27,6 +28,8 @@
     </view>
     <view class="status-note">{{status.overviewNote}}</view>
     <view class="basic-note">额度限制只影响新发起电子签。接收方签署、已有任务及基础业务协作继续可用。</view>
+    <view wx:if="{{status.paidVipUntil}}" class="basic-note">已购 VIP 有效至 {{status.paidVipUntil}}（北京时间）</view>
+    <view class="purchase-links"><view bindtap="openPurchase">套餐与开通 ›</view><view bindtap="openOrders">企业购买记录 ›</view></view>
     <button wx:if="{{!status.canInitiate}}" class="secondary-button" bindtap="openHelp">查看帮助与反馈</button>
     <view class="section-title">最近使用记录</view>
     <view wx:if="{{usageError}}" class="message">{{usageError}}</view>

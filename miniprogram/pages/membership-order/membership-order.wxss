@@ -1,0 +1,15 @@
+page { background:#f4f8fd; }
+.order-page { padding:28rpx 24rpx calc(50rpx + env(safe-area-inset-bottom)); color:#1b2a3c; }
+.company-name { font-size:32rpx; font-weight:600; word-break:break-all; }
+.panel { background:#fff; border:1rpx solid #dfeaf6; border-radius:24rpx; padding:28rpx; margin-top:24rpx; }
+.status { color:#2478df; font-size:25rpx; margin-bottom:22rpx; }
+.name { font-size:30rpx; font-weight:600; }
+.price { color:#2478df; font-size:46rpx; font-weight:600; margin:22rpx 0; }
+.rights { font-size:26rpx; }
+.note { color:#728198; font-size:22rpx; margin-top:14rpx; line-height:1.7; word-break:break-all; }
+.primary-button,.secondary-button { border-radius:18rpx; font-size:26rpx; margin-top:24rpx; }
+.primary-button { color:#fff; background:#3498ff; }
+.secondary-button { color:#2478df; background:#fff; }
+.primary-button::after,.secondary-button::after { border:0; }
+.end-note { margin:24rpx 6rpx; }
+.message { color:#728198; font-size:25rpx; padding:28rpx 6rpx; }

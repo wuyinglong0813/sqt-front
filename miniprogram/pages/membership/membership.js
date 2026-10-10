@@ -41,5 +41,7 @@ Page({
     if (id) wx.navigateTo({ url: '/pages/contract-preview/contract-preview?contractId=' + encodeURIComponent(id) });
   },
   openHelp() { wx.navigateTo({ url: '/pages/help-center/help-center' }); },
+  openPurchase() { wx.navigateTo({ url: '/pages/membership-purchase/membership-purchase' }); },
+  openOrders() { wx.navigateTo({ url: '/pages/membership-orders/membership-orders' }); },
   retry() { this.loadMembership(); }
 });

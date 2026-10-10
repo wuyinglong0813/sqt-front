@@ -1,0 +1,27 @@
+<view class="order-page">
+  <view wx:if="{{loading}}" class="message">正在加载订单…</view>
+  <view wx:elif="{{errorMessage}}" class="panel"><view>{{errorMessage}}</view><button bindtap="retry">重新加载</button></view>
+  <block wx:elif="{{order}}">
+    <view class="company-name">{{order.companyName}}</view>
+    <view class="panel">
+      <view class="status">{{order.statusText}}</view><view class="name">{{order.productName}}</view>
+      <view class="price">¥{{order.priceText}}</view><view class="rights">{{order.rightsText}}</view>
+      <view class="note">额度有效期：到账起 {{order.quotaDays}} 天</view>
+      <view wx:if="{{order.firstOffer}}" class="note">本订单享受首次开通优惠</view>
+    </view>
+    <view class="panel">
+      <view class="note">订单编号 {{order.orderNo}}</view>
+      <view class="note">创建时间 {{order.createdAt}}</view>
+      <view wx:if="{{order.status === 'PENDING'}}" class="note">支付截止 {{order.expiresAt}}</view>
+      <view wx:if="{{order.paidAt}}" class="note">支付时间 {{order.paidAt}}</view>
+      <view wx:if="{{order.vipEndAt}}" class="note">已购 VIP 有效至 {{order.vipEndAt}}</view>
+      <view wx:if="{{order.quotaEndAt}}" class="note">本批签署额度有效至 {{order.quotaEndAt}}</view>
+      <view class="note">以上时间均为北京时间</view>
+    </view>
+    <button wx:if="{{order.canPay}}" class="primary-button" bindtap="pay" loading="{{paying}}" disabled="{{paying || updating}}">确认并支付 ¥{{order.priceText}}</button>
+    <button wx:if="{{order.status === 'PENDING'}}" class="secondary-button" bindtap="refreshPayment" loading="{{updating}}" disabled="{{paying || updating}}">刷新支付结果</button>
+    <button wx:if="{{order.canClose}}" class="secondary-button" bindtap="closeOrder" disabled="{{paying || updating}}">关闭未支付订单</button>
+    <button wx:if="{{order.status === 'PAID'}}" class="primary-button" bindtap="openMembership">查看企业权益</button>
+    <view class="note end-note">支付结果以后端核实为准，重复刷新不会重复开通权益。</view>
+  </block>
+</view>

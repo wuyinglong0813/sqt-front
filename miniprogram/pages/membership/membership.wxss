@@ -27,3 +27,6 @@ page { background: #f4f8fd; }
 .usage-detail,.usage-time { color: #728198; font-size: 21rpx; margin-top: 10rpx; word-break: break-all; }
 .message { color: #728198; font-size: 25rpx; padding: 28rpx 6rpx; }
 .empty-panel { font-size: 26rpx; text-align: center; }
+.member-purchase-button { background:#fff; color:#2478df; font-size:26rpx; border-radius:18rpx; margin:22rpx 0 0; }
+.member-purchase-button::after { border:0; }
+.purchase-links { display:flex; flex-wrap:wrap; gap:24rpx; color:#2478df; font-size:25rpx; margin:22rpx 6rpx; }

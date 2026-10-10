@@ -1,11 +1,13 @@
 const SOURCE_TEXT = { SPECIAL_UNLIMITED: '专属无限签', SPECIAL_QUOTA: '专属免费额度', TRIAL: '上线体验额度', PAID: '已购额度' };
 const STATUS_TEXT = { RESERVED: '处理中', UNCERTAIN: '结果待核实', CONSUMED: '已使用', RELEASED: '已释放' };
 
-function presentMembership(value) {
+function presentMembership(value, platform = paymentPlatform()) {
   const status = value || {};
   const blocked = status.signingMode === 'BLOCKED';
   return {
     ...status,
+    canPurchaseHere: !!status.purchaseEnabled && Array.isArray(status.purchasePlatforms)
+      && status.purchasePlatforms.includes(platform),
     quotaLabel: blocked ? '新发起签署状态' : status.unlimited ? '企业专属签署权益' : '剩余免费签署额度',
     quotaText: blocked ? '暂停新发起' : status.unlimited ? '不限份数' : Number(status.remaining || 0) + ' 份',
     overviewNote: !status.canInitiate ? status.reason || '暂无可用签署额度'
@@ -24,4 +26,23 @@ function presentUsage(rows) {
     statusText: STATUS_TEXT[row.status] || row.status
   }));
 }
-module.exports = { presentMembership, presentUsage };
+function paymentPlatform(api = typeof wx === 'undefined' ? null : wx) {
+  try {
+    const info = api && (typeof api.getDeviceInfo === 'function' ? api.getDeviceInfo() : api.getSystemInfoSync());
+    const platform = String(info && info.platform || '').toLowerCase();
+    return ['android', 'ios', 'windows', 'mac', 'devtools', 'harmony'].includes(platform) ? platform : 'unknown';
+  } catch (e) { return 'unknown'; }
+}
+function money(fen) { return (Number(fen || 0) / 100).toFixed(2); }
+function presentProduct(product) {
+  return { ...product, priceText: money(product.amountFen), standardPriceText: money(product.standardAmountFen),
+    rightsText: product.type === 'VIP' ? '会员 ' + product.vipDays + ' 天，含 ' + product.signQuota + ' 份电子签'
+      : product.signQuota + ' 份电子签署额度',
+    expiryText: '签署额度到账起 ' + product.quotaDays + ' 天有效' };
+}
+function presentOrder(order) {
+  return { ...order, priceText: money(order.amountFen),
+    rightsText: order.productType === 'VIP' ? 'VIP ' + order.vipDays + ' 天，含 ' + order.signQuota + ' 份电子签'
+      : order.signQuota + ' 份电子签署额度' };
+}
+module.exports = { presentMembership, presentUsage, paymentPlatform, presentProduct, presentOrder };

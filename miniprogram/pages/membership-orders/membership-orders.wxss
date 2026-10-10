@@ -1,0 +1,10 @@
+page { background:#f4f8fd; }
+.orders-page { padding:28rpx 24rpx calc(44rpx + env(safe-area-inset-bottom)); color:#1b2a3c; }
+.panel { background:#fff; border:1rpx solid #dfeaf6; border-radius:24rpx; padding:28rpx; margin-bottom:24rpx; }
+.order-top { display:flex; justify-content:space-between; gap:18rpx; }
+.name { font-size:28rpx; font-weight:600; flex:1; }
+.status { font-size:22rpx; color:#2478df; }
+.price { font-size:36rpx; margin-top:20rpx; }
+.note { color:#728198; font-size:22rpx; margin-top:12rpx; line-height:1.6; }
+.link { color:#2478df; font-size:24rpx; margin-top:18rpx; }
+.message { color:#728198; font-size:25rpx; padding:28rpx 6rpx; }
