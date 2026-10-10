@@ -2,11 +2,13 @@
   <view wx:if="{{loading}}" class="message">正在加载购买记录…</view>
   <view wx:elif="{{errorMessage}}" class="panel"><view>{{errorMessage}}</view><button bindtap="retry">重新加载</button></view>
   <view wx:elif="{{!orders.length}}" class="message">当前企业暂无购买记录</view>
-  <view wx:else wx:for="{{orders}}" wx:key="orderNo" class="panel" data-id="{{item.orderNo}}" bindtap="openOrder">
-    <view class="order-top"><view class="name">{{item.productName}}</view><view class="status">{{item.statusText}}</view></view>
-    <view class="price">¥{{item.priceText}}</view>
-    <view class="note">{{item.rightsText}}</view>
-    <view class="note">{{item.createdAt}}（北京时间）</view>
-    <view class="link">查看订单 ›</view>
-  </view>
+  <block wx:else>
+    <view wx:for="{{orders}}" wx:key="orderNo" class="panel" data-id="{{item.orderNo}}" bindtap="openOrder">
+      <view class="order-top"><view class="name">{{item.productName}}</view><view class="status">{{item.statusText}}</view></view>
+      <view class="price">¥{{item.priceText}}</view>
+      <view class="note">{{item.rightsText}}</view>
+      <view class="note">{{item.createdAt}}（北京时间）</view>
+      <view class="link">查看订单 ›</view>
+    </view>
+  </block>
 </view>
