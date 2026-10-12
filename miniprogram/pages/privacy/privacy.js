@@ -1,3 +1,5 @@
+const { acceptPrivacyConsent } = require('../../utils/privacy');
+
 Page({
   data: {
     agreed: false,
@@ -21,22 +23,22 @@ Page({
 
   noop() {},
 
-  doAgree() {
+  async doAgree() {
     if (!this.data.agreed) {
       this.setData({ shaking: true });
       setTimeout(() => this.setData({ shaking: false }), 500);
       return;
     }
-    wx.setStorageSync('privacy_agreed', true);
+    try {
+      await acceptPrivacyConsent();
+    } catch (error) {
+      wx.showToast({ title: error.message, icon: 'none' });
+      return;
+    }
     wx.reLaunch({ url: '/pages/index/index' });
   },
 
   doDeny() {
-    wx.showModal({
-      title: '提示',
-      content: '需要同意隐私保护指引才能使用小程序。',
-      showCancel: false,
-      confirmText: '知道了'
-    });
+    wx.switchTab({ url: '/pages/index/index' });
   }
 });

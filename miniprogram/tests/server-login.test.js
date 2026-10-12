@@ -16,6 +16,7 @@ function harness(platform = 'ios', local = false) {
     setStorageSync: (key, value) => { storage[key] = value; },
     removeStorageSync: key => { delete storage[key]; },
     login: options => options.success({ code: 'fresh-wechat-code' }),
+    requirePrivacyAuthorize: options => options.success(),
     request: options => {
       requests.push(options);
       options.success({ statusCode: 200, data: { code: 0, data: { token: 'server-session' } } });
@@ -133,7 +134,7 @@ test('phone authorization failure exposes only error details and allows copying'
   assert.match(modal.content, /getPhoneNumber:fail no permission/);
   assert.match(modal.content, /1400001/);
   assert.doesNotMatch(modal.content, /private-phone/);
-  modal.success({ confirm: true });
+  await modal.success({ confirm: true });
   assert.equal(env.clipboard[0], modal.content);
 });
 
@@ -192,4 +193,22 @@ test('explicit local development retains simulated login only in developer tools
   assert.equal(mobile.app.globalData.isLocalDevelopment, false);
   await mobile.load('utils/wechatLogin.js').wechatLogin({ code: 'dev-injected' });
   assert.equal(mobile.requests[0].data.code, 'fresh-wechat-code');
+});
+
+test('refusing privacy authorization never exchanges WeChat credentials or contacts the backend', async () => {
+  const env = harness('windows');
+  env.wx.requirePrivacyAuthorize = options => options.fail({ errMsg: 'requirePrivacyAuthorize:fail auth deny' });
+  env.wx.login = () => assert.fail('must not collect a login code after refusal');
+  await env.page.onWechatPhoneTap();
+  assert.equal(env.requests.length, 0);
+  assert.equal(env.sessions.length, 0);
+  assert.match(env.modals[0].content, /失败步骤：隐私授权/);
+});
+
+test('refusing privacy authorization prevents copying login errors', async () => {
+  const env = harness();
+  env.page.showLoginError('服务器登录', { message: '服务暂时不可用' });
+  env.wx.requirePrivacyAuthorize = options => options.fail({});
+  await env.modals[0].success({ confirm: true });
+  assert.equal(env.clipboard.length, 0);
 });

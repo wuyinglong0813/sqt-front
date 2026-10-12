@@ -1,5 +1,6 @@
 const { request } = require('../../utils/request');
 const { captureCompanyContext, isCompanyContextCurrent } = require('../../utils/companyContext');
+const { requirePrivacyAuthorization } = require('../../utils/privacy');
 
 // Fadada's desktop signing page keeps fixed side columns. Below this width the contract collapses.
 const DESKTOP_SIGN_WIDTH = 1280;
@@ -184,6 +185,25 @@ Page({
     return true;
   },
 
+  async confirmServicePrivacy(context) {
+    const consentKey = [context.token, context.companyId || '', this.data.scene].join(':');
+    if (this._servicePrivacyConsent === consentKey) return;
+    await requirePrivacyAuthorization();
+    const result = await new Promise(resolve => wx.showModal({
+      title: '法大大服务信息处理提示',
+      content: '为办理认证、电子印章或合同签署，我们将向深圳法大大网络科技有限公司提供本次服务所需的手机号、企业资料或合同及签署信息，并接收认证姓名、状态等结果。证件及人脸核验由服务商页面或认证小程序处理。你可在“我的 → 第三方信息共享清单”和服务页面查看具体规则。是否继续？',
+      confirmText: '同意并继续',
+      cancelText: '暂不使用',
+      success: resolve,
+      fail: () => resolve({ confirm: false })
+    }));
+    if (!result.confirm) throw new Error('已取消法大大服务，未发起本次认证或签署');
+    if (this._unloaded || !isCompanyContextCurrent(getApp(), context)) {
+      throw new Error('登录或企业已变化，请返回后重新发起');
+    }
+    this._servicePrivacyConsent = consentKey;
+  },
+
   async loadServiceUrl() {
     if (this._loadingServiceUrl || this._unloaded) return;
     this._loadingServiceUrl = true;
@@ -193,6 +213,8 @@ Page({
     const config = SCENES[scene];
     this.setData({ loading: true, serviceUrl: '', errorMessage: '' });
     try {
+      await this.confirmServicePrivacy(context);
+      if (this._unloaded || !isCompanyContextCurrent(getApp(), context)) return;
       let endpoint = config.endpoint;
       if (scene === 'company') endpoint = `/fadada/companies/${options.companyId}/auth-url`;
       if (scene === 'legal') endpoint = `/fadada/companies/${options.companyId}/legal-representative/auth-url`;

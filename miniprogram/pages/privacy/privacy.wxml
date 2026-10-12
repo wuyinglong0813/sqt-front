@@ -26,7 +26,7 @@
       <text class="ba-check-text {{shaking ? 'error' : ''}}">{{shaking ? '请先阅读并同意隐私保护指引' : '我已阅读并同意《商签通小程序隐私保护指引》'}}</text>
     </view>
     <button class="ba-btn" bindtap="doAgree">同意</button>
-    <view class="ba-deny" bindtap="doDeny">不同意</view>
+    <view class="ba-deny" bindtap="doDeny">暂不同意，先浏览</view>
   </view>
 </view>
 

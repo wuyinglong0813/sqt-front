@@ -1,6 +1,7 @@
 const { request } = require('../../utils/request');
 const { captureCompanyContext, isCompanyContextCurrent } = require('../../utils/companyContext');
 const { presentMembership, presentUsage } = require('../../utils/membership');
+const { runPrivacyAction } = require('../../utils/privacy');
 const app = getApp();
 
 Page({
@@ -34,7 +35,7 @@ Page({
     });
   },
   copyCompanyId() {
-    if (this.data.status) wx.setClipboardData({ data: String(this.data.status.companyId) });
+    if (this.data.status) return runPrivacyAction(() => wx.setClipboardData({ data: String(this.data.status.companyId) }));
   },
   openContract(e) {
     const id = e.currentTarget.dataset.id;

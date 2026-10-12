@@ -1,4 +1,5 @@
 const { request } = require('./request');
+const { acceptPrivacyConsent } = require('./privacy');
 
 function getLoginCode() {
   return new Promise((resolve, reject) => {
@@ -17,6 +18,12 @@ function getLoginCode() {
 }
 
 async function wechatLogin(payload = {}) {
+  try {
+    await acceptPrivacyConsent();
+  } catch (error) {
+    error.loginStage = '隐私授权';
+    throw error;
+  }
   // 自建服务器需要 wx.login 的 code；手机号授权的 phoneCode 是另一份凭证。
   // 只有显式启用的本地开发环境才能沿用模拟 code。
   let code;

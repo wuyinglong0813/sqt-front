@@ -16,4 +16,8 @@
     <view><view class="help-title">对内容有疑问？</view><view class="help-desc">前往帮助中心联系平台支持</view></view>
     <view class="help-arrow">›</view>
   </view>
+  <view class="document-help" wx:if="{{showPlatformPrivacy}}" bindtap="openPlatformPrivacy">
+    <view><view class="help-title">微信平台隐私保护指引</view><view class="help-desc">查看当前向微信平台声明的信息处理规则</view></view>
+    <view class="help-arrow">›</view>
+  </view>
 </view>

@@ -1,6 +1,7 @@
 const { request } = require('../../utils/request');
 const { loadSummary } = require('../../utils/companyOnboarding');
 const { setTabBarHidden, syncTabBar } = require('../../utils/tabBar');
+const { hasPrivacyConsent, acceptPrivacyConsent } = require('../../utils/privacy');
 const {
   USER_ID_KEY,
   readHomeSnapshot,
@@ -82,7 +83,7 @@ Page({
   },
 
   onLoad(options) {
-    if (!wx.getStorageSync('privacy_agreed')) {
+    if (!hasPrivacyConsent()) {
       this.setData({ showPrivacy: true });
       setTabBarHidden(this, true);
     }
@@ -805,23 +806,24 @@ Page({
   togglePrivacyAgree() {
     this.setData({ privacyAgreed: !this.data.privacyAgreed });
   },
-  doPrivacyAgree() {
+  async doPrivacyAgree() {
     if (!this.data.privacyAgreed) {
       this.setData({ shaking: true });
       setTimeout(() => this.setData({ shaking: false }), 500);
       return;
     }
-    wx.setStorageSync('privacy_agreed', true);
+    try {
+      await acceptPrivacyConsent();
+    } catch (error) {
+      wx.showToast({ title: error.message, icon: 'none' });
+      return;
+    }
     this.setData({ showPrivacy: false });
     setTabBarHidden(this, false);
   },
   doPrivacyDeny() {
-    wx.showModal({
-      title: '提示',
-      content: '需要同意隐私保护指引才能使用小程序。',
-      showCancel: false,
-      confirmText: '知道了'
-    });
+    this.setData({ showPrivacy: false, showPrivacyDetail: false, privacyAgreed: false });
+    setTabBarHidden(this, false);
   },
   showPrivacyDetail() {
     this.setData({ showPrivacyDetail: true });

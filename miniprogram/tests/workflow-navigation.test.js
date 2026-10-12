@@ -32,6 +32,7 @@ function harness(request) {
     setTimeout: callback => { timers.set(++timerId, callback); return timerId; },
     clearTimeout: id => timers.delete(id),
     require: id => {
+      if (id.endsWith('/privacy')) return require('./privacy-fixture')(wx, () => app);
       if (id.endsWith('/request')) return { request };
       if (id.endsWith('/wechatLogin')) return { wechatLogin: () => { throw new Error('Unexpected login'); } };
       if (id.endsWith('/companyContext')) return contextHelpers;

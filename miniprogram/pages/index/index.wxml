@@ -20,7 +20,7 @@
         <text class="{{shaking ? 'text-danger' : ''}}">我已阅读并同意隐私保护指引</text>
       </view>
       <button class="primary-btn" bindtap="doPrivacyAgree">同意并继续</button>
-      <view class="quiet-action" bindtap="doPrivacyDeny">暂不同意</view>
+      <view class="quiet-action" bindtap="doPrivacyDeny">暂不同意，先浏览</view>
     </view>
   </view>
 

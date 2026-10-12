@@ -40,7 +40,7 @@
 
 <template name="collectionListContent">
   <view class="legal-document">
-    <view class="legal-meta">更新日期：2026年9月1日</view>
+    <view class="legal-meta">更新日期：2026年10月12日</view>
     <view class="legal-lead">以下清单按当前功能说明可能处理的信息、用途和触发场景。只有在你使用对应功能时，才会处理相关信息。</view>
 
     <view class="info-list-item">
@@ -63,13 +63,13 @@
     </view>
     <view class="info-list-item">
       <view class="info-list-title">实名认证与电子签状态</view>
-      <view class="info-list-line"><text>内容：</text>认证结果、认证通过时间、第三方电子签用户标识</view>
+      <view class="info-list-line"><text>内容：</text>认证姓名、认证结果、认证通过时间、第三方电子签用户标识</view>
       <view class="info-list-line"><text>用途：</text>确认签署资格、发起电子印章与签署服务</view>
       <view class="info-list-line"><text>场景：</text>主动进行个人认证、企业认证或合同签署时</view>
     </view>
     <view class="info-list-item">
       <view class="info-list-title">合同及交易协作信息</view>
-      <view class="info-list-line"><text>内容：</text>合作企业、合同、订单、金额、日期、审批、签署、库存、项目账套和对账记录</view>
+      <view class="info-list-line"><text>内容：</text>合作企业、零售客户及联系人姓名、手机号、联系地址、合同、订单、金额、日期、审批、签署、库存、项目账套和对账记录</view>
       <view class="info-list-line"><text>用途：</text>完成你发起的企业交易协作并形成业务记录</view>
       <view class="info-list-line"><text>场景：</text>使用合同、履约、库存、账套或对账功能时</view>
     </view>
@@ -78,6 +78,12 @@
       <view class="info-list-line"><text>内容：</text>合同、图片、PDF、Word、签名、物流单、发票及其它履约资料</view>
       <view class="info-list-line"><text>用途：</text>文件预览、下载、签署、审批和归档</view>
       <view class="info-list-line"><text>场景：</text>选择文件、拍照、签名或上传资料时</view>
+    </view>
+    <view class="info-list-item">
+      <view class="info-list-title">相册写入与剪切板</view>
+      <view class="info-list-line"><text>内容：</text>你选择保存的业务图片、点击复制的企业编号或登录错误详情</view>
+      <view class="info-list-line"><text>用途：</text>保存凭证图片，复制编号或错误信息以便业务操作和问题反馈</view>
+      <view class="info-list-line"><text>场景：</text>主动点击保存图片或复制时；不主动读取其它剪切板内容</view>
     </view>
     <view class="info-list-item">
       <view class="info-list-title">设备本地存储信息</view>
@@ -90,7 +96,7 @@
 
 <template name="sharingListContent">
   <view class="legal-document">
-    <view class="legal-meta">更新日期：2026年9月1日</view>
+    <view class="legal-meta">更新日期：2026年10月12日</view>
     <view class="legal-lead">商签通不会出售你的个人信息。为实现必要功能，我们会在最小范围内使用以下平台或服务商能力；未使用对应功能时，不会触发相关处理。</view>
 
     <view class="provider-card">
@@ -101,9 +107,12 @@
     </view>
     <view class="provider-card">
       <view class="provider-head"><view class="provider-name">法大大电子签服务</view><view class="provider-tag">认证与签署</view></view>
+      <view class="provider-line"><text>提供方：</text>深圳法大大网络科技有限公司</view>
+      <view class="provider-line"><text>接入方式：</text>认证及签署服务页面、认证小程序和服务端接口</view>
       <view class="provider-line"><text>处理目的：</text>个人及企业身份核验、电子印章和合同签署</view>
-      <view class="provider-line"><text>信息范围：</text>认证所需身份信息、电子签用户标识、合同及签署相关信息</view>
-      <view class="provider-line"><text>触发场景：</text>你主动发起认证、开通电子签或签署合同时</view>
+      <view class="provider-line"><text>信息范围：</text>本次服务所需的手机号、企业资料、电子签用户标识、合同及签署相关信息；证件和人脸信息由服务商页面或认证小程序处理。商签通接收认证姓名、认证状态等结果。</view>
+      <view class="provider-line"><text>触发场景：</text>你主动发起认证、开通电子签或签署合同，并同意本次服务的信息处理提示时</view>
+      <view class="provider-line"><text>隐私规则：</text>办理前可在法大大认证或签署页面查看相应隐私政策并完成授权</view>
     </view>
     <view class="provider-card">
       <view class="provider-head"><view class="provider-name">腾讯云托管与对象存储</view><view class="provider-tag">基础设施</view></view>

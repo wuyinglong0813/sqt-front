@@ -1,5 +1,6 @@
 const { request } = require('../../utils/request');
 const { formatDateTime } = require('../../utils/datetime');
+const { runPrivacyAction } = require('../../utils/privacy');
 
 const TYPE_META = {
   SALES_ORDER: {
@@ -89,7 +90,7 @@ Page({
   },
 
   chooseTemplateFile(documentType) {
-    wx.chooseMessageFile({
+    return runPrivacyAction(() => wx.chooseMessageFile({
       count: 1,
       type: 'file',
       extension: ['json'],
@@ -104,7 +105,7 @@ Page({
           wx.showToast({ title: '文件选择失败', icon: 'none' });
         }
       }
-    });
+    }));
   },
 
   readTemplateContent(filePath, fileName, documentType) {

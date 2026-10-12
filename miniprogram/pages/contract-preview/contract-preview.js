@@ -7,6 +7,7 @@ const {
 const { normalizeContractTable } = require('../../utils/chineseCurrency');
 const { formatDateTime } = require('../../utils/datetime');
 const { money } = require('../../utils/retail');
+const { runPrivacyAction } = require('../../utils/privacy');
 
 function today() {
   const now = new Date();
@@ -862,7 +863,7 @@ Page({
 
   chooseLogisticsImage() {
     if (this.data.logisticsUploading) return;
-    wx.chooseMedia({
+    return runPrivacyAction(() => wx.chooseMedia({
       count: 1,
       mediaType: ['image'],
       sourceType: ['album', 'camera'],
@@ -876,7 +877,7 @@ Page({
         }
         this.uploadLogisticsImage(file.tempFilePath);
       }
-    });
+    }));
   },
 
   async uploadLogisticsImage(filePath) {
@@ -1172,7 +1173,7 @@ Page({
   },
 
   chooseAttachmentImage(category) {
-    wx.chooseMedia({
+    return runPrivacyAction(() => wx.chooseMedia({
       count: 1,
       mediaType: ['image'],
       sourceType: ['album', 'camera'],
@@ -1190,11 +1191,11 @@ Page({
           this.attachmentFileName(file.tempFilePath, 'jpg', category)
         );
       }
-    });
+    }));
   },
 
   chooseAttachmentFile(category) {
-    wx.chooseMessageFile({
+    return runPrivacyAction(() => wx.chooseMessageFile({
       count: 1,
       type: 'file',
       extension: category === 'OTHER' ? ['pdf', 'doc', 'docx'] : ['pdf'],
@@ -1211,7 +1212,7 @@ Page({
           file.name || this.attachmentFileName(file.path, 'pdf', category)
         );
       }
-    });
+    }));
   },
 
   attachmentFileName(filePath, fallbackExtension, category) {
@@ -1716,11 +1717,11 @@ Page({
       const path = result.filePath;
       if (attachment.isImage) {
         if (download) {
-          wx.saveImageToPhotosAlbum({
+          await runPrivacyAction(() => wx.saveImageToPhotosAlbum({
             filePath: path,
             success: () => wx.showToast({ title: '图片已保存到相册', icon: 'success' }),
             fail: () => wx.showToast({ title: '图片保存失败，请检查相册权限', icon: 'none' })
-          });
+          }));
           return;
         }
         wx.previewImage({ current: path, urls: [path] });

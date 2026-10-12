@@ -1,9 +1,9 @@
 <template name="privacyContent">
   <view class="privacy-document">
-    <view class="privacy-version">更新日期：2026年7月17日　生效日期：2026年7月17日</view>
+    <view class="privacy-version">更新日期：2026年10月12日　生效日期：2026年10月12日</view>
 
     <view class="privacy-lead">
-      欢迎使用商签通小程序。商签通运营方（以下简称“我们”）重视你的个人信息与企业业务数据安全。本指引适用于商签通当前提供的账号登录、企业管理、成员授权、合同协同、订单及对账服务。
+      欢迎使用商签通小程序。开发者河北云域科技有限公司（以下简称“我们”）重视你的个人信息与企业业务数据安全。本指引适用于商签通当前提供的账号登录、企业管理、成员授权、合同协同、订单及对账服务。无需登录的介绍、协议及帮助内容可直接浏览；拒绝授权只会影响需要对应信息的功能。
     </view>
 
     <view class="privacy-section">
@@ -18,17 +18,25 @@
       </view>
       <view class="privacy-item">
         <view class="privacy-item-title">3. 合同与交易信息</view>
-        <view class="privacy-item-desc">当你使用业务功能时，我们会保存你主动提交的合作企业、订单编号、金额、日期、合同模板、合同内容、审批、签署和对账记录，用于履行你发起的企业协作操作。</view>
+        <view class="privacy-item-desc">当你使用业务功能时，我们会保存你主动提交的合作企业、零售客户及联系人姓名、手机号、联系地址、订单编号、金额、日期、合同模板、合同内容、审批、签署和对账记录，用于履行你发起的企业协作操作。录入他人信息或上传包含他人信息的资料前，请确保已取得必要授权。</view>
       </view>
       <view class="privacy-item">
         <view class="privacy-item-title">4. 实名与人脸认证信息</view>
-        <view class="privacy-item-desc">当你主动使用个人或企业认证、电子印章及合同签署功能时，我们会委托法大大提供身份核验和电子签服务。证件、人脸等敏感信息在服务商页面处理，商签通不保存完整证件号或人脸照片；具体处理前会依法取得你的授权。</view>
+        <view class="privacy-item-desc">当你主动使用个人或企业认证、电子印章及合同签署功能时，我们会在告知并取得你的同意后，向深圳法大大网络科技有限公司提供本次服务所需的手机号、企业资料、合同及签署相关信息，用于身份核验和电子签服务。证件、人脸等敏感信息由服务商页面或认证小程序处理，商签通不保存完整证件号或人脸照片；我们会保存返回的认证姓名、认证状态、认证时间及电子签用户标识。办理前请阅读服务页面展示的隐私规则并完成相应授权。</view>
       </view>
       <view class="privacy-item">
-        <view class="privacy-item-title">5. 本地存储信息</view>
-        <view class="privacy-item-desc">为保持登录状态和记住当前企业，我们会在你的设备中保存登录会话、当前企业标识及隐私同意状态。你可以通过微信清理小程序数据，但这不会自动删除服务端账号数据。</view>
+        <view class="privacy-item-title">5. 用户选择的图片、文件及相册权限</view>
+        <view class="privacy-item-desc">仅在你主动上传资料时，我们会处理你从相册选择或拍摄的图片，以及从聊天记录选择的文件，用于上传物流单、发票、付款凭证、其它合同附件或单据模板。拍照由微信及系统征求摄像头权限；保存凭证图片时会征求相册写入权限。拒绝或取消不会影响浏览及其它不依赖该资料的功能。</view>
       </view>
-      <view class="privacy-note">当前版本不会主动读取你的通讯录、地理位置、相册或麦克风。</view>
+      <view class="privacy-item">
+        <view class="privacy-item-title">6. 剪切板</view>
+        <view class="privacy-item-desc">仅在你点击复制时，我们会将企业编号或登录错误详情写入剪切板，方便业务操作和问题反馈；不会主动读取剪切板中的其它内容。</view>
+      </view>
+      <view class="privacy-item">
+        <view class="privacy-item-title">7. 本地存储信息</view>
+        <view class="privacy-item-desc">为保持登录状态、记住当前企业并提升页面打开速度，我们会在你的设备中保存登录会话、当前企业标识、首页数据快照及隐私指引同意版本。你可以退出登录或通过微信清理小程序数据，但这不会自动删除服务端账号数据。微信平台的隐私授权状态由微信管理，本地同意记录不能替代微信授权。</view>
+      </view>
+      <view class="privacy-note">当前版本不读取通讯录、地理位置或麦克风信息，不扫描你的相册或聊天记录；仅处理你主动选中的图片和文件。</view>
     </view>
 
     <view class="privacy-section">
@@ -43,7 +51,7 @@
 
     <view class="privacy-section">
       <view class="privacy-section-title">四、你的权利</view>
-      <view class="privacy-paragraph">你有权查询、复制、更正或删除个人信息，撤回授权、注销账号，并可通过微信的小程序设置管理已授权信息。需要处理服务端数据时，可通过微信公众平台展示的开发者联系方式提交申请。撤回同意不影响撤回前基于同意已进行的处理。</view>
+      <view class="privacy-paragraph">你有权查询、复制、更正或删除个人信息，撤回授权、注销账号，并可通过微信的小程序设置管理已授权信息。需要处理服务端数据时，可在“我的 → 帮助与反馈”联系平台支持，或通过微信公众平台隐私保护指引中展示的开发者联系方式提交申请。账号注销可在“我的 → 账号注销”查看条件并联系客服办理。撤回同意不影响撤回前基于同意已进行的处理。</view>
     </view>
 
     <view class="privacy-section">
@@ -53,7 +61,7 @@
 
     <view class="privacy-section">
       <view class="privacy-section-title">六、指引的更新与联系</view>
-      <view class="privacy-paragraph">功能或个人信息处理规则发生重大变化时，我们会更新本指引，并通过页面提示等适当方式告知你。对本指引或个人信息保护有疑问，可通过微信公众平台中本小程序展示的开发者联系方式与我们联系。</view>
+      <view class="privacy-paragraph">功能或个人信息处理规则发生重大变化时，我们会更新本指引，并通过小程序内弹窗提示告知你；需要重新授权的功能会再次征求同意。对本指引或个人信息保护有疑问，可在“我的 → 帮助与反馈”联系平台支持，或通过微信公众平台隐私保护指引中展示的开发者联系方式与我们联系。</view>
     </view>
   </view>
 </template>

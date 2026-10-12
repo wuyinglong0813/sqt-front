@@ -7,7 +7,8 @@ const DOCUMENTS = {
   privacy: {
     title: '隐私保护指引',
     subtitle: '了解商签通如何处理和保护个人信息',
-    templateName: 'privacyContent'
+    templateName: 'privacyContent',
+    showPlatformPrivacy: true
   },
   collection: {
     title: '个人信息收集清单',
@@ -25,17 +26,28 @@ Page({
   data: {
     title: DOCUMENTS.user.title,
     subtitle: DOCUMENTS.user.subtitle,
-    templateName: DOCUMENTS.user.templateName
+    templateName: DOCUMENTS.user.templateName,
+    showPlatformPrivacy: false
   },
 
   onLoad(query) {
     const document = DOCUMENTS[query.type] || DOCUMENTS.user;
-    this.setData(document);
+    this.setData({ showPlatformPrivacy: false, ...document });
     wx.setNavigationBarTitle({ title: document.title });
   },
 
   openHelp() {
     wx.navigateTo({ url: '/pages/help-center/help-center' });
+  },
+
+  openPlatformPrivacy() {
+    if (typeof wx.openPrivacyContract !== 'function') {
+      wx.showToast({ title: '请更新微信后查看平台隐私指引', icon: 'none' });
+      return;
+    }
+    wx.openPrivacyContract({
+      fail: () => wx.showToast({ title: '平台隐私指引暂时无法打开，请稍后重试', icon: 'none' })
+    });
   }
 });
 

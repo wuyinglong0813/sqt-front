@@ -1,5 +1,6 @@
 const app = getApp();
 const { wechatLogin } = require('../../utils/wechatLogin');
+const { runPrivacyAction } = require('../../utils/privacy');
 
 Page({
   data: {
@@ -81,7 +82,7 @@ Page({
     if (error.errCode !== undefined) lines.push(`微信错误码：${error.errCode}`);
     if (error.statusCode !== undefined) lines.push(`HTTP 状态：${error.statusCode}`);
     if (error.code !== undefined) lines.push(`业务错误码：${error.code}`);
-    if (stage === '手机号授权' || stage === '微信登录') {
+    if (stage === '手机号授权' || stage === '微信登录' || stage === '隐私授权') {
       lines.push('此步骤尚未向业务服务器发起登录请求。');
     }
     const content = lines.join('\n');
@@ -89,7 +90,7 @@ Page({
       title: '登录未完成', content,
       confirmText: '复制详情', cancelText: '关闭',
       success: result => {
-        if (result.confirm) wx.setClipboardData({ data: content });
+        if (result.confirm) return runPrivacyAction(() => wx.setClipboardData({ data: content }));
       }
     });
   },

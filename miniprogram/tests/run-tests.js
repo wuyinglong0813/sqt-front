@@ -853,22 +853,28 @@ test('authentication URL loading ignores concurrent taps and permits retry after
   let calls = 0;
   let pending;
   wx.request = options => { calls += 1; pending = options; };
+  const previousModal = wx.showModal;
+  wx.showModal = options => options.success({ confirm: true });
   const context = {
+    confirmServicePrivacy: page.confirmServicePrivacy,
     data: { scene: 'personal', options: {} },
     setData(values) { Object.assign(this.data, values); }
   };
   const first = page.loadServiceUrl.call(context);
   await page.loadServiceUrl.call(context);
+  await new Promise(resolve => setImmediate(resolve));
   assert.strictEqual(calls, 1);
   pending.success({ statusCode: 400, data: { code: 400, message: '认证暂不可用' } });
   await first;
   assert.strictEqual(context.data.errorMessage, '认证暂不可用');
   assert.strictEqual(context.data.loading, false);
   const retry = page.loadServiceUrl.call(context);
+  await new Promise(resolve => setImmediate(resolve));
   assert.strictEqual(calls, 2);
   pending.fail(new Error('offline'));
   await retry;
   assert.strictEqual(context._loadingServiceUrl, false);
+  wx.showModal = previousModal;
 });
 
 test('return page reuses verified company state and reconciles a concurrent successful callback', async () => {

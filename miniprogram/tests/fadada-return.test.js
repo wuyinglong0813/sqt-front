@@ -10,6 +10,8 @@ function harness(handler = async () => ({ status: 'IN_PROGRESS' })) {
   const app = { globalData: { token: 'session' }, switchCompany: async id => { app.company = id; } };
   let id = 0, now = 100000, entry = {}, stack = [];
   const wx = {
+    requirePrivacyAuthorize: o => o.success(),
+    showModal: o => o.success({ confirm: true }),
     redirectTo: o => navigation.push(o.url), switchTab: o => navigation.push(o.url),
     navigateBack: o => navigation.push(o.delta), getEnterOptionsSync: () => entry,
     setNavigationBarTitle() {},
@@ -20,6 +22,7 @@ function harness(handler = async () => ({ status: 'IN_PROGRESS' })) {
     setTimeout: (fn, delay) => { timers.set(++id, { fn, delay }); return id; },
     clearTimeout: key => timers.delete(key),
     require: name => {
+      if (name.endsWith('/privacy')) return require('./privacy-fixture')(wx, () => app);
       if (name.endsWith('/request')) return { request: async o => { calls.push(o); return handler(o); } };
       if (name.endsWith('/companyContext')) return require('../utils/companyContext');
       if (name.endsWith('/companyOnboarding')) return { returnToCompany: o => navigation.push(`company:${o.companyId || 'draft'}`) };
