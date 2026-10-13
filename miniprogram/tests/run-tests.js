@@ -780,7 +780,7 @@ test('profile exposes legal, help, about and safe account cancellation without a
   assert.ok(legalTemplate.includes('userAgreementContent'));
   assert.ok(legalTemplate.includes('collectionListContent'));
   assert.ok(legalTemplate.includes('sharingListContent'));
-  assert.ok(legalTemplate.includes('法大大电子签服务'));
+  assert.ok(legalTemplate.includes('电子签服务'));
 
   const helpTemplate = fs.readFileSync(
     path.join(__dirname, '..', 'pages', 'help-center', 'help-center.wxml'), 'utf8'
@@ -846,6 +846,31 @@ test('request exposes business and network failures', async () => {
 
   wx.request = options => options.fail(new Error('offline'));
   await assert.rejects(request({ url: '/orders' }), /offline/);
+});
+
+test('API display metadata and errors omit service branding while URLs and business content remain intact', async () => {
+  const providerUrl = 'https://auth.fadada.com/connect?ticket=one-time';
+  const data = { url: providerUrl, clientUserId: 'fadada-user-1', status: 'FAILED',
+    failureReason: '法大大认证未通过', statusText: 'Fadada 认证失败',
+    identity: { message: '深圳法大大网络科技有限公司暂不可用' },
+    rows: [{ message: '法大大服务繁忙', content: '合同原文：法大大' }] };
+  wx.request = options => options.success({ statusCode: 200, data: { code: 0, data } });
+  const result = await request({ url: '/fadada/users/me/identity' });
+  assert.strictEqual(result.failureReason, '电子签服务认证未通过');
+  assert.strictEqual(result.statusText, '电子签服务 认证失败');
+  assert.strictEqual(result.identity.message, '电子签服务商暂不可用');
+  assert.strictEqual(result.rows[0].message, '电子签服务繁忙');
+  assert.strictEqual(result.url, providerUrl);
+  assert.strictEqual(result.clientUserId, 'fadada-user-1');
+  assert.strictEqual(result.rows[0].content, '合同原文：法大大');
+  assert.strictEqual(data.failureReason, '法大大认证未通过');
+  wx.request = options => options.success({ statusCode: 400,
+    data: { code: 400, message: '法大大服务不可用' } });
+  await assert.rejects(request({ url: '/fadada/users/me/auth-url' }), error =>
+    error.code === 400 && !/法大大|fadada/i.test(error.message));
+  wx.request = options => options.fail({ errMsg: 'request:fail auth.fadada.com unavailable' });
+  await assert.rejects(request({ url: '/fadada/users/me/auth-url' }), error =>
+    !/法大大|fadada/i.test(error.message));
 });
 
 test('authentication URL loading ignores concurrent taps and permits retry after failure', async () => {

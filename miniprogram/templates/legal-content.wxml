@@ -40,7 +40,7 @@
 
 <template name="collectionListContent">
   <view class="legal-document">
-    <view class="legal-meta">更新日期：2026年10月12日</view>
+    <view class="legal-meta">更新日期：2026年10月13日</view>
     <view class="legal-lead">以下清单按当前功能说明可能处理的信息、用途和触发场景。只有在你使用对应功能时，才会处理相关信息。</view>
 
     <view class="info-list-item">
@@ -96,7 +96,7 @@
 
 <template name="sharingListContent">
   <view class="legal-document">
-    <view class="legal-meta">更新日期：2026年10月12日</view>
+    <view class="legal-meta">更新日期：2026年10月13日</view>
     <view class="legal-lead">商签通不会出售你的个人信息。为实现必要功能，我们会在最小范围内使用以下平台或服务商能力；未使用对应功能时，不会触发相关处理。</view>
 
     <view class="provider-card">
@@ -106,13 +106,13 @@
       <view class="provider-line"><text>触发场景：</text>登录、授权手机号或使用微信基础能力时</view>
     </view>
     <view class="provider-card">
-      <view class="provider-head"><view class="provider-name">法大大电子签服务</view><view class="provider-tag">认证与签署</view></view>
-      <view class="provider-line"><text>提供方：</text>深圳法大大网络科技有限公司</view>
+      <view class="provider-head"><view class="provider-name">电子签服务</view><view class="provider-tag">认证与签署</view></view>
+      <view class="provider-line"><text>提供方：</text>电子签服务商，具体主体及规则见办理页面</view>
       <view class="provider-line"><text>接入方式：</text>认证及签署服务页面、认证小程序和服务端接口</view>
       <view class="provider-line"><text>处理目的：</text>个人及企业身份核验、电子印章和合同签署</view>
       <view class="provider-line"><text>信息范围：</text>本次服务所需的手机号、企业资料、电子签用户标识、合同及签署相关信息；证件和人脸信息由服务商页面或认证小程序处理。商签通接收认证姓名、认证状态等结果。</view>
       <view class="provider-line"><text>触发场景：</text>你主动发起认证、开通电子签或签署合同，并同意本次服务的信息处理提示时</view>
-      <view class="provider-line"><text>隐私规则：</text>办理前可在法大大认证或签署页面查看相应隐私政策并完成授权</view>
+      <view class="provider-line"><text>隐私规则：</text>办理前可在认证或签署页面查看相应隐私政策并完成授权</view>
     </view>
     <view class="provider-card">
       <view class="provider-head"><view class="provider-name">腾讯云托管与对象存储</view><view class="provider-tag">基础设施</view></view>

@@ -1,6 +1,26 @@
 let redirecting = false;
 const { USER_ID_KEY, clearHomeSnapshots } = require('./homeSnapshot');
 
+function publicServiceMessage(value) {
+  if (typeof value !== 'string') return value;
+  return value.replace(/深圳法大大网络科技有限公司/g, '电子签服务商')
+    .replace(/法大大(?:电子签)?服务|fadada\s+service/gi, '电子签服务')
+    .replace(/法大大|fadada/gi, '电子签服务');
+}
+
+// Normalize display metadata, including old callback reasons. URLs, identifiers
+// and business content must remain intact for authentication and signing.
+function publicResponseMessages(value) {
+  if (Array.isArray(value)) return value.map(publicResponseMessages);
+  if (!value || typeof value !== 'object') return value;
+  const result = { ...value };
+  Object.keys(value).forEach(key => {
+    result[key] = ['message', 'failureReason', 'statusText'].includes(key)
+      ? publicServiceMessage(value[key]) : publicResponseMessages(value[key]);
+  });
+  return result;
+}
+
 function currentApp() {
   return getApp();
 }
@@ -43,17 +63,17 @@ function request(options) {
       success: ({ statusCode, data }) => {
         if (statusCode === 401 || (data && data.code === 401)) {
           if (options.handleUnauthorized !== false && token === app.globalData.token) handleUnauthorized(app);
-          const error = new Error((data && data.message) || '登录已失效');
+          const error = new Error(publicServiceMessage((data && data.message) || '登录已失效'));
           error.statusCode = statusCode;
           error.code = data && data.code;
           reject(error);
           return;
         }
         if (statusCode >= 200 && statusCode < 300 && data && data.code === 0) {
-          resolve(data.data);
+          resolve(publicResponseMessages(data.data));
           return;
         }
-        const error = new Error((data && data.message) || `请求失败（${statusCode || '未知状态'}）`);
+        const error = new Error(publicServiceMessage((data && data.message) || `请求失败（${statusCode || '未知状态'}）`));
         error.statusCode = statusCode;
         error.code = data && data.code;
         if ((statusCode === 403 || error.code === 403) && options.withCompany !== false
@@ -64,7 +84,7 @@ function request(options) {
         reject(error);
       },
       fail: result => {
-        const error = new Error((result && result.errMsg) || (result && result.message) || '网络请求失败');
+        const error = new Error(publicServiceMessage((result && result.errMsg) || (result && result.message) || '网络请求失败'));
         error.errCode = result && result.errCode;
         reject(error);
       }

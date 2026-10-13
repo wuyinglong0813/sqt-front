@@ -4,11 +4,11 @@
   <view class="state-desc">请稍候，正在建立安全连接</view>
 </view>
 
-<view class="state-page" wx:elif="{{errorMessage}}">
+<view class="state-page" wx:elif="{{errorMessage || serviceCancelled}}">
   <view class="state-icon error">!</view>
-  <view class="state-title">{{pageTitle}}暂时无法打开</view>
-  <view class="state-desc">{{errorMessage}}</view>
-  <button class="primary-button" bindtap="retry">重新加载</button>
+  <view class="state-title">{{serviceCancelled ? pageTitle + '已取消' : pageTitle + '暂时无法打开'}}</view>
+  <view class="state-desc">{{serviceCancelled ? '本次操作尚未发起，可继续办理或返回上一页' : errorMessage}}</view>
+  <button class="primary-button" bindtap="retry">{{serviceCancelled ? '继续办理' : '重新加载'}}</button>
   <view class="back-link" bindtap="checkResult" wx:if="{{scene === 'personal' || scene === 'company'}}">已完成认证？刷新认证结果</view>
   <view class="back-link" bindtap="goBack">返回上一页</view>
 </view>

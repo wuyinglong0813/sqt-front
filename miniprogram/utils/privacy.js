@@ -1,4 +1,4 @@
-const PRIVACY_VERSION = '2026-10-12';
+const PRIVACY_VERSION = '2026-10-13';
 
 function hasPrivacyConsent() {
   return wx.getStorageSync('privacy_agreed') === true

@@ -70,7 +70,7 @@ test('recipient and existing tasks skip debit confirmation and continue signing'
   page.data.scene = 'contract'; page.data.options = { contractId: '12' };
   await page.prepareService();
   assert.equal(env.modals.length, 1);
-  assert.equal(env.modals[0].title, '法大大服务信息处理提示');
+  assert.equal(env.modals[0].title, '认证与签署信息处理提示');
   assert.equal(env.calls.at(-1).url, '/contracts/12/sign-url');
   assert.equal(page.data.serviceUrl, 'https://example.test/sign');
 });

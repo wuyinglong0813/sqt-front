@@ -138,7 +138,7 @@ Page({
         this.setData({ loading: false, failed: true,
           title: result && result.status === 'FAILED' ? '认证未通过' : '处理结果待确认',
           message: queryPending
-            ? `${options.scene === 'company' ? '企业' : '个人'}授权结果仍未同步。如法大大已显示开通成功，请稍后重新同步，无需反复提交认证；持续未恢复请联系管理员核验`
+            ? `${options.scene === 'company' ? '企业' : '个人'}授权结果仍未同步。如认证页面已显示开通成功，请稍后重新同步，无需反复提交认证；持续未恢复请联系管理员核验`
             : (result && (result.failureReason || result.message || result.statusText)) || '结果尚未更新，请稍后刷新' });
         return;
       }

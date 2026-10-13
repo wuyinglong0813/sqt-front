@@ -45,6 +45,20 @@ function harness() {
   return { app, wx, privacy, storage, calls, toasts, page };
 }
 
+test('owned page and notice source contains no service brand copy', () => {
+  function inspect(dir) {
+    fs.readdirSync(dir, { withFileTypes: true }).forEach(entry => {
+      const file = path.join(dir, entry.name);
+      if (entry.isDirectory()) { inspect(file); return; }
+      if (/\.(js|json|wxml|wxss)$/.test(entry.name)) {
+        assert.doesNotMatch(fs.readFileSync(file, 'utf8'), /法大大/, file);
+      }
+    });
+  }
+  ['pages', 'pagesFace', 'templates', 'components', 'custom-tab-bar'].forEach(dir =>
+    inspect(path.join(__dirname, '..', dir)));
+});
+
 test('legacy local boolean cannot authorize the current privacy notice', async () => {
   const h = harness();
   h.storage.privacy_agreed = true;
@@ -110,14 +124,51 @@ test('refusing a notice releases the public homepage without recording consent',
   assert.equal(h.storage.privacy_agreed, undefined);
 });
 
-test('refusing service disclosure prevents the Fadada authorization request', async () => {
+test('service disclosure fits native modal limits and consent opens authentication', async () => {
+  const h = harness();
+  const p = h.page('pages/fadada-auth/fadada-auth.js');
+  h.wx.showModal = options => {
+    if (options.confirmText.length > 4 || options.cancelText.length > 4) {
+      options.fail({ errMsg: 'showModal:fail confirmText length should not larger than 4' });
+      return;
+    }
+    assert.doesNotMatch(options.title + options.content, /法大大|fadada/i);
+    options.success({ confirm: true });
+  };
+  await p.loadServiceUrl();
+  assert.equal(h.calls.length, 1);
+  assert.equal(h.calls[0].url, '/fadada/users/me/auth-url');
+  assert.equal(p.data.serviceUrl, 'https://provider.test');
+  assert.equal(p.data.errorMessage, '');
+  p.onUnload();
+});
+
+test('modal invocation failure is not presented as user cancellation', async () => {
+  const h = harness();
+  const p = h.page('pages/fadada-auth/fadada-auth.js');
+  h.wx.showModal = options => options.fail({ errMsg: 'showModal:fail native error' });
+  await p.loadServiceUrl();
+  assert.deepEqual(h.calls, []);
+  assert.equal(p.data.serviceCancelled, false);
+  assert.match(p.data.errorMessage, /提示未能打开/);
+  assert.doesNotMatch(p.data.errorMessage, /取消|法大大|fadada/i);
+});
+
+test('refusing service disclosure blocks the request and allows explicit retry', async () => {
   const h = harness();
   const p = h.page('pages/fadada-auth/fadada-auth.js');
   h.wx.showModal = o => o.success({ confirm: false });
   await p.loadServiceUrl();
   assert.deepEqual(h.calls, []);
   assert.equal(p.data.serviceUrl, '');
-  assert.match(p.data.errorMessage, /已取消法大大服务/);
+  assert.equal(p.data.errorMessage, '');
+  assert.equal(p.data.serviceCancelled, true);
+  h.wx.showModal = o => o.success({ confirm: true });
+  await p.loadServiceUrl();
+  assert.equal(h.calls.length, 1);
+  assert.equal(p.data.serviceCancelled, false);
+  assert.equal(p.data.serviceUrl, 'https://provider.test');
+  p.onUnload();
 });
 
 test('changing enterprise while disclosure is pending cannot transmit another enterprise data', async () => {

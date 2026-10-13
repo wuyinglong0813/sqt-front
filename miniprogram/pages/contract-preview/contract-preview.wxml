@@ -80,7 +80,7 @@
         <view class="signed-preview-loading" wx:if="{{signedPreviewLoading}}">
           <view class="signed-preview-spinner"></view>
           <view class="signed-preview-loading-title">正在加载归档合同签章页</view>
-          <view class="signed-preview-loading-desc">展示内容与法大大签署完成后的 PDF 一致</view>
+          <view class="signed-preview-loading-desc">展示内容与签署完成后的归档 PDF 一致</view>
         </view>
         <image
           class="signed-preview-image"

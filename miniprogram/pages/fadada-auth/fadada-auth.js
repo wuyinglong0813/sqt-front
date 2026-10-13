@@ -19,6 +19,7 @@ Page({
     loading: true,
     serviceUrl: '',
     errorMessage: '',
+    serviceCancelled: false,
     scene: 'personal',
     pageTitle: '认证服务',
     loadingText: '正在连接安全服务',
@@ -92,7 +93,7 @@ Page({
   async prepareService() {
     if (this._preparing || this._unloaded) return;
     this._preparing = true;
-    this.setData({ loading: true, errorMessage: '' });
+    this.setData({ loading: true, errorMessage: '', serviceCancelled: false });
     const token = getApp().globalData.token;
     const context = captureCompanyContext(getApp());
     try {
@@ -187,21 +188,22 @@ Page({
 
   async confirmServicePrivacy(context) {
     const consentKey = [context.token, context.companyId || '', this.data.scene].join(':');
-    if (this._servicePrivacyConsent === consentKey) return;
+    if (this._servicePrivacyConsent === consentKey) return true;
     await requirePrivacyAuthorization();
-    const result = await new Promise(resolve => wx.showModal({
-      title: '法大大服务信息处理提示',
-      content: '为办理认证、电子印章或合同签署，我们将向深圳法大大网络科技有限公司提供本次服务所需的手机号、企业资料或合同及签署信息，并接收认证姓名、状态等结果。证件及人脸核验由服务商页面或认证小程序处理。你可在“我的 → 第三方信息共享清单”和服务页面查看具体规则。是否继续？',
-      confirmText: '同意并继续',
+    const result = await new Promise((resolve, reject) => wx.showModal({
+      title: '认证与签署信息处理提示',
+      content: '为办理认证、电子印章或合同签署，我们将向电子签服务商提供本次服务所需的手机号、企业资料或合同及签署信息，并接收认证姓名、状态等结果。证件及人脸核验由服务页面或认证小程序处理。你可在“我的 → 第三方信息共享清单”和服务页面查看具体规则。是否继续？',
+      confirmText: '同意继续',
       cancelText: '暂不使用',
       success: resolve,
-      fail: () => resolve({ confirm: false })
+      fail: () => reject(new Error('信息处理提示未能打开，请重试'))
     }));
-    if (!result.confirm) throw new Error('已取消法大大服务，未发起本次认证或签署');
+    if (!result.confirm) return false;
     if (this._unloaded || !isCompanyContextCurrent(getApp(), context)) {
       throw new Error('登录或企业已变化，请返回后重新发起');
     }
     this._servicePrivacyConsent = consentKey;
+    return true;
   },
 
   async loadServiceUrl() {
@@ -211,10 +213,14 @@ Page({
     const context = captureCompanyContext(getApp());
     const { scene, options } = this.data;
     const config = SCENES[scene];
-    this.setData({ loading: true, serviceUrl: '', errorMessage: '' });
+    this.setData({ loading: true, serviceUrl: '', errorMessage: '', serviceCancelled: false });
     try {
-      await this.confirmServicePrivacy(context);
+      const accepted = await this.confirmServicePrivacy(context);
       if (this._unloaded || !isCompanyContextCurrent(getApp(), context)) return;
+      if (!accepted) {
+        this.setData({ serviceCancelled: true });
+        return;
+      }
       let endpoint = config.endpoint;
       if (scene === 'company') endpoint = `/fadada/companies/${options.companyId}/auth-url`;
       if (scene === 'legal') endpoint = `/fadada/companies/${options.companyId}/legal-representative/auth-url`;
@@ -253,11 +259,8 @@ Page({
 
   onWebViewError() {
     this.stopStatusPolling();
-    const host = this.data.serviceHost;
     this.setData({
-      errorMessage: host
-        ? `服务页面打开失败，请在小程序业务域名中检查：${host}`
-        : '服务页面打开失败，请检查网络或小程序业务域名配置。'
+      errorMessage: '服务页面暂时无法打开，请检查网络后重试；如仍无法打开，请联系平台客服'
     });
   },
 
