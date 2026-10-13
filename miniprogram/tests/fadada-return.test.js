@@ -114,6 +114,8 @@ for (const scene of ['personal', 'company']) {
 function faceHarness() {
   const h = harness(); const parent = h.page(authFile);
   parent.route = 'pages/fadada-auth/fadada-auth'; parent.data.serviceUrl = 'https://auth.fadada.com/start';
+  parent._sessionToken = h.app.globalData.token;
+  parent.onHide();
   const p = h.page(bridgeFile); h.stack([parent, p]);
   const options = { bizToken: 'token%2B1', miniProgramAppId: 'wx1234567890abcdef',
     miniProgramPath: encodeURIComponent('pages/face/index?source=fdd'),
@@ -121,14 +123,96 @@ function faceHarness() {
   p.onLoad(options); return { h, parent, p, options };
 }
 
-test('official bridge route is registered and loads the provider return URL without recreating enrollment', async () => {
+test('official bridge restores the callback in a fresh visible page without recreating enrollment', () => {
   const config = JSON.parse(fs.readFileSync(path.join(__dirname, '../app.json')));
   assert.ok(config.subPackages.some(p => p.root === 'pagesFace' && p.pages.includes('pages/middle/middle')));
   const { h, p, parent } = faceHarness(); assert.equal(p.data.ready, true);
   p.onJump(); assert.match(h.calls[0].path, /\?source=fdd&bizToken=token%2B1$/);
   h.entry({ scene: 1038, referrerInfo: { appId: 'wx1234567890abcdef', extraData: { faceResult: { code: 0 } } } });
-  p.onShow(); assert.deepEqual(h.navigation, [1]); await h.tick();
-  assert.equal(parent.data.serviceUrl, 'https://auth.fadada.com/result');
+  p.onShow(); assert.deepEqual(h.navigation, [1]);
+  // No hidden web-view src toggle: wx may batch all hidden setData calls together.
+  assert.equal(parent.data.serviceUrl, 'https://auth.fadada.com/start');
+  assert.equal(h.timers.size, 0);
+  parent.onShow();
+  const redirect = new URL(h.navigation[1], 'https://example.test');
+  assert.equal(redirect.pathname, '/pages/fadada-auth/fadada-auth');
+  assert.equal(redirect.searchParams.has('url'), false);
+  const restored = h.page(authFile);
+  restored.onLoad({ faceReturnId: redirect.searchParams.get('faceReturnId') });
+  assert.equal(restored.data.serviceUrl, 'https://auth.fadada.com/result');
+  assert.equal(restored.data.loading, false);
+  assert.equal(h.timers.size, 1);
+  assert.equal(h.app._fadadaFaceReturn, undefined);
+  assert.equal(h.calls.filter(o => o.url).length, 0);
+  p.onJump(); p.onShow(); parent.onShow();
+  assert.equal(h.calls.filter(o => o.appId).length, 1);
+  assert.equal(h.navigation.length, 2);
+});
+
+for (const scene of ['personal', 'company', 'legal', 'contract', 'abolish']) {
+  test(`face return preserves ${scene} context and its result still comes from the backend`, async () => {
+    const { h, parent, p } = faceHarness();
+    parent.data.scene = scene;
+    parent.data.options = { scene, flow: 'company-create', companyId: '9007199254740993', contractId: '17' };
+    p.onJump();
+    h.entry({ scene: 1038, referrerInfo: { appId: 'wx1234567890abcdef', extraData: { faceResult: true } } });
+    p.onShow(); parent.onShow();
+    const id = h.app._fadadaFaceReturn.id;
+    const restored = h.page(authFile); restored.onLoad({ faceReturnId: id });
+    assert.equal(restored.data.scene, scene);
+    assert.equal(restored.data.options.companyId, '9007199254740993');
+    assert.equal(restored.data.options.contractId, '17');
+    assert.equal(restored.data.options.flow, 'company-create');
+    assert.equal(h.calls.filter(o => o.url).length, 0);
+    if (['personal', 'company', 'legal'].includes(scene)) {
+      await h.tick();
+      assert.equal(h.navigation.length, 2); // IN_PROGRESS remains pending after a successful face return.
+    }
+    const replay = h.page(authFile); replay.onLoad({ faceReturnId: id });
+    assert.equal(replay.data.serviceUrl, '');
+    assert.match(replay.data.errorMessage, /失效/);
+    assert.equal(h.calls.filter(o => o.url && o.url.endsWith('/auth-url')).length, 0);
+  });
+}
+
+for (const changed of ['session', 'company']) {
+  test(`a changed ${changed} cannot restore an old face session`, () => {
+    const { h, parent, p } = faceHarness();
+    p.onJump();
+    h.entry({ scene: 1038, referrerInfo: { appId: 'wx1234567890abcdef', extraData: { faceResult: true } } });
+    p.onShow(); parent.onShow();
+    const id = h.app._fadadaFaceReturn.id;
+    if (changed === 'session') h.app.globalData.token = 'new-session';
+    else h.app.globalData.currentCompanyId = 'different-company';
+    const restored = h.page(authFile); restored.onLoad({ faceReturnId: id });
+    assert.equal(restored.data.serviceUrl, '');
+    assert.match(restored.data.errorMessage, /失效/);
+    assert.equal(h.app._fadadaFaceReturn, undefined);
+    assert.equal(h.calls.filter(o => o.url).length, 0);
+  });
+}
+
+test('the restored face callback is rechecked against the original provider host before mounting', () => {
+  const { h, parent, p } = faceHarness();
+  p.onJump();
+  h.entry({ scene: 1038, referrerInfo: { appId: 'wx1234567890abcdef', extraData: { faceResult: true } } });
+  p.onShow(); parent.onShow();
+  const id = h.app._fadadaFaceReturn.id;
+  h.app._fadadaFaceReturn.url = 'https://foreign.test/result';
+  const restored = h.page(authFile); restored.onLoad({ faceReturnId: id });
+  assert.equal(restored.data.serviceUrl, '');
+  assert.match(restored.data.errorMessage, /地址无效/);
+  assert.equal(h.calls.filter(o => o.url).length, 0);
+});
+
+test('face return redirect failure leaves a result recovery action and clears the handoff', () => {
+  const { h, parent, p } = faceHarness();
+  h.wx.redirectTo = o => o.fail();
+  p.onJump();
+  h.entry({ scene: 1038, referrerInfo: { appId: 'wx1234567890abcdef', extraData: { faceResult: true } } });
+  p.onShow(); parent.onShow();
+  assert.equal(h.app._fadadaFaceReturn, undefined);
+  assert.match(parent.data.errorMessage, /刷新认证结果/);
   assert.equal(h.calls.filter(o => o.url).length, 0);
 });
 

@@ -4,10 +4,10 @@
     <view class="description">适用于授权经办人已创建企业、企业尚未有法人账号的情况。</view>
     <view class="step">1. 管理员通过“邀请成员”邀请法人加入企业，并完成成员审批。</view>
     <view class="step">2. 法人使用自己的账号完成个人实名认证，再进入本页核验。</view>
-    <view class="step">3. 选择法人本人认证。核验通过后，可接受企业合作邀请、签署合同和分配业务权限。</view>
+    <view class="step">3. 核对当前账号对应的法人身份记录。资料不足或身份不符时，请联系平台管理员补充核验。</view>
     <view class="notice">企业已有法人时，请联系现法人办理变更。授权经办人认证不会取得法人身份。</view>
   </view>
   <view class="card" wx:if="{{message}}"><view class="description">{{message}}</view></view>
-  <button class="primary" bindtap="startVerification" loading="{{loading}}" disabled="{{loading || verified}}">{{verified ? '法人身份已核验' : '我是法人，开始核验'}}</button>
+  <button class="primary" bindtap="startVerification" loading="{{loading}}" disabled="{{loading || verified}}">{{verified ? '法人身份已核验' : '核对本人法人身份'}}</button>
   <button class="secondary" bindtap="refreshStatus" loading="{{loading}}" disabled="{{loading}}">我已完成，刷新结果</button>
 </view>

@@ -168,7 +168,7 @@
             </view>
             <view class="list-row" wx:if="{{canVerifyLegal}}" bindtap="goLegalVerification">
               <view class="row-icon"><image src="/images/icons/role.svg" mode="aspectFit"/></view>
-              <view class="row-copy"><view class="row-title">法人身份核验</view><view class="row-desc">经办人创建企业后，由受邀加入的法人本人核验</view></view>
+              <view class="row-copy"><view class="row-title">法人身份核验</view><view class="row-desc">核对本人法人身份记录，资料不足时联系管理员核验</view></view>
               <view class="row-arrow">›</view>
             </view>
             <view class="list-row" wx:if="{{canManage}}" bindtap="goRoleManage">

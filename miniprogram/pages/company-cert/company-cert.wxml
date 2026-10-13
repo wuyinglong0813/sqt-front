@@ -33,7 +33,7 @@
   <view class="agree-page" wx:else>
     <view class="agree-card">
       <view class="agree-title">企业信息确认</view>
-      <view class="cert-step-desc">法人本人或授权经办人均可申请。认证通过后，系统根据核验结果分配法人或管理员身份。</view>
+      <view class="cert-step-desc">法人本人或授权经办人均可申请。办理时需授权核对企业实名、本人企业成员身份及管理权限，系统根据核验结果开通相应身份。</view>
       <view class="agree-row">
         <view class="agree-key">企业/个体工商户名称</view>
         <view class="agree-val">{{companyName}}</view>

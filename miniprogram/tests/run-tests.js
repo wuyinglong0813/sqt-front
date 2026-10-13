@@ -338,7 +338,7 @@ test('company search confirmation does not depend on sensitive company fields', 
   let modal;
   wx.showModal = options => { modal = options; };
   companyBind.confirmCompany.call({
-    data: { selectedCompany: { id: '3', name: '测试企业', maskedCreditCode: '9113**********4567' } }
+    data: { selectedCompany: { id: '3', name: '测试企业', maskedCreditCode: '9113**********4567', verified: true } }
   });
   assert.strictEqual(modal.title, '企业已入驻');
   assert.match(modal.content, /企业管理员/);

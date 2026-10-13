@@ -8,7 +8,6 @@ Page({
     this.setData({ companyId: String(options.companyId || app.getCurrentCompanyId() || '') });
   },
   onShow() {
-    this._awaitingVerification = false;
     return this.refreshStatus();
   },
   onUnload() { this._unloaded = true; },
@@ -25,23 +24,25 @@ Page({
         } });
         return;
       }
-      this._awaitingVerification = true;
-      wx.navigateTo({ url: `/pages/fadada-auth/fadada-auth?scene=legal&companyId=${encodeURIComponent(this.data.companyId)}` });
+      await this.syncLegalIdentity();
     } catch (error) {
       if (this.isCurrent()) this.setData({ message: error.message || '暂时无法打开核验，请稍后重试' });
     } finally {
       if (this.isCurrent()) this.setData({ loading: false });
     }
   },
+  async syncLegalIdentity() {
+    const result = await request({ url: `/fadada/companies/${this.data.companyId}/legal-representative/sync`, method: 'POST', withCompany: false });
+    if (!this.isCurrent()) return;
+    const verified = result && result.status === 'VERIFIED';
+    this.setData({ verified, message: (result && result.message) || '尚未确认本人法人身份，请联系平台管理员核验。' });
+    if (verified) await app.loadMe();
+  },
   async refreshStatus() {
     if (this.data.loading || !this.data.companyId || !this.isCurrent()) return;
     this.setData({ loading: true });
     try {
-      const result = await request({ url: `/fadada/companies/${this.data.companyId}/legal-representative/sync`, method: 'POST', withCompany: false });
-      if (!this.isCurrent()) return;
-      const verified = result && result.status === 'VERIFIED';
-      this.setData({ verified, message: (result && result.message) || '法人身份尚未核验，请由法人本人继续办理' });
-      if (verified) await app.loadMe();
+      await this.syncLegalIdentity();
     } catch (error) {
       if (this.isCurrent()) this.setData({ message: error.message || '最新结果暂未同步，请稍后刷新' });
     } finally {

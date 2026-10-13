@@ -64,7 +64,9 @@ Page({
       const results = await request({
         url: `/companies/search?keyword=${encodeURIComponent(keyword)}`
       });
-      this.setData({ results: results || [], searched: true, selectedCompany: null });
+      // Older server versions also returned drafts. Only certified companies have onboarded.
+      this.setData({ results: (results || []).filter(company => company.verified === true),
+        searched: true, selectedCompany: null });
     } catch (e) {
       wx.showToast({ title: e.message, icon: 'none' });
     } finally {
@@ -75,13 +77,14 @@ Page({
   // 从搜索结果中选择一家企业
   selectCompany(e) {
     const company = this.data.results[e.currentTarget.dataset.index];
+    if (!company || company.verified !== true) return;
     this.setData({ selectedCompany: company });
   },
 
   // 确认企业，跳转实名认证
   confirmCompany() {
     const c = this.data.selectedCompany;
-    if (!c) return;
+    if (!c || c.verified !== true) return;
     wx.showModal({
       title: '企业已入驻',
       content: `请联系“${c.name}”的企业管理员，通过成员邀请加入。`,

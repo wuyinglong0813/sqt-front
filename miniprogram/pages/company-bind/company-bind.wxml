@@ -68,7 +68,7 @@
       </view>
       <view class="confirm-row">
         <text class="confirm-key">平台状态</text>
-        <text class="confirm-val">{{selectedCompany.verified ? '已认证' : '已入驻'}}</text>
+        <text class="confirm-val">已认证</text>
       </view>
       <button class="confirm-btn" bindtap="confirmCompany">如何加入</button>
     </view>

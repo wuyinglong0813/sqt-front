@@ -30,6 +30,11 @@ Page({
   onLoad(options) {
     this._visible = true;
     this._unloaded = false;
+    this._sessionToken = getApp().globalData.token;
+    if (options.faceReturnId) {
+      this.restoreFaceReturn(options.faceReturnId);
+      return;
+    }
     const scene = SCENES[options.scene] ? options.scene : 'personal';
     const config = SCENES[scene];
     this.setData({ scene, options, pageTitle: config.title, loadingText: config.loading });
@@ -39,8 +44,12 @@ Page({
   },
 
   onShow() {
-    if (this._unloaded) return;
+    if (this._unloaded || this._faceRemounting) return;
     this._visible = true;
+    if (this._pendingFaceReturn) {
+      this.remountFaceReturn();
+      return;
+    }
     this.ensureDesktopSignWidth();
     if (this.data.serviceUrl && !this.pollTimer) this.startStatusPolling();
   },
@@ -49,7 +58,6 @@ Page({
 
   onHide() { this._visible = false; this.stopStatusPolling(); },
   onUnload() { this._unloaded = true; this._visible = false; this.stopStatusPolling();
-    if (this._reloadTimer) clearTimeout(this._reloadTimer);
     this.restoreDesktopSignWidth(); },
 
   desktopSignScene() {
@@ -162,28 +170,74 @@ Page({
   },
 
   // Contract used by the official Fadada face-verification bridge.
-  acceptsReturnUrl(url) {
+  acceptsReturnUrl(url, sourceUrl = this.data.serviceUrl) {
     const host = this.extractHost(url).toLowerCase();
-    return !!host && host === this.extractHost(this.data.serviceUrl).toLowerCase()
+    return !!host && host === this.extractHost(sourceUrl).toLowerCase()
       && !String(url).includes('\\');
   },
 
   setIsRedirect() { this.stopStatusPolling(); },
 
   reloadPage(url) {
-    if (!this.acceptsReturnUrl(url) || this._unloaded) return false;
+    if (!this.acceptsReturnUrl(url) || this._unloaded
+        || this._sessionToken !== getApp().globalData.token || this._pendingFaceReturn) return false;
     this.stopStatusPolling();
-    if (this._reloadTimer) clearTimeout(this._reloadTimer);
-    const token = getApp().globalData.token;
-    // Remount the web-view without requesting another authentication URL.
-    this.setData({ serviceUrl: '', errorMessage: '', loading: true });
-    this._reloadTimer = setTimeout(() => {
-      if (this._unloaded || token !== getApp().globalData.token) return;
-      this.setData({ serviceUrl: url, serviceHost: this.extractHost(url), loading: false });
-      this._lastProviderSync = 0;
-      this.startStatusPolling();
-    }, 0);
+    // The parent is hidden under the bridge. Wait for navigateBack before recreating it;
+    // hidden setData calls can coalesce and leave the old, consumed face flow mounted.
+    this._pendingFaceReturn = { url, token: this._sessionToken,
+      context: captureCompanyContext(getApp()) };
     return true;
+  },
+
+  remountFaceReturn() {
+    const pending = this._pendingFaceReturn;
+    this._pendingFaceReturn = null;
+    const app = getApp();
+    if (!pending || pending.token !== app.globalData.token
+        || !isCompanyContextCurrent(app, pending.context)) {
+      this.setData({ errorMessage: '登录或企业状态已变化，请返回后重新查询认证结果。' });
+      return;
+    }
+    const id = Date.now().toString(36) + '-' + Math.random().toString(36).slice(2);
+    const previousWindowSize = this._previousWindowSize;
+    // Keep the provider URL in a one-use in-memory handoff, bound to the current session.
+    app._fadadaFaceReturn = { ...pending, id, scene: this.data.scene,
+      options: { ...this.data.options }, sourceUrl: this.data.serviceUrl,
+      previousWindowSize };
+    this._faceRemounting = true;
+    this._previousWindowSize = null;
+    wx.redirectTo({ url: `/pages/fadada-auth/fadada-auth?faceReturnId=${encodeURIComponent(id)}`,
+      fail: () => {
+        if (app._fadadaFaceReturn && app._fadadaFaceReturn.id === id) delete app._fadadaFaceReturn;
+        if (!this._unloaded && pending.token === app.globalData.token) {
+          this._faceRemounting = false;
+          this._previousWindowSize = previousWindowSize;
+          this.setData({ errorMessage: '刷脸返回页面未能恢复，请刷新认证结果后继续。' });
+        }
+      } });
+  },
+
+  restoreFaceReturn(id) {
+    const app = getApp();
+    const pending = app._fadadaFaceReturn;
+    if (pending && pending.id === id) delete app._fadadaFaceReturn;
+    if (!pending || pending.id !== id || pending.token !== app.globalData.token
+        || !isCompanyContextCurrent(app, pending.context) || !SCENES[pending.scene]) {
+      this.setData({ loading: false, errorMessage: '刷脸返回会话已失效，请返回后重新查询认证结果。' });
+      return;
+    }
+    if (!this.acceptsReturnUrl(pending.url, pending.sourceUrl)) {
+      this.setData({ loading: false, serviceUrl: '', errorMessage: '刷脸返回地址无效，请返回后重新查询认证结果。' });
+      return;
+    }
+    const config = SCENES[pending.scene];
+    this._previousWindowSize = pending.previousWindowSize;
+    this.setData({ scene: pending.scene, options: pending.options, pageTitle: config.title,
+      loadingText: config.loading, serviceUrl: pending.url,
+      serviceHost: this.extractHost(pending.url), loading: false, errorMessage: '' });
+    wx.setNavigationBarTitle({ title: config.title });
+    this.ensureDesktopSignWidth();
+    this.startStatusPolling();
   },
 
   async confirmServicePrivacy(context) {
@@ -192,7 +246,7 @@ Page({
     await requirePrivacyAuthorization();
     const result = await new Promise((resolve, reject) => wx.showModal({
       title: '认证与签署信息处理提示',
-      content: '为办理认证、电子印章或合同签署，我们将向电子签服务商提供本次服务所需的手机号、企业资料或合同及签署信息，并接收认证姓名、状态等结果。证件及人脸核验由服务页面或认证小程序处理。你可在“我的 → 第三方信息共享清单”和服务页面查看具体规则。是否继续？',
+      content: '为办理认证、电子印章或合同签署，我们将向电子签服务商提供本次服务所需的手机号、企业资料或合同及签署信息，并接收认证姓名、状态等结果；企业入驻时还需核对本人的企业成员身份和管理权限。证件及人脸核验由服务页面或认证小程序处理。你可在“我的 → 第三方信息共享清单”和服务页面查看具体规则。是否继续？',
       confirmText: '同意继续',
       cancelText: '暂不使用',
       success: resolve,
@@ -240,7 +294,7 @@ Page({
           || (scene === 'contract' && !isCompanyContextCurrent(getApp(), context))) return;
       const serviceUrl = result && (result.url || result.authUrl);
       const status = result && (result.status || (result.identity && result.identity.status));
-      if (!serviceUrl && status && ['personal', 'company'].includes(scene)) {
+      if (!serviceUrl && status && ['personal', 'company', 'legal'].includes(scene)) {
         this.openReturnPage();
         return;
       }

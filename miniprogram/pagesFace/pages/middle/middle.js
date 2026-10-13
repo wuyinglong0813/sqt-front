@@ -29,7 +29,7 @@ Page({
   onUnload() { this._unloaded = true; },
 
   onShow() {
-    if (!this._launched || this._unloaded) return;
+    if (!this._launched || this._unloaded || this._faceReturned) return;
     this._launched = false;
     this.setData({ jumping: false });
     if (this._token !== getApp().globalData.token) {
@@ -41,6 +41,8 @@ Page({
     if (entry.scene === 1038 && referrer.appId === this._appId
         && referrer.extraData && referrer.extraData.faceResult) {
       if (this._parent.reloadPage(this._returnUrl)) {
+        this._faceReturned = true;
+        this.setData({ ready: false, message: '正在返回认证页面确认结果' });
         wx.navigateBack({ delta: 1 });
         return;
       }
@@ -51,7 +53,8 @@ Page({
   },
 
   onJump() {
-    if (!this.data.ready || this.data.jumping || this._token !== getApp().globalData.token) return;
+    if (!this.data.ready || this.data.jumping || this._launched || this._faceReturned
+        || this._token !== getApp().globalData.token) return;
     this.setData({ jumping: true });
     wx.navigateToMiniProgram({
       appId: this._appId,

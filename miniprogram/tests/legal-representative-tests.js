@@ -48,9 +48,11 @@ async function run() {
     count++;
   }
   {
-    const f = fixture(async () => ({ status: 'VERIFIED' }));
+    const f = fixture(async options => options.url === '/fadada/users/me/identity'
+      ? { status: 'VERIFIED' } : { status: 'IN_PROGRESS', message: '尚未确认法人身份，请联系平台管理员核验' });
     await f.page.startVerification();
-    assert.strictEqual(f.navigations[0], '/pages/fadada-auth/fadada-auth?scene=legal&companyId=3');
+    assert.strictEqual(f.navigations.length, 0);
+    assert.strictEqual(f.calls[1].url, '/fadada/companies/3/legal-representative/sync');
     assert.strictEqual(f.page.data.verified, false, 'Personal verification does not confer legal status');
     count++;
   }
