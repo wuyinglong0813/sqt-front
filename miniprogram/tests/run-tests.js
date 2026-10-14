@@ -881,6 +881,7 @@ test('authentication URL loading ignores concurrent taps and permits retry after
   const previousModal = wx.showModal;
   wx.showModal = options => options.success({ confirm: true });
   const context = {
+    ...page,
     confirmServicePrivacy: page.confirmServicePrivacy,
     data: { scene: 'personal', options: {} },
     setData(values) { Object.assign(this.data, values); }
@@ -1128,7 +1129,7 @@ test('auth completion returns to result synchronization rather than reopening en
   const page = loadPage('../pages/fadada-auth/fadada-auth');
   let url;
   wx.redirectTo = options => { url = options.url; };
-  page.openReturnPage.call({ data: { scene: 'personal', options: {} }, stopStatusPolling() {} });
+  page.openReturnPage.call({ ...page, data: { scene: 'personal', options: {} }, stopStatusPolling() {} });
   assert.strictEqual(url, '/pages/service-return/service-return?scene=personal');
 });
 

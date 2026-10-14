@@ -13,4 +13,4 @@
   <view class="back-link" bindtap="goBack">返回上一页</view>
 </view>
 
-<web-view wx:else src="{{serviceUrl}}" binderror="onWebViewError"></web-view>
+<web-view wx:else src="{{serviceUrl}}" data-generation="{{webViewGeneration}}" bindload="onWebViewLoad" binderror="onWebViewError"></web-view>

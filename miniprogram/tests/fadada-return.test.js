@@ -33,16 +33,149 @@ function harness(handler = async () => ({ status: 'IN_PROGRESS' })) {
     let result;
     vm.runInNewContext(fs.readFileSync(path.join(__dirname, '..', file), 'utf8'),
       { ...runtime, Page: p => { result = p; } });
-    result.setData = values => Object.assign(result.data, values);
+    result.setData = (values, done) => { Object.assign(result.data, values); if (done) done(); };
     return result;
   }
   return { page, app, wx, calls, navigation, timers,
     advance: ms => { now += ms; }, entry: value => { entry = value; }, stack: value => { stack = value; },
-    tick: async () => { const [key, timer] = timers.entries().next().value; timers.delete(key); await timer.fn(); } };
+    tick: async () => {
+      const [key, timer] = [...timers.entries()].sort((a, b) => a[1].delay - b[1].delay)[0];
+      timers.delete(key); await timer.fn();
+    } };
 }
 const authFile = 'pages/fadada-auth/fadada-auth.js';
 const returnFile = 'pages/service-return/service-return.js';
 const bridgeFile = 'pagesFace/pages/middle/middle.js';
+const webViewEvent = generation => ({ currentTarget: { dataset: { generation } } });
+
+test('a provider page with no load event stops at a bounded actionable error', async () => {
+  const h = harness(() => ({ url: 'https://auth.fadada.com/company-form' }));
+  const p = h.page(authFile); p._visible = true;
+  p.data.scene = 'company'; p.data.options = { companyId: '9' };
+  await p.loadServiceUrl();
+  const timeout = [...h.timers.values()].find(timer => timer.delay === 30000);
+  h.advance(30000); await timeout.fn();
+  assert.match(p.data.errorMessage, /连接超时/);
+  assert.equal(p.pollTimer, null);
+  assert.equal(h.navigation.length, 0);
+  assert.equal(h.calls.length, 1);
+});
+
+test('a loaded provider form has no later automatic load timeout or reload', async () => {
+  const h = harness(() => ({ url: 'https://auth.fadada.com/company-form' }));
+  const p = h.page(authFile); p._visible = true;
+  p.data.scene = 'company'; p.data.options = { companyId: '9' };
+  await p.loadServiceUrl();
+  const timeout = [...h.timers.values()].find(timer => timer.delay === 30000);
+  p.onWebViewLoad(webViewEvent(p.data.webViewGeneration));
+  h.advance(60000); await timeout.fn();
+  assert.equal(p.data.errorMessage, '');
+  assert.equal(p.webViewLoadTimer, null);
+  assert.equal(h.navigation.length, 0);
+  assert.equal(h.calls.length, 1);
+  p.onUnload();
+});
+
+test('provider load timeout pauses while hidden and resumes its remaining visible time', () => {
+  const h = harness(); const p = h.page(authFile); p._visible = true; p.data.loading = false;
+  p.mountServiceUrl('https://auth.fadada.com/company-form');
+  const initial = [...h.timers.values()][0];
+  h.advance(10000); p.onHide();
+  assert.equal(h.timers.size, 0);
+  h.advance(60000); initial.fn();
+  assert.equal(p.data.errorMessage, '');
+  p.onShow();
+  assert.equal([...h.timers.values()].find(timer => timer.delay === 20000).delay, 20000);
+  p.onUnload();
+  assert.equal(h.timers.size, 0);
+});
+
+test('manual provider-load retry recreates the same URL without issuing another enrollment', async () => {
+  const h = harness(() => ({ url: 'https://auth.fadada.com/company-form?ticket=original' }));
+  const p = h.page(authFile); p._visible = true;
+  p.data.scene = 'company'; p.data.options = { companyId: '9' };
+  await p.loadServiceUrl();
+  const generation = p.data.webViewGeneration;
+  p.onWebViewError(webViewEvent(generation));
+  assert.match(p.data.errorMessage, /暂时无法打开/);
+  p.retry();
+  assert.equal(p.data.serviceUrl, 'https://auth.fadada.com/company-form?ticket=original');
+  assert.ok(p.data.webViewGeneration > generation);
+  assert.equal(p.data.errorMessage, '');
+  assert.equal(h.calls.length, 1);
+  p.onUnload();
+});
+
+test('queued double taps during asynchronous container removal cannot issue another enrollment', async () => {
+  const h = harness(() => ({ url: 'https://auth.fadada.com/company-form?ticket=original' }));
+  const p = h.page(authFile); p._visible = true;
+  p.data.scene = 'company'; p.data.options = { companyId: '9' };
+  await p.loadServiceUrl();
+  p.onWebViewError(webViewEvent(p.data.webViewGeneration));
+  const renderingCallbacks = [];
+  p.setData = (values, done) => {
+    Object.assign(p.data, values);
+    if (done) renderingCallbacks.push(done);
+  };
+  p.retry();
+  assert.equal(p.data.serviceUrl, '');
+  assert.equal(renderingCallbacks.length, 1);
+  p.retry();
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(h.calls.length, 1);
+  assert.equal(renderingCallbacks.length, 1);
+  assert.equal(p._preparing, undefined);
+  renderingCallbacks[0]();
+  assert.equal(p.data.serviceUrl, 'https://auth.fadada.com/company-form?ticket=original');
+  assert.equal(p.data.loading, false);
+  assert.equal(p._reloadingWebView, false);
+  assert.equal(h.calls.length, 1);
+  p.onUnload();
+});
+
+test('late old-container load, error and timeout events cannot affect a remounted page', () => {
+  const h = harness(); const p = h.page(authFile); p._visible = true; p.data.loading = false;
+  p.mountServiceUrl('https://auth.fadada.com/company-form');
+  const oldGeneration = p.data.webViewGeneration;
+  const oldTimeout = [...h.timers.values()][0];
+  p.onWebViewError(webViewEvent(oldGeneration)); p.retry();
+  const currentTimer = p.webViewLoadTimer;
+  p.onWebViewLoad(webViewEvent(oldGeneration));
+  p.onWebViewError(webViewEvent(oldGeneration)); oldTimeout.fn();
+  assert.equal(p.data.errorMessage, '');
+  assert.equal(p.webViewLoadTimer, currentTimer);
+  assert.equal(p._webViewSession.loaded, false);
+  p.onUnload();
+});
+
+for (const changed of ['session', 'company', 'unload']) {
+  test(`provider callbacks and load timeout ignore ${changed} changes`, () => {
+    const h = harness(); const p = h.page(authFile); p._visible = true; p.data.loading = false;
+    p.mountServiceUrl('https://auth.fadada.com/company-form');
+    const generation = p.data.webViewGeneration;
+    const timeout = [...h.timers.values()][0];
+    if (changed === 'session') h.app.globalData.token = 'another-session';
+    else if (changed === 'company') h.app.globalData.currentCompanyId = 'another-company';
+    else p.onUnload();
+    p.onWebViewLoad(webViewEvent(generation));
+    p.onWebViewError(webViewEvent(generation)); timeout.fn();
+    assert.equal(p.data.errorMessage, '');
+    assert.equal(p._webViewSession.loaded, false);
+    assert.equal(h.navigation.length, 0);
+    p.onUnload();
+  });
+}
+
+test('a failed result-page redirect displays recovery instead of an empty provider URL', async () => {
+  const h = harness(() => ({ status: 'IN_PROGRESS' }));
+  h.wx.redirectTo = o => o.fail();
+  const p = h.page(authFile); p.data.scene = 'company'; p.data.options = { companyId: '9' };
+  await p.loadServiceUrl();
+  assert.equal(p.data.loading, false);
+  assert.equal(p.data.serviceUrl, '');
+  assert.match(p.data.errorMessage, /刷新认证结果/);
+  assert.equal(h.calls.length, 1);
+});
 
 test('personal authentication recovers a missing callback, throttles provider reads and retains company flow', async () => {
   let status = 'IN_PROGRESS';
@@ -141,7 +274,7 @@ test('official bridge restores the callback in a fresh visible page without recr
   restored.onLoad({ faceReturnId: redirect.searchParams.get('faceReturnId') });
   assert.equal(restored.data.serviceUrl, 'https://auth.fadada.com/result');
   assert.equal(restored.data.loading, false);
-  assert.equal(h.timers.size, 1);
+  assert.equal(h.timers.size, 2); // Initial web-view load timeout plus server-status polling.
   assert.equal(h.app._fadadaFaceReturn, undefined);
   assert.equal(h.calls.filter(o => o.url).length, 0);
   p.onJump(); p.onShow(); parent.onShow();

@@ -4,6 +4,7 @@ const { requirePrivacyAuthorization } = require('../../utils/privacy');
 
 // Fadada's desktop signing page keeps fixed side columns. Below this width the contract collapses.
 const DESKTOP_SIGN_WIDTH = 1280;
+const WEB_VIEW_LOAD_TIMEOUT = 30000;
 
 const SCENES = {
   personal: { title: '个人认证', loading: '正在打开个人认证', endpoint: '/fadada/users/me/auth-url', withCompany: false },
@@ -24,7 +25,8 @@ Page({
     pageTitle: '认证服务',
     loadingText: '正在连接安全服务',
     options: {},
-    serviceHost: ''
+    serviceHost: '',
+    webViewGeneration: 0
   },
 
   onLoad(options) {
@@ -51,13 +53,15 @@ Page({
       return;
     }
     this.ensureDesktopSignWidth();
-    if (this.data.serviceUrl && !this.pollTimer) this.startStatusPolling();
+    this.startWebViewWatchdog();
+    if (this.data.serviceUrl && !this.data.errorMessage && !this.pollTimer) this.startStatusPolling();
   },
 
   onResize() { this.ensureDesktopSignWidth(); },
 
-  onHide() { this._visible = false; this.stopStatusPolling(); },
+  onHide() { this._visible = false; this.stopStatusPolling(); this.pauseWebViewWatchdog(); },
   onUnload() { this._unloaded = true; this._visible = false; this.stopStatusPolling();
+    this.pauseWebViewWatchdog();
     this.restoreDesktopSignWidth(); },
 
   desktopSignScene() {
@@ -233,8 +237,8 @@ Page({
     const config = SCENES[pending.scene];
     this._previousWindowSize = pending.previousWindowSize;
     this.setData({ scene: pending.scene, options: pending.options, pageTitle: config.title,
-      loadingText: config.loading, serviceUrl: pending.url,
-      serviceHost: this.extractHost(pending.url), loading: false, errorMessage: '' });
+      loadingText: config.loading, loading: false, errorMessage: '' });
+    this.mountServiceUrl(pending.url, pending.context);
     wx.setNavigationBarTitle({ title: config.title });
     this.ensureDesktopSignWidth();
     this.startStatusPolling();
@@ -267,6 +271,8 @@ Page({
     const context = captureCompanyContext(getApp());
     const { scene, options } = this.data;
     const config = SCENES[scene];
+    this.pauseWebViewWatchdog();
+    this._webViewSession = null;
     this.setData({ loading: true, serviceUrl: '', errorMessage: '', serviceCancelled: false });
     try {
       const accepted = await this.confirmServicePrivacy(context);
@@ -299,7 +305,7 @@ Page({
         return;
       }
       if (!serviceUrl) throw new Error('未获取到服务地址');
-      this.setData({ serviceUrl, serviceHost: this.extractHost(serviceUrl) });
+      this.mountServiceUrl(serviceUrl, context);
       this.startStatusPolling();
     } catch (error) {
       if (!this._unloaded && token === getApp().globalData.token) {
@@ -311,11 +317,68 @@ Page({
     }
   },
 
-  onWebViewError() {
+  mountServiceUrl(url, context = captureCompanyContext(getApp())) {
+    this.pauseWebViewWatchdog();
+    const generation = (this._webViewGeneration || 0) + 1;
+    this._webViewGeneration = generation;
+    this._webViewSession = { generation, url, context, token: getApp().globalData.token,
+      remaining: WEB_VIEW_LOAD_TIMEOUT, loaded: false };
+    this.setData({ serviceUrl: url, serviceHost: this.extractHost(url), webViewGeneration: generation });
+    this.startWebViewWatchdog();
+  },
+
+  isWebViewSessionCurrent(session = this._webViewSession) {
+    return !!session && !this._unloaded && !this._returning && !this._faceRemounting
+      && session === this._webViewSession && session.token === getApp().globalData.token
+      && isCompanyContextCurrent(getApp(), session.context) && session.url === this.data.serviceUrl;
+  },
+
+  isCurrentWebViewEvent(event) {
+    const generation = event && event.currentTarget && event.currentTarget.dataset
+      && event.currentTarget.dataset.generation;
+    return this.isWebViewSessionCurrent() && Number(generation) === this._webViewSession.generation;
+  },
+
+  startWebViewWatchdog() {
+    const session = this._webViewSession;
+    if (!this.isWebViewSessionCurrent(session) || session.loaded || this.webViewLoadTimer
+        || this._visible !== true || this.data.errorMessage) return;
+    session.deadline = Date.now() + session.remaining;
+    const timer = setTimeout(() => {
+      if (this.webViewLoadTimer !== timer) return;
+      this.webViewLoadTimer = null;
+      if (!this.isWebViewSessionCurrent(session) || this._visible === false || session.loaded) return;
+      session.remaining = 0;
+      this.showWebViewError('服务页面连接超时，请检查网络后重新加载；已完成认证可直接刷新认证结果。');
+    }, session.remaining);
+    this.webViewLoadTimer = timer;
+  },
+
+  pauseWebViewWatchdog() {
+    if (!this.webViewLoadTimer) return;
+    clearTimeout(this.webViewLoadTimer);
+    this.webViewLoadTimer = null;
+    if (this._webViewSession) {
+      this._webViewSession.remaining = Math.max(0, this._webViewSession.deadline - Date.now());
+    }
+  },
+
+  onWebViewLoad(event) {
+    if (!this.isCurrentWebViewEvent(event)) return;
+    this._webViewSession.loaded = true;
+    this.pauseWebViewWatchdog();
+  },
+
+  onWebViewError(event) {
+    if (!this.isCurrentWebViewEvent(event)) return;
+    this.showWebViewError('服务页面暂时无法打开，请检查网络后重试；如仍无法打开，请联系平台客服');
+  },
+
+  showWebViewError(message) {
+    this.pauseWebViewWatchdog();
     this.stopStatusPolling();
-    this.setData({
-      errorMessage: '服务页面暂时无法打开，请检查网络后重试；如仍无法打开，请联系平台客服'
-    });
+    this.setData({ loading: false, errorMessage: message });
+    wx.setNavigationBarTitle({ title: this.data.pageTitle });
   },
 
   startStatusPolling() {
@@ -369,13 +432,19 @@ Page({
     if (this._unloaded || this._visible === false || this._returning) return;
     this._returning = true;
     this.stopStatusPolling();
+    this.pauseWebViewWatchdog();
+    const token = getApp().globalData.token;
     const { scene, options } = this.data;
     const query = [`scene=${scene}`];
     if (options.flow === 'company-create') query.push('flow=company-create');
     if (options.companyId) query.push(`companyId=${encodeURIComponent(options.companyId)}`);
     if (options.contractId) query.push(`contractId=${encodeURIComponent(options.contractId)}`);
     wx.redirectTo({ url: `/pages/service-return/service-return?${query.join('&')}`,
-      fail: () => { this._returning = false; } });
+      fail: () => {
+        this._returning = false;
+        if (!this._unloaded && token === getApp().globalData.token) this.setData({ loading: false,
+          errorMessage: '认证结果页暂时无法打开，请刷新认证结果后重试。' });
+      } });
   },
 
   stopStatusPolling() {
@@ -389,7 +458,24 @@ Page({
     return match ? match[1] : '';
   },
 
-  retry() { this.prepareService(); },
+  retry() {
+    if (this._reloadingWebView) return;
+    const session = this._webViewSession;
+    if (!this.isWebViewSessionCurrent(session)) { this.prepareService(); return; }
+    this._reloadingWebView = true;
+    this.pauseWebViewWatchdog();
+    // Recreate the failed container with the same URL; another enrollment URL can
+    // restart a provider flow and contribute to its request-frequency limit.
+    this.setData({ loading: true, serviceUrl: '', errorMessage: '' }, () => {
+      this._reloadingWebView = false;
+      if (this._unloaded || session !== this._webViewSession
+          || session.token !== getApp().globalData.token
+          || !isCompanyContextCurrent(getApp(), session.context)) return;
+      this.mountServiceUrl(session.url, session.context);
+      this.setData({ loading: false });
+      this.startStatusPolling();
+    });
+  },
   checkResult() { this.openReturnPage(); },
   goBack() { wx.navigateBack(); }
 });
