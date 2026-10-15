@@ -21,6 +21,7 @@ Page({
     message: '请稍候',
     loading: true,
     failed: false,
+    reviewRequired: false,
     countdown: 1,
     options: {}
   },
@@ -102,7 +103,7 @@ Page({
     if (this.returnTimer) clearTimeout(this.returnTimer);
     if (this.syncTimer) clearTimeout(this.syncTimer);
     const options = this.data.options || {};
-    this.setData({ loading: true, countdown: ['personal', 'company'].includes(options.scene) ? 1 : 5 });
+    this.setData({ loading: true, reviewRequired: false, countdown: ['personal', 'company'].includes(options.scene) ? 1 : 5 });
     try {
       let result;
       if (options.scene === 'personal') {
@@ -119,6 +120,12 @@ Page({
         result = await request({ url: `/contracts/${options.contractId}/signing/sync`, method: 'POST', token });
       }
       if (!current()) return;
+      if (options.scene === 'legal' && result && result.status === 'REVIEW_REQUIRED') {
+        this.setData({ loading: false, failed: true, reviewRequired: true,
+          title: '需补充法人身份核验',
+          message: result.message || '尚未确认本人法人身份，请返回法人身份记录页联系平台支持补充核验。' });
+        return;
+      }
       if (['personal', 'company', 'seal', 'legal'].includes(options.scene)
           && !this.authenticationCompleted(result, options.scene)) {
         // The native redirect may arrive before the signed callback has been applied.

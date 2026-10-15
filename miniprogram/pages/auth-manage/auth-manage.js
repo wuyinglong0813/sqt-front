@@ -288,7 +288,14 @@ Page({
       this.setData({ showApproveModal: false, approveTargetId: '', approveTargetName: '' });
       await app.refreshSession();
       await this.loadMembers(true);
-    } catch (e) { wx.showToast({ title: e.message, icon: 'none' }); }
+    } catch (e) {
+      wx.showModal({
+        title: editing ? '角色权限操作未完成' : '成员审批操作未完成',
+        content: (e && e.message) || '暂时无法完成操作，请稍后重试。',
+        showCancel: false,
+        confirmText: '我知道了'
+      });
+    }
     finally { this.setData({ savingRole: false }); }
   },
 

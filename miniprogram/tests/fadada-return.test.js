@@ -400,6 +400,34 @@ test('pending company evidence preserves the form and is shown only after an exp
   assert.equal(h.app.company, undefined); assert.equal(h.timers.size, 0);
 });
 
+test('a legal identity requiring review returns without requesting a new authentication URL', async () => {
+  const h = harness(() => ({ status: 'REVIEW_REQUIRED', message: '需补充核验' }));
+  const p = h.page(authFile); p.data.scene = 'legal'; p.data.options = { companyId: '9' };
+  await p.prepareService();
+  assert.deepEqual(h.calls.map(call => call.url), ['/fadada/companies/9/legal-representative/sync']);
+  assert.deepEqual(h.navigation, ['/pages/service-return/service-return?scene=legal&companyId=9']);
+  assert.equal(h.timers.size, 0);
+});
+
+test('a legal identity requiring review stops provider polling and guides the user to the saved records', async () => {
+  const h = harness(() => ({ status: 'REVIEW_REQUIRED', message: '企业管理员身份已确认，请联系平台支持补充法人核验' }));
+  const p = h.page(authFile); p.data.scene = 'legal'; p.data.options = { companyId: '9' };
+  p.startStatusPolling(); await h.tick();
+  assert.equal(h.timers.size, 0);
+  assert.deepEqual(h.navigation, ['/pages/service-return/service-return?scene=legal&companyId=9']);
+  const result = h.page(returnFile); result.data.options = { scene: 'legal', companyId: '9' };
+  await result.syncResult();
+  assert.equal(result.data.loading, false);
+  assert.equal(result.data.reviewRequired, true);
+  assert.equal(result.data.title, '需补充法人身份核验');
+  assert.match(result.data.message, /平台支持/);
+  assert.equal(h.timers.size, 0);
+  result.onShow();
+  assert.equal(h.timers.size, 0);
+  result.goBusinessPage();
+  assert.equal(h.navigation[1], '/pages/legal-representative/legal-representative?companyId=9');
+});
+
 test('native redirect waits for a delayed callback then immediately continues', async () => {
   let status = 'IN_PROGRESS';
   const h = harness(() => ({ status })); const p = h.page(returnFile);

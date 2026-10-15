@@ -134,7 +134,8 @@ Page({
       const result = await this.readAuthStatus(true);
       if (this._unloaded || token !== getApp().globalData.token
           || (this.data.scene === 'contract' && !isCompanyContextCurrent(getApp(), context))) return;
-      if (result && result.status === 'VERIFIED') {
+      if (result && (result.status === 'VERIFIED'
+          || (this.data.scene === 'legal' && result.status === 'REVIEW_REQUIRED'))) {
         this.openReturnPage();
         return;
       }
@@ -415,7 +416,8 @@ Page({
       if (!this.isPollingCurrent(generation) || token !== getApp().globalData.token) return;
       // Missing authorization is expected before the user finishes this form.
       // failureReason can also contain cached query errors; it is not completion.
-      const completed = !!(result && ['VERIFIED', 'FAILED'].includes(result.status));
+      const completed = !!(result && (['VERIFIED', 'FAILED'].includes(result.status)
+        || (this.data.scene === 'legal' && result.status === 'REVIEW_REQUIRED')));
       if (completed) {
         this.openReturnPage();
         return;

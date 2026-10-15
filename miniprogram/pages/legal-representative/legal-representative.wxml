@@ -1,13 +1,17 @@
 <view class="page">
   <view class="card">
-    <view class="title">由法人本人完成身份核验</view>
-    <view class="description">适用于授权经办人已创建企业、企业尚未有法人账号的情况。</view>
-    <view class="step">1. 管理员通过“邀请成员”邀请法人加入企业，并完成成员审批。</view>
-    <view class="step">2. 法人使用自己的账号完成个人实名认证，再进入本页核验。</view>
-    <view class="step">3. 核对当前账号对应的法人身份记录。资料不足或身份不符时，请联系平台管理员补充核验。</view>
-    <view class="notice">企业已有法人时，请联系现法人办理变更。授权经办人认证不会取得法人身份。</view>
+    <view class="title">核对已有法人身份记录</view>
+    <view class="description">本页用于核对当前账号已有的法人身份记录。身份尚未确认时，可联系平台支持人工核验。</view>
+    <view class="step">1. 法人本人使用自己的账号完成个人实名认证，并确认已加入当前企业。</view>
+    <view class="step">2. 点击“核对已有身份记录”同步结果。个人实名通过、拥有企业管理员权限，也需要确认法人身份记录。</view>
+    <view class="step">3. 尚未确认时，可通过帮助中心联系平台支持，提供企业名称和本页提示，申请人工核验。</view>
+    <view class="notice">企业已有其他法人账号时，请联系现法人办理变更。</view>
   </view>
-  <view class="card" wx:if="{{message}}"><view class="description">{{message}}</view></view>
-  <button class="primary" bindtap="startVerification" loading="{{loading}}" disabled="{{loading || verified}}">{{verified ? '法人身份已核验' : '核对本人法人身份'}}</button>
-  <button class="secondary" bindtap="refreshStatus" loading="{{loading}}" disabled="{{loading}}">我已完成，刷新结果</button>
+  <view class="card" wx:if="{{message}}">
+    <view class="result-title" wx:if="{{messageTitle}}">{{messageTitle}}</view>
+    <view class="description">{{message}}</view>
+    <view class="support-tip" wx:if="{{reviewRequired}}">请通过帮助中心联系平台支持人工核验；核验确认后可返回本页同步结果。</view>
+    <button class="secondary" wx:if="{{reviewRequired}}" bindtap="openSupport">前往帮助中心联系平台支持</button>
+  </view>
+  <button class="primary" bindtap="startVerification" loading="{{loading}}" disabled="{{loading || verified}}">{{verified ? '法人身份已确认' : '核对已有身份记录'}}</button>
 </view>
