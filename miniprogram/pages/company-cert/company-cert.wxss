@@ -27,6 +27,7 @@
 .cert-step-info { flex: 1; }
 .cert-step-title { font-size: 28rpx; font-weight: 600; color: #162336; }
 .cert-step-desc { font-size: 23rpx; color: #9ca3af; margin-top: 4rpx; }
+.auth-help-text { color: #66758a; font-size: 24rpx; line-height: 1.7; margin-top: 14rpx; }
 .cert-status { font-size: 24rpx; margin-right: 8rpx; white-space: nowrap; }
 .arrow { color: #9ca3af; font-size: 40rpx; }
 

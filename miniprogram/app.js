@@ -2,6 +2,7 @@ const { request, clearSession } = require('./utils/request');
 const { wechatLogin } = require('./utils/wechatLogin');
 const { USER_ID_KEY, clearCompanyHomeSnapshots } = require('./utils/homeSnapshot');
 const { captureCompanyContext, isCompanyContextCurrent } = require('./utils/companyContext');
+const { captureInviteEntry } = require('./utils/invitation');
 
 // 默认连接服务器；仅本地联调时设为 true，且只在开发者工具中生效。
 const USE_LOCAL_BACKEND = false;
@@ -53,10 +54,7 @@ App({
   },
 
   onShow(options = {}) {
-    const query = options.query || {};
-    if (query.inviteCode) {
-      this.globalData.pendingInvite = { code: query.inviteCode, type: query.type || 'member' };
-    }
+    captureInviteEntry(this, options);
     this.restoreStoredSession();
     if (this.globalData.token) this._sessionReady = this.refreshSession();
   },

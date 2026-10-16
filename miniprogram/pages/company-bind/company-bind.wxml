@@ -8,12 +8,13 @@
   </view>
 
   <view class="mode-tabs">
-    <button class="mode-tab {{mode === 'create' ? 'active' : ''}}" data-mode="create" bindtap="switchMode">新企业入驻</button>
+    <button class="mode-tab {{mode === 'create' ? 'active' : ''}}" data-mode="create" bindtap="switchMode">首次入驻商签通</button>
     <button class="mode-tab {{mode === 'search' ? 'active' : ''}}" data-mode="search" bindtap="switchMode">查找已入驻企业</button>
   </view>
   <view class="create-card" wx:if="{{mode === 'create'}}">
     <view class="form-title">填写企业资料</view>
     <view class="form-hint">请按营业执照填写，下一步确认信息后进行企业认证。提交资料不代表认证通过。</view>
+    <view class="form-hint">已在电子签平台实名的企业也从这里入驻，继续办理对商签通的授权；若当前账号不是原企业超管，需要原超管处理授权申请。</view>
     <view class="field-label">企业 / 个体工商户全称</view>
     <input class="company-input" placeholder="与营业执照上的名称一致" maxlength="128" value="{{companyName}}" data-field="companyName" bindinput="onCompanyInput" />
     <view class="field-label">统一社会信用代码 / 工商注册号</view>

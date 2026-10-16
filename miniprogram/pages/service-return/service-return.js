@@ -145,7 +145,9 @@ Page({
         this.setData({ loading: false, failed: true,
           title: result && result.status === 'FAILED' ? '认证未通过' : '处理结果待确认',
           message: queryPending
-            ? `${options.scene === 'company' ? '企业' : '个人'}授权结果仍未同步。如认证页面已显示开通成功，请稍后重新同步，无需反复提交认证；持续未恢复请联系管理员核验`
+            ? (options.scene === 'company'
+              ? '企业授权结果仍未同步。若认证页提示已实名但您不是超管，请在授权页提交申请并联系原超管完成对商签通的授权；已完成授权可稍后重新同步。可从“企业 → 待完成企业认证”继续办理，无需重新创建企业。'
+              : '个人授权结果仍未同步。如认证页面已显示开通成功，请稍后重新同步，无需反复提交认证；持续未恢复请联系管理员核验')
             : (result && (result.failureReason || result.message || result.statusText)) || '结果尚未更新，请稍后刷新' });
         return;
       }

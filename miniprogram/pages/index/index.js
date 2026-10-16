@@ -2,6 +2,9 @@ const { request } = require('../../utils/request');
 const { loadSummary } = require('../../utils/companyOnboarding');
 const { setTabBarHidden, syncTabBar } = require('../../utils/tabBar');
 const { hasPrivacyConsent, acceptPrivacyConsent } = require('../../utils/privacy');
+const { captureInviteEntry, dismissInvite, markInviteProcessed, processedInviteKey,
+  wasInviteProcessed } = require('../../utils/invitation');
+const { captureCompanyContext, isCompanyContextCurrent } = require('../../utils/companyContext');
 const {
   USER_ID_KEY,
   readHomeSnapshot,
@@ -82,15 +85,12 @@ Page({
     shaking: false
   },
 
-  onLoad(options) {
+  onLoad(options = {}) {
     if (!hasPrivacyConsent()) {
       this.setData({ showPrivacy: true });
       setTabBarHidden(this, true);
     }
-    if (options.inviteCode) {
-      app.globalData.pendingInvite = { code: options.inviteCode, type: options.type || 'member' };
-      this.setData({ joinCompanyId: options.inviteCode, showJoinForm: true });
-    }
+    captureInviteEntry(app, options, true);
   },
 
   async onShow() {
@@ -136,16 +136,21 @@ Page({
       showHomeGuide: !this.data.showJoinForm && !wx.getStorageSync('tradepass_home_guide_done')
     });
 
-    if (loggedIn && user && app.globalData.pendingInvite
+    if (wasInviteProcessed(app, app.globalData.pendingInvite)) {
+      dismissInvite(app, app.globalData.pendingInvite);
+    }
+    if (!this._processingInvite && loggedIn && user && app.globalData.pendingInvite
         && (app.globalData.pendingInvite.type === 'member' || !this.data.showJoinForm)) {
       const invite = app.globalData.pendingInvite;
       const member = app.globalData.memberInfo;
+      const context = captureCompanyContext(app);
       if (invite.type === 'counterparty') {
         if (!member || member.roleCode !== 'LEGAL') {
           wx.showModal({
             title: '需要法人身份',
             content: '接受企业合作邀请需要您是公司的法人。请先在“企业”页面完成企业认证。',
-            showCancel: false
+            showCancel: false,
+            success: () => dismissInvite(app, invite)
           });
           return;
         }
@@ -153,14 +158,14 @@ Page({
       if (invite.type === 'counterparty') {
         if (this._confirmingInvite) return;
         this._confirmingInvite = true;
-        const company = (app.globalData.companies || []).find(c => String(c.id) === String(app.getCurrentCompanyId()));
+        const company = (app.globalData.companies || []).find(c => String(c.companyId) === String(app.getCurrentCompanyId()));
         wx.showModal({
           title: '接受企业合作邀请',
-          content: `是否以“${company && company.name || '当前企业'}”建立合作关系？如需使用其他企业，请先取消并切换企业，再打开邀请。`,
+          content: `是否以“${company && company.companyName || '当前企业'}”建立合作关系？如需使用其他企业，请先取消并切换企业，再打开邀请。`,
           confirmText: '接受邀请',
           success: result => {
-            if (result.confirm) this.processInvite(invite.code);
-            else app.globalData.pendingInvite = null;
+            if (result.confirm && isCompanyContextCurrent(app, context)) this.processInvite(invite.code, invite);
+            else dismissInvite(app, invite);
           },
           complete: () => { this._confirmingInvite = false; }
         });
@@ -172,8 +177,8 @@ Page({
           content: '是否使用当前账号申请加入邀请方企业？提交后需等待管理员审核并分配角色。',
           confirmText: '申请加入',
           success: result => {
-            if (result.confirm) this.processInvite(invite.code);
-            else app.globalData.pendingInvite = null;
+            if (result.confirm && isCompanyContextCurrent(app, context)) this.processInvite(invite.code, invite);
+            else dismissInvite(app, invite);
           },
           complete: () => { this._confirmingInvite = false; }
         });
@@ -385,10 +390,12 @@ Page({
     }
   },
 
-  async processInvite(code) {
+  async processInvite(code, invite = app.globalData.pendingInvite) {
     if (this._processingInvite) return;
     const user = app.globalData.userInfo;
     if (!user || !user.id) return;
+    const context = captureCompanyContext(app);
+    const historyKey = processedInviteKey(app, invite);
     this._processingInvite = true;
     try {
       const result = await request({
@@ -396,12 +403,16 @@ Page({
         method: 'POST',
         data: { code }
       });
+      markInviteProcessed(app, invite, historyKey);
+      if (!isCompanyContextCurrent(app, context)) return;
       wx.showToast({ title: result.message || '加入成功', icon: 'success' });
-      app.globalData.pendingInvite = null;
       await app.loadMe();
       await this.onShow();
     } catch (e) {
-      wx.showToast({ title: e.message, icon: 'none' });
+      if (['邀请码无效', '邀请码已被使用', '邀请码已过期', '你已是该企业成员', '申请已提交，等待审批'].includes(e.message)) {
+        dismissInvite(app, invite);
+      }
+      if (isCompanyContextCurrent(app, context)) wx.showToast({ title: e.message, icon: 'none' });
       // Keep the invitation available after a transient request failure.
     } finally {
       this._processingInvite = false;
