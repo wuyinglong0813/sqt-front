@@ -27,6 +27,7 @@
 
     <view class="btn-wrap">
       <button class="submit-btn" loading="{{loading}}" disabled="{{loading}}" bindtap="refreshStatus">刷新状态</button>
+      <button wx:if="{{identity && identity.status === 'VERIFIED'}}" bindtap="renewOrganizationAuthorization">补充电子签成员授权</button>
     </view>
 
     <view class="cert-card" wx:if="{{identity && identity.status !== 'VERIFIED'}}">

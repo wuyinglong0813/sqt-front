@@ -4,10 +4,11 @@ const {
   localFileReady,
   uploadMultipartApiFile
 } = require('../../utils/fileTransfer');
-const { normalizeContractTable } = require('../../utils/chineseCurrency');
+const { normalizeContractTable, reorderClauses, stripClauseNumber } = require('../../utils/chineseCurrency');
 const { formatDateTime } = require('../../utils/datetime');
 const { money } = require('../../utils/retail');
 const { runPrivacyAction } = require('../../utils/privacy');
+const { serviceRecovery, serviceRecoveryUrl } = require('../../utils/signingContinuation');
 
 function today() {
   const now = new Date();
@@ -145,17 +146,16 @@ Page({
     const counterpartyName = decodeURIComponent(options.counterpartyName || '');
     this.setData({ contractId, contractName, counterpartyName });
     wx.setNavigationBarTitle({ title: '合同详情' });
-    this.loadContractDetail();
+    this.loadContractDetail().then(() => this.syncContractSigningInBackground());
   },
 
   onShow() {
     if (!this.hasLoadedContract) return;
-    this.loadContractDetail();
-    this.syncContractSigningInBackground();
+    this.loadContractDetail().then(() => this.syncContractSigningInBackground());
   },
 
   onPullDownRefresh() {
-    const tasks = [this.loadContractDetail()];
+    const tasks = [this.loadContractDetail().then(() => this.syncContractSigningInBackground())];
     if (this.data.activeTab === 'fulfillment') {
       tasks.push(
         this.loadBusinessDocuments('SALES_ORDER'),
@@ -237,11 +237,15 @@ Page({
         : { columns: [], rows: [] };
       const contractTableRows = normalizedContractTable.rows
         .filter(row => Array.isArray(row) && row.some(value => String(value == null ? '' : value).trim()));
-      const contractClauses = structuredSections
-        .filter(item => item && item.type === 'clause')
-        .map((item, index) => ({
+      const clauseSections = structuredSections.filter(item => item && item.type === 'clause');
+      if (!clauseSections.length && !sData && contract.terms && !/^[\s]*[\[{]/.test(contract.terms)) {
+        clauseSections.push({ title: '合同条款', content: contract.terms });
+      }
+      const contractClauses = reorderClauses(clauseSections)
+        .map(item => ({
           ...item,
-          label: `${index + 2}、${item.title || `合同条款${index + 1}`}`
+          label: `${item._label}${item.title || '合同条款'}`,
+          content: String(item.content || '').trim() || '（未约定）'
         }));
       const feeSection = structuredSections.find(item => item && item.type === 'fees') || {};
       const contractFees = (Array.isArray(feeSection.items) ? feeSection.items : []).map(item => ({
@@ -269,9 +273,15 @@ Page({
       const viewerDirection = contract.viewerDirection || contract.direction;
       const isSupplier = viewerDirection === 'SALE';
       const actionPending = !!(activeContractAction && activeContractAction.id);
-      const signingStatus = String((signing && signing.status) || '');
-      const electronicAbolishing = !!(signing && signing.abolishApproved)
-        || signingStatus === 'abolishing' || signingStatus.startsWith('ABOLISH_');
+      const signingStatus = String((signing && signing.status) || contract.signingStatus || '');
+      const pendingSigningText = contract.status === 'PENDING' ? {
+        task_terminated: '签署已终止', expired: '签署已过期', task_expired: '签署已过期',
+        task_finished: '签署结果确认中', sign_completed: '签署结果确认中'
+      }[signingStatus.toLowerCase()] : '';
+      const signingStopped = contract.status === 'PENDING'
+        && ['task_terminated', 'expired', 'task_expired'].includes(signingStatus.toLowerCase());
+      const electronicAbolishing = contract.status === 'ACTIVE' && (contract.abolishPending === true || !!(signing && signing.abolishApproved)
+        || signingStatus === 'abolishing' || signingStatus.startsWith('ABOLISH_') || signingStatus === 'revoked');
       const contractReadOnly = actionPending || electronicAbolishing
         || ['COMPLETED', 'VOIDED'].includes(contract.status);
       const canCreateSalesOrder = canCreateDocument && isSupplier
@@ -280,6 +290,7 @@ Page({
         && (contract.status === 'PENDING' || contract.status === 'ACTIVE');
       const outgoing = contract.perspective === 'OUTGOING';
       const createAsDraft = true;
+      const recovery = serviceRecovery(getApp());
 
       this.setData({
         contract: {
@@ -289,7 +300,9 @@ Page({
               ? (activeContractAction.actionType === 'END' ? '结束待确认'
                 : (activeContractAction.actionType === 'RESUME' ? '恢复履约待确认' : '作废待确认'))
               : `${activeContractAction.targetText || '履约资料'}作废待确认`)
-            : (statusMap[contract.status] || contract.status),
+            : electronicAbolishing
+              ? ((signing && signing.statusText) || contract.statusText || '待签署作废协议')
+              : (pendingSigningText || contract.statusText || statusMap[contract.status] || contract.status),
           amount: contract.amount || 0,
           contractAmountText: money(contract.amount),
           salesAmountText: money(contract.salesAmount),
@@ -300,7 +313,7 @@ Page({
         counterpartyName: viewerCounterpartyName || this.data.counterpartyName,
         hasStructured: !!sData,
         sData,
-        contractTableTitle: contractTable.title || '商品明细',
+        contractTableTitle: stripClauseNumber(contractTable.title || '商品明细'),
         contractTableColumns: normalizedContractTable.columns,
         contractTableRows,
         contractFees,
@@ -320,11 +333,19 @@ Page({
         activeContractAction: actionPending ? activeContractAction : null,
         canResumeContract: canManageContract && !actionPending && contract.status === 'ACTIVE'
           && !!(signing && signing.abolishApproved) && signingStatus !== 'ABOLISH_CREATION_UNCERTAIN',
-        signing,
+        signing: pendingSigningText ? { ...(signing || {}), status: signingStatus, statusText: pendingSigningText } : signing,
+        signingActionHint: signingStopped ? '本次电子签署已停止，发起方可修改后重新发起或撤回合同。'
+          : pendingSigningText ? '正在核验双方签署及归档结果，请稍后刷新同步。'
+          : '合同将在双方依次完成签署并归档后生效。',
+        canManageContractSeal: ['PENDING', 'ACTIVE'].includes(contract.status)
+          && this.hasAnyPermission('seal_manage') && this.hasAnyPermission('member_manage', 'auth_manage'),
+        serviceRecoveryAvailable: !!(canManageContract && recovery && recovery.target.contractId === this.data.contractId
+          && ((recovery.target.scene === 'contract' && contract.status === 'PENDING' && !pendingSigningText)
+            || (recovery.target.scene === 'abolish' && contract.status === 'ACTIVE' && electronicAbolishing))),
         signedContractArchived: !!(signing && signing.signedFileArchived),
         canSignContract: canManageContract && !!(signing && signing.canSign)
           && !(actionPending && activeContractAction.actionType === 'RESUME')
-          && signingStatus !== 'ABOLISH_CREATION_UNCERTAIN',
+          && signingStatus !== 'ABOLISH_CREATION_UNCERTAIN' && !pendingSigningText,
         signButtonText: signing && (signing.abolishApproved
           || String(signing.status || '').startsWith('ABOLISH_') || signing.status === 'abolishing')
           ? '签署作废协议' : '签署合同',
@@ -368,7 +389,8 @@ Page({
   },
 
   async syncContractSigningInBackground() {
-    if (this.signingSyncInFlight || !this.data.contractId) return;
+    if (this.signingSyncInFlight || !this.data.contractId || !this.data.canViewContractContent
+        || !this.data.contract || !['PENDING', 'ACTIVE'].includes(this.data.contract.status)) return;
     this.signingSyncInFlight = true;
     const { request } = require('../../utils/request');
     try {
@@ -379,6 +401,9 @@ Page({
       await this.loadContractDetail();
     } catch (error) {
       // 页面先使用本地签署状态，远程同步失败不阻塞合同详情展示。
+      if (String(error.message || '').includes('已取消作废任务的远程状态发生变化')) {
+        wx.showModal({ title: '作废状态需要核实', content: error.message, showCancel: false });
+      }
     } finally {
       this.signingSyncInFlight = false;
     }
@@ -400,6 +425,15 @@ Page({
     wx.navigateTo({
       url: `/pages/fadada-auth/fadada-auth?scene=${scene}&contractId=${this.data.contractId}`
     });
+  },
+  openContractSealAuthorization() {
+    if (!this.data.canManageContractSeal || !this.data.contractId) return;
+    wx.navigateTo({ url: `/pages/auth-manage/auth-manage?contractId=${encodeURIComponent(this.data.contractId)}` });
+  },
+  renewServiceLink() {
+    const recovery = serviceRecovery(getApp());
+    if (!this.data.serviceRecoveryAvailable || !recovery || recovery.target.contractId !== this.data.contractId) return;
+    wx.navigateTo({ url: serviceRecoveryUrl(getApp()) });
   },
 
   cancelContract() {

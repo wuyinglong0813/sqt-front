@@ -36,6 +36,7 @@ function harness(request) {
       if (id.endsWith('/request')) return { request };
       if (id.endsWith('/wechatLogin')) return { wechatLogin: () => { throw new Error('Unexpected login'); } };
       if (id.endsWith('/companyContext')) return contextHelpers;
+      if (id.endsWith('/signingContinuation')) return require('../utils/signingContinuation');
       if (id.endsWith('/invitation')) return require('../utils/invitation');
       if (id.endsWith('/homeSnapshot')) return { USER_ID_KEY: 'user-id', clearCompanyHomeSnapshots() {} };
       if (id.endsWith('/companyOnboarding')) return { readDraft: () => null, loadSummary: async () => ({}) };

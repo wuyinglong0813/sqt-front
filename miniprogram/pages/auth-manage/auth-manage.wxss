@@ -474,6 +474,19 @@ page {
   padding: 7rpx 0;
 }
 
+.member-signing-note {
+  color: #66809b;
+  font-size: 22rpx;
+  line-height: 1.6;
+  margin: 0 0 20rpx;
+}
+
+.signing-permission-hint {
+  color: #8391a2;
+  font-size: 22rpx;
+  padding: 7rpx 0;
+}
+
 .remove-action {
   color: #d94343;
   flex-shrink: 0;

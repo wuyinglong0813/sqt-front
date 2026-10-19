@@ -1,5 +1,6 @@
 const { request } = require('../../utils/request');
 const { returnToCompany } = require('../../utils/companyOnboarding');
+const { signingContinuation } = require('../../utils/signingContinuation');
 
 const STATUS_VIEW = {
   NOT_STARTED: { title: '待完成个人认证', desc: '完成实名认证后，可建立可信的个人身份。', tone: 'pending', button: '开始认证' },
@@ -44,9 +45,11 @@ Page({
     this._flowToken = getApp().globalData.token;
     this._companyFlow = options.flow === 'company-create';
     this._returnOptions = options;
+    this._identityContinuationId = options.continuationId && signingContinuation(getApp(), options.continuationId)
+      ? options.continuationId : '';
     this.setData({ desktopMode: !!getApp().globalData.isDesktopWechat });
     this.loadPhoneStatus();
-    this.loadIdentity(false);
+    this.loadIdentity(!!this._identityContinuationId);
   },
 
   onUnload() { this._unloaded = true; },
@@ -118,10 +121,11 @@ Page({
   async loadIdentity(sync, notify) {
     if (!this.data.identity || !this.data.identity.status) this.setData({ loading: true });
     if (sync) this.setData({ syncing: true });
+    let identity;
     try {
-      let identity = await request({ url: '/fadada/users/me/identity', withCompany: false });
+      identity = await request({ url: '/fadada/users/me/identity', withCompany: false });
       if (sync && identity && identity.status !== 'NOT_STARTED'
-        && identity.status !== 'VERIFIED' && identity.providerEnabled) {
+        && (identity.status !== 'VERIFIED' || this._identityContinuationId) && identity.providerEnabled) {
         identity = await request({
           url: '/fadada/users/me/identity/sync',
           method: 'POST',
@@ -142,7 +146,13 @@ Page({
         const query = this._companyFlow ? '&flow=company-create' : '';
         const company = this._returnOptions && this._returnOptions.companyId
           ? '&companyId=' + encodeURIComponent(this._returnOptions.companyId) : '';
-        wx.redirectTo({ url: `/pages/service-return/service-return?scene=personal${query}${company}` });
+        const continuation = this._identityContinuationId ? '&continuationId=' + encodeURIComponent(this._identityContinuationId) : '';
+        wx.redirectTo({ url: `/pages/service-return/service-return?scene=personal${query}${company}${continuation}` });
+        return;
+      }
+      if (status === 'VERIFIED' && this._identityContinuationId && !this._unloaded && !this._returning) {
+        this._returning = true;
+        wx.redirectTo({ url: `/pages/service-return/service-return?scene=personal&continuationId=${encodeURIComponent(this._identityContinuationId)}` });
         return;
       }
       if (status === 'VERIFIED' && this._companyFlow && !this._unloaded && !this._returning) {
@@ -158,6 +168,11 @@ Page({
         });
       }
     } catch (error) {
+      if (identity && this._identityContinuationId) this.setData({
+        identity: { ...identity, failureReason: error.message || '认证状态待重新核验' },
+        providerEnabled: !!identity.providerEnabled,
+        statusView: { ...STATUS_VIEW.IN_PROGRESS, desc: '认证状态暂未确认，请刷新结果或重新核验后继续原业务。' }
+      });
       wx.showToast({ title: error.message || '认证状态加载失败', icon: 'none' });
     } finally {
       this.setData({ loading: false, syncing: false });
@@ -179,7 +194,8 @@ Page({
     }
     this.setData({ refreshAfterAuth: true });
     const query = this._companyFlow ? `&flow=company-create${this._returnOptions.companyId ? '&companyId=' + encodeURIComponent(this._returnOptions.companyId) : ''}` : '';
-    wx.navigateTo({ url: `/pages/fadada-auth/fadada-auth?scene=personal${query}` });
+    const continuation = this._identityContinuationId ? '&continuationId=' + encodeURIComponent(this._identityContinuationId) : '';
+    wx.navigateTo({ url: `/pages/fadada-auth/fadada-auth?scene=personal${query}${continuation}` });
   },
 
   refreshStatus() {

@@ -1,16 +1,21 @@
 const { request } = require('../../utils/request');
 const { captureCompanyContext, isCompanyContextCurrent } = require('../../utils/companyContext');
 const { requirePrivacyAuthorization } = require('../../utils/privacy');
+const { createSigningContinuation, rememberServiceRecovery, clearServiceRecovery } = require('../../utils/signingContinuation');
 
 // Fadada's desktop signing page keeps fixed side columns. Below this width the contract collapses.
 const DESKTOP_SIGN_WIDTH = 1280;
 const WEB_VIEW_LOAD_TIMEOUT = 30000;
+const SHORT_TICKET_LIFETIME = 10 * 60 * 1000;
 
 const SCENES = {
   personal: { title: '个人认证', loading: '正在打开个人认证', endpoint: '/fadada/users/me/auth-url', withCompany: false },
   company: { title: '企业认证', loading: '正在打开企业认证', withCompany: false },
   legal: { title: '法人身份核验', loading: '正在打开法人身份核验', withCompany: false },
   seal: { title: '电子印章', loading: '正在打开印章管理', withCompany: false },
+  member: { title: '同步电子签成员', loading: '正在同步电子签成员', withCompany: false },
+  sealGrant: { title: '授权签署', loading: '正在核验签署授权', withCompany: false },
+  organization: { title: '电子签成员', loading: '正在打开电子签成员管理', withCompany: false },
   contract: { title: '合同签署', loading: '正在打开合同签署' },
   abolish: { title: '合同作废签署', loading: '正在打开作废签署' }
 };
@@ -21,6 +26,12 @@ Page({
     serviceUrl: '',
     errorMessage: '',
     serviceCancelled: false,
+    serviceResultReady: false,
+    serviceResultTitle: '',
+    serviceResultMessage: '',
+    needsPersonalIdentity: false,
+    canRecoverPersonalIdentity: false,
+    contractSealAuthorizationAvailable: false,
     scene: 'personal',
     pageTitle: '认证服务',
     loadingText: '正在连接安全服务',
@@ -40,6 +51,7 @@ Page({
     const scene = SCENES[options.scene] ? options.scene : 'personal';
     const config = SCENES[scene];
     this.setData({ scene, options, pageTitle: config.title, loadingText: config.loading });
+    this.setData({ contractSealAuthorizationAvailable: !!options.contractId && this.canManageContractSeal() });
     wx.setNavigationBarTitle({ title: config.title });
     this.ensureDesktopSignWidth();
     this.prepareService();
@@ -65,7 +77,11 @@ Page({
     this.restoreDesktopSignWidth(); },
 
   desktopSignScene() {
-    return this.data.scene === 'contract' || this.data.scene === 'abolish';
+    return ['contract', 'abolish', 'organization'].includes(this.data.scene);
+  },
+
+  supplementaryOrganizationScene() {
+    return this.data.scene === 'company' && this.data.options.renewOrganization === '1';
   },
 
   readWindowSize() {
@@ -109,6 +125,21 @@ Page({
     const token = getApp().globalData.token;
     const context = captureCompanyContext(getApp());
     try {
+      if (['contract', 'abolish', 'member'].includes(this.data.scene)) {
+        this.setData({ canRecoverPersonalIdentity: true });
+        let identity = await request({ url: '/fadada/users/me/identity', withCompany: false, token });
+        if (this._unloaded || !isCompanyContextCurrent(getApp(), context)) return;
+        if (identity && identity.providerEnabled && identity.status !== 'NOT_STARTED') {
+          identity = await request({ url: '/fadada/users/me/identity/sync', method: 'POST', withCompany: false, token });
+          if (this._unloaded || !isCompanyContextCurrent(getApp(), context)) return;
+        }
+        if (identity && identity.status && identity.status !== 'VERIFIED') {
+          this.setData({ loading: false, needsPersonalIdentity: true,
+            errorMessage: '请先完成本人的个人实名认证，完成后会继续本次签署或成员同步。' });
+          return;
+        }
+      }
+      this.setData({ needsPersonalIdentity: false });
       if (this.data.scene === 'contract') {
         const quote = await request({
           url: '/contracts/' + this.data.options.contractId + '/signing/quote',
@@ -131,9 +162,9 @@ Page({
           }
         }
       }
-      const result = await this.readAuthStatus(true);
+      const result = this.supplementaryOrganizationScene() ? null : await this.readAuthStatus(true);
       if (this._unloaded || token !== getApp().globalData.token
-          || (this.data.scene === 'contract' && !isCompanyContextCurrent(getApp(), context))) return;
+          || (['contract', 'organization', 'member', 'sealGrant'].includes(this.data.scene) && !isCompanyContextCurrent(getApp(), context))) return;
       if (result && (result.status === 'VERIFIED'
           || (this.data.scene === 'legal' && result.status === 'REVIEW_REQUIRED'))) {
         this.openReturnPage();
@@ -151,6 +182,7 @@ Page({
 
   async readAuthStatus(forceSync = false) {
     const { scene, options } = this.data;
+    if (this.supplementaryOrganizationScene()) return null;
     if (!['personal', 'company', 'legal'].includes(scene)) return null;
     const token = getApp().globalData.token;
     if (scene === 'legal') return request({
@@ -160,8 +192,9 @@ Page({
     const url = scene === 'personal' ? '/fadada/users/me/identity'
       : `/fadada/companies/${options.companyId}/identity`;
     const current = await request({ url, withCompany: false, token, timeout: 15000 });
-    if (this._unloaded || token !== getApp().globalData.token
-        || !current || ['VERIFIED', 'FAILED', 'NOT_STARTED'].includes(current.status)) return current;
+    if (this._unloaded || token !== getApp().globalData.token || !current
+        || ['FAILED', 'NOT_STARTED'].includes(current.status)
+        || (current.status === 'VERIFIED' && !(forceSync && current.providerEnabled))) return current;
     if (!forceSync && this._lastProviderSync && Date.now() - this._lastProviderSync < 30000) return current;
     this._lastProviderSync = Date.now();
     try {
@@ -169,7 +202,7 @@ Page({
     } catch (error) {
       // A callback may have completed the identity while the provider query failed.
       const latest = await request({ url, withCompany: false, token, timeout: 15000 });
-      if (latest && latest.status === 'VERIFIED') return latest;
+      if (latest && latest.status === 'VERIFIED' && !(forceSync && latest.providerEnabled)) return latest;
       throw error;
     }
   },
@@ -190,7 +223,8 @@ Page({
     // The parent is hidden under the bridge. Wait for navigateBack before recreating it;
     // hidden setData calls can coalesce and leave the old, consumed face flow mounted.
     this._pendingFaceReturn = { url, token: this._sessionToken,
-      context: captureCompanyContext(getApp()) };
+      context: captureCompanyContext(getApp()),
+      issuedAt: Date.now() };
     return true;
   },
 
@@ -239,7 +273,7 @@ Page({
     this._previousWindowSize = pending.previousWindowSize;
     this.setData({ scene: pending.scene, options: pending.options, pageTitle: config.title,
       loadingText: config.loading, loading: false, errorMessage: '' });
-    this.mountServiceUrl(pending.url, pending.context);
+    this.mountServiceUrl(pending.url, pending.context, { issuedAt: pending.issuedAt, faceContinuation: true });
     wx.setNavigationBarTitle({ title: config.title });
     this.ensureDesktopSignWidth();
     this.startStatusPolling();
@@ -274,8 +308,15 @@ Page({
     const config = SCENES[scene];
     this.pauseWebViewWatchdog();
     this._webViewSession = null;
-    this.setData({ loading: true, serviceUrl: '', errorMessage: '', serviceCancelled: false });
+    this.setData({ loading: true, serviceUrl: '', errorMessage: '', serviceCancelled: false,
+      serviceResultReady: false, serviceResultTitle: '', serviceResultMessage: '' });
     try {
+      if (['member', 'sealGrant'].includes(scene) && String(options.companyId || '') !== context.companyId) {
+        throw new Error('当前企业已变化，请返回当前企业重新办理');
+      }
+      if (scene === 'organization' && !getApp().globalData.isDesktopWechat) {
+        throw new Error('电子签成员管理仅支持电脑端。请企业电子签超管在电脑端审批加入企业申请并分配用印权限，完成后返回合同重试。');
+      }
       const accepted = await this.confirmServicePrivacy(context);
       if (this._unloaded || !isCompanyContextCurrent(getApp(), context)) return;
       if (!accepted) {
@@ -286,6 +327,16 @@ Page({
       if (scene === 'company') endpoint = `/fadada/companies/${options.companyId}/auth-url`;
       if (scene === 'legal') endpoint = `/fadada/companies/${options.companyId}/legal-representative/auth-url`;
       if (scene === 'seal') endpoint = `/fadada/companies/${options.companyId}/seal-manage-url`;
+      if (scene === 'organization') endpoint = `/fadada/companies/${options.companyId}/organization-manage-url`;
+      if (scene === 'member') {
+        if (!options.companyId) throw new Error('缺少本次同步的企业信息，请返回重试');
+        endpoint = `/fadada/companies/${options.companyId}/signing-member/sync`;
+      }
+      if (scene === 'sealGrant') {
+        if (!options.companyId || !options.userId) throw new Error('缺少本次授权的企业或成员信息，请返回重试');
+        endpoint = options.contractId ? `/contracts/${options.contractId}/members/${options.userId}/seal-grant-url`
+          : `/fadada/companies/${options.companyId}/members/${options.userId}/seal-grant-url`;
+      }
       if (scene === 'contract') endpoint = `/contracts/${options.contractId}/sign-url`;
       if (scene === 'abolish') endpoint = `/contracts/${options.contractId}/abolish-url`;
       if (!endpoint) throw new Error('服务参数不完整');
@@ -294,13 +345,26 @@ Page({
         method: 'POST',
         token,
         data: scene === 'abolish' ? { reason: decodeURIComponent(options.reason || '') } : {},
-        withCompany: config.withCompany !== false,
+        withCompany: (scene === 'sealGrant' && !!options.contractId) || config.withCompany !== false,
+        companyId: context.companyId,
         timeout: 30000
       });
       if (this._unloaded || token !== getApp().globalData.token
-          || (scene === 'contract' && !isCompanyContextCurrent(getApp(), context))) return;
+          || (['contract', 'organization', 'member', 'sealGrant'].includes(scene) && !isCompanyContextCurrent(getApp(), context))) return;
       const serviceUrl = result && (result.url || result.authUrl);
       const status = result && (result.status || (result.identity && result.identity.status));
+      if (!serviceUrl && ['member', 'sealGrant'].includes(scene)) {
+        if (status !== 'READY') throw new Error(scene === 'member'
+          ? '成员激活尚未完成，请稍后重新同步' : '签署授权尚未完成，请返回成员列表重新办理');
+        this.setData({ serviceResultReady: true,
+          serviceResultTitle: scene === 'member' ? '电子签成员已同步' : '签署授权已就绪',
+          serviceResultMessage: scene === 'member'
+            ? '本人已加入当前电子签企业。签署合同仍需有效用印授权，可请有印章管理权限的管理员在“组织成员 → 授权签署”办理。'
+            : options.contractId ? '该成员已具备这份合同所用印章的有效授权，可返回原合同继续签署。授权有效期内可复用。'
+              : '该成员已有有效用印授权，可在授权有效期内重复签署。每次签署仍会核验当前权限。' });
+        clearServiceRecovery(getApp(), scene, options);
+        return;
+      }
       if (!serviceUrl && status && ['personal', 'company', 'legal'].includes(scene)) {
         this.openReturnPage();
         return;
@@ -318,12 +382,15 @@ Page({
     }
   },
 
-  mountServiceUrl(url, context = captureCompanyContext(getApp())) {
+  mountServiceUrl(url, context = captureCompanyContext(getApp()), ticket = {}) {
     this.pauseWebViewWatchdog();
     const generation = (this._webViewGeneration || 0) + 1;
     this._webViewGeneration = generation;
     this._webViewSession = { generation, url, context, token: getApp().globalData.token,
-      remaining: WEB_VIEW_LOAD_TIMEOUT, loaded: false };
+      remaining: WEB_VIEW_LOAD_TIMEOUT, loaded: false,
+      issuedAt: ticket.issuedAt == null ? Date.now() : ticket.issuedAt,
+      faceContinuation: !!ticket.faceContinuation };
+    rememberServiceRecovery(getApp(), this.data.scene, this.data.options);
     this.setData({ serviceUrl: url, serviceHost: this.extractHost(url), webViewGeneration: generation });
     this.startWebViewWatchdog();
   },
@@ -384,7 +451,13 @@ Page({
 
   startStatusPolling() {
     const { scene } = this.data;
-    // Seal management is an editor: an existing seal does not mean editing is complete.
+    // A legacy VERIFIED status proves existing scopes, not this supplementary consent.
+    // Keep this editor open; retrying signing performs the authoritative member check.
+    if (this.supplementaryOrganizationScene()) {
+      this.stopStatusPolling();
+      return;
+    }
+    // Resource editors stay open; an existing resource does not mean editing is complete.
     if (!['personal', 'company', 'legal'].includes(scene) || this.pollTimer
         || this._visible === false || this._unloaded) return;
     this.pollAttempts = 0;
@@ -408,7 +481,11 @@ Page({
   },
 
   async pollStatus(generation = this._pollGeneration || 0) {
-    if (!this.isPollingCurrent(generation) || this.data.scene === 'seal') return;
+    if (this.supplementaryOrganizationScene()) {
+      this.stopStatusPolling();
+      return;
+    }
+    if (!this.isPollingCurrent(generation) || !['personal', 'company', 'legal'].includes(this.data.scene)) return;
     this.pollTimer = null;
     const token = getApp().globalData.token;
     try {
@@ -432,6 +509,12 @@ Page({
 
   openReturnPage() {
     if (this._unloaded || this._visible === false || this._returning) return;
+    if (this.supplementaryOrganizationScene()) {
+      this.stopStatusPolling();
+      this.pauseWebViewWatchdog();
+      wx.switchTab({ url: '/pages/company/company' });
+      return;
+    }
     this._returning = true;
     this.stopStatusPolling();
     this.pauseWebViewWatchdog();
@@ -441,6 +524,7 @@ Page({
     if (options.flow === 'company-create') query.push('flow=company-create');
     if (options.companyId) query.push(`companyId=${encodeURIComponent(options.companyId)}`);
     if (options.contractId) query.push(`contractId=${encodeURIComponent(options.contractId)}`);
+    if (options.continuationId) query.push(`continuationId=${encodeURIComponent(options.continuationId)}`);
     wx.redirectTo({ url: `/pages/service-return/service-return?${query.join('&')}`,
       fail: () => {
         this._returning = false;
@@ -461,9 +545,16 @@ Page({
   },
 
   retry() {
-    if (this._reloadingWebView) return;
+    if (this._reloadingWebView || this._pendingFaceReturn || this._faceRemounting) return;
     const session = this._webViewSession;
-    if (!this.isWebViewSessionCurrent(session)) { this.prepareService(); return; }
+    if (!this.isWebViewSessionCurrent(session)) return this.prepareService();
+    const shortTicket = ['contract', 'abolish', 'member', 'sealGrant'].includes(this.data.scene);
+    const expired = shortTicket && Date.now() - session.issuedAt >= SHORT_TICKET_LIFETIME;
+    const used = ['contract', 'abolish'].includes(this.data.scene) && session.loaded && !session.faceContinuation;
+    if (expired || used) {
+      this._webViewSession = null;
+      return this.prepareService();
+    }
     this._reloadingWebView = true;
     this.pauseWebViewWatchdog();
     // Recreate the failed container with the same URL; another enrollment URL can
@@ -473,11 +564,37 @@ Page({
       if (this._unloaded || session !== this._webViewSession
           || session.token !== getApp().globalData.token
           || !isCompanyContextCurrent(getApp(), session.context)) return;
-      this.mountServiceUrl(session.url, session.context);
+      this.mountServiceUrl(session.url, session.context, session);
       this.setData({ loading: false });
       this.startStatusPolling();
     });
   },
-  checkResult() { this.openReturnPage(); },
+  continuePersonalIdentity() {
+    const continuationId = createSigningContinuation(getApp(), this.data.scene, this.data.options);
+    if (!continuationId) {
+      this.setData({ errorMessage: '登录或企业状态已变化，请返回重新办理' });
+      return;
+    }
+    wx.navigateTo({ url: `/pages/personal-cert/personal-cert?continuationId=${encodeURIComponent(continuationId)}` });
+  },
+  canManageContractSeal() {
+    const permissions = (getApp().globalData.memberInfo || {}).permissions || [];
+    return permissions.includes('all') || (permissions.includes('seal_manage')
+      && (permissions.includes('member_manage') || permissions.includes('auth_manage')));
+  },
+  openContractSealAuthorization() {
+    if (!this.data.options.contractId || !this.canManageContractSeal()) return;
+    wx.navigateTo({ url: `/pages/auth-manage/auth-manage?contractId=${encodeURIComponent(this.data.options.contractId)}` });
+  },
+  checkResult() {
+    if (['member', 'sealGrant'].includes(this.data.scene)) {
+      return this.loadServiceUrl();
+    }
+    if (this.data.scene === 'organization') {
+      wx.switchTab({ url: '/pages/company/company' });
+      return;
+    }
+    this.openReturnPage();
+  },
   goBack() { wx.navigateBack(); }
 });

@@ -1,4 +1,6 @@
 const { request } = require('../../utils/request');
+const { captureCompanyContext, isCompanyContextCurrent } = require('../../utils/companyContext');
+const { serviceRecovery, serviceRecoveryUrl } = require('../../utils/signingContinuation');
 const app = getApp();
 
 const ROLE_META = {
@@ -14,6 +16,12 @@ function currentCompanyId() {
   const cid = app.getCurrentCompanyId();
   if (!cid) wx.showToast({ title: '请先选择企业', icon: 'none' });
   return cid;
+}
+
+function canManageSigning() {
+  const permissions = ((app.globalData || {}).memberInfo || {}).permissions || [];
+  return permissions.includes('all') || (permissions.includes('seal_manage')
+    && (permissions.includes('member_manage') || permissions.includes('auth_manage')));
 }
 
 function roleMeta(code, fallback) {
@@ -54,6 +62,8 @@ function decorateMembers(list) {
       roles,
       roleTone: meta.tone,
       statusText: pending ? '待审批' : '正常',
+      canAuthorizeSigning: member.status === 'ACTIVE' && !!member.userId
+        && (member.permissions || []).some(code => code === 'all' || code === 'contract_sign'),
       canRemove: !pending && member.roleCode !== 'LEGAL'
     };
   });
@@ -82,6 +92,9 @@ Page({
     combinedPermissions: [],
     editingMember: false,
     savingRole: false,
+    canGrantSigning: false,
+    contractId: '',
+    serviceRecoveryAvailable: false,
     inviteCode: '',
     inviteCompanyId: '',
     preparingInvite: false,
@@ -92,6 +105,19 @@ Page({
   },
 
   noop() {},
+
+  onLoad(options = {}) {
+    this._contractContext = captureCompanyContext(app);
+    this.setData({ contractId: String(options.contractId || '') });
+  },
+
+  returnToContract() {
+    if (!this.data.contractId || !isCompanyContextCurrent(app, this._contractContext)) {
+      wx.showToast({ title: '企业已变化，请重新打开合同', icon: 'none' });
+      return;
+    }
+    wx.redirectTo({ url: `/pages/contract-preview/contract-preview?contractId=${encodeURIComponent(this.data.contractId)}` });
+  },
 
   onSearch(e) {
     const keyword = (e.detail.value || '').trim().toLowerCase();
@@ -112,7 +138,11 @@ Page({
     const companies = app.globalData.companies || [];
     const current = companies.find(company => String(company.companyId) === String(cid));
     const companyName = (current && current.companyName) || '当前企业';
+    const recovery = serviceRecovery(app);
     this.setData({
+      serviceRecoveryAvailable: !!(recovery && recovery.target.scene === 'sealGrant'
+        && String(recovery.target.contractId || '') === this.data.contractId),
+      canGrantSigning: canManageSigning(),
       companyName,
       companyAbbr: companyName.length > 4 ? companyName.slice(0, 2) : companyName
     });
@@ -165,6 +195,7 @@ Page({
       const rawMembers = reset ? list : this.data.authorizations.concat(list);
       const authorizations = decorateMembers(rawMembers);
       this.setData({
+        canGrantSigning: canManageSigning(),
         page,
         hasMore: !!payload.hasMore
       });
@@ -272,6 +303,38 @@ Page({
 
   manageRoles() { wx.navigateTo({ url: '/pages/role-manage/role-manage' }); },
 
+  grantSigning(e) {
+    const cid = currentCompanyId();
+    if (!cid) return;
+    if (!canManageSigning()) {
+      wx.showToast({ title: '请由印章管理员授权', icon: 'none' });
+      return;
+    }
+    const userId = String(e.currentTarget.dataset.userId || '');
+    const member = this.data.authorizations.find(item => String(item.userId) === userId
+      && item.status === 'ACTIVE' && String(item.companyId) === String(cid));
+    if (!member) {
+      wx.showToast({ title: '成员信息已变化，请刷新后重试', icon: 'none' });
+      return;
+    }
+    this.openSealGrant(cid, userId);
+  },
+
+  openSealGrant(companyId, userId) {
+    if (this.data.contractId && !isCompanyContextCurrent(app, this._contractContext)) {
+      wx.showToast({ title: '企业已变化，请重新打开合同', icon: 'none' });
+      return;
+    }
+    const contract = this.data.contractId ? `&contractId=${encodeURIComponent(this.data.contractId)}` : '';
+    wx.navigateTo({ url: `/pages/fadada-auth/fadada-auth?scene=sealGrant&companyId=${encodeURIComponent(companyId)}&userId=${encodeURIComponent(userId)}${contract}` });
+  },
+  renewServiceLink() {
+    const recovery = serviceRecovery(app);
+    if (!canManageSigning() || !recovery || recovery.target.scene !== 'sealGrant'
+        || String(recovery.target.contractId || '') !== this.data.contractId) return;
+    wx.navigateTo({ url: serviceRecoveryUrl(app) });
+  },
+
   async confirmApprove() {
     if (this.data.savingRole) return;
     const roleCodes = this.data.selectedRoleCodes;
@@ -280,14 +343,28 @@ Page({
     const memberId = this.data.approveTargetId;
     const cid = currentCompanyId();
     if (!cid) return;
+    const context = captureCompanyContext(app);
+    const target = this.data.authorizations.find(item => String(item.id) === String(memberId));
+    const canOfferSigning = canManageSigning() && !!(target && target.userId && String(target.companyId) === String(cid))
+      && this.data.combinedPermissions.some(permission => ['contract_sign', 'all'].includes(permission.code));
     const editing = this.data.editingMember;
     this.setData({ savingRole: true });
     try {
       await request({ url: `/authorizations/${memberId}/${editing ? 'role' : 'approve'}?companyId=${cid}`, method: editing ? 'PUT' : 'POST', data: { roleCode: roleCodes[0], roleCodes, customPermissions: [] } });
+      if (!isCompanyContextCurrent(app, context)) return;
       wx.showToast({ title: editing ? '权限已更新' : '已通过', icon: 'success' });
       this.setData({ showApproveModal: false, approveTargetId: '', approveTargetName: '' });
       await app.refreshSession();
+      if (!isCompanyContextCurrent(app, context)) return;
       await this.loadMembers(true);
+      if (canOfferSigning && canManageSigning() && isCompanyContextCurrent(app, context)) {
+        wx.showModal({ title: '继续授权签署',
+          content: `已保存${target.memberName || '该成员'}的本地签署权限。还需完成电子印章授权，有效期内可复用。是否现在办理？`,
+          confirmText: '继续授权', cancelText: '稍后办理',
+          success: result => {
+            if (result.confirm && canManageSigning() && isCompanyContextCurrent(app, context)) this.openSealGrant(cid, target.userId);
+          } });
+      }
     } catch (e) {
       wx.showModal({
         title: editing ? '角色权限操作未完成' : '成员审批操作未完成',

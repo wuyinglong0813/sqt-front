@@ -1,5 +1,6 @@
 const { request } = require('../../utils/request');
 const { returnToCompany } = require('../../utils/companyOnboarding');
+const { signingContinuation, signingContinuationUrl, clearSigningContinuation, clearServiceRecovery } = require('../../utils/signingContinuation');
 
 // Existing identity responses put temporary provider-query errors in failureReason.
 // They can remain cached for 30 seconds after successful provider authorization.
@@ -35,6 +36,10 @@ Page({
       if (source && source._companyFlow && source._flowToken === getApp().globalData.token) {
         options = { ...options, flow: 'company-create',
           companyId: (source._returnOptions || {}).companyId || '' };
+      }
+      if (source && source._identityContinuationId
+          && signingContinuation(getApp(), source._identityContinuationId)) {
+        options = { ...options, continuationId: source._identityContinuationId };
       }
     }
     this.setData({ options });
@@ -151,6 +156,32 @@ Page({
             : (result && (result.failureReason || result.message || result.statusText)) || '结果尚未更新，请稍后刷新' });
         return;
       }
+      if (options.scene === 'abolish' && result && result.status !== 'revoked') {
+        const bothSigned = ['initiatorSignStatus', 'counterpartySignStatus'].every(key =>
+          ['signed', 'sign_completed', 'completed'].includes(String(result[key] || '').toLowerCase()));
+        const settling = result.status === 'ABOLISH_sign_completed' || bothSigned;
+        const attempts = this._syncAttempts || 0;
+        const retryLimit = settling ? MAX_SYNC_ATTEMPTS : 3;
+        const stopped = /terminated|expired|UNCERTAIN/.test(String(result.status || ''));
+        // The provider can return before its task-detail API has caught up. Keep
+        // checking final completion; a partial signature remains an explicit next step.
+        if (!stopped && (settling || result.canSign) && attempts < retryLimit) {
+          this._syncAttempts = attempts + 1;
+          this._awaitingResult = true;
+          this.setData({ loading: true, failed: false, title: '正在确认作废签署结果',
+            message: settling ? '双方已签署，正在等待作废结果同步' : '正在接收签署结果，请稍候' });
+          this.scheduleResultSync();
+          return;
+        }
+        this.setData({ loading: false, failed: settling,
+          title: settling ? '作废结果待同步' : '作废签署尚未完成',
+          message: settling ? '双方签署结果仍在确认中，可重新同步或返回合同详情刷新'
+            : stopped ? (result.statusText || '请返回合同详情查看并处理作废任务')
+            : result.canSign ? '请返回合同详情继续签署作废协议'
+            : '请返回合同详情查看待签署方，双方完成作废协议签署后合同才会作废' });
+        if (!settling) this.startCountdown();
+        return;
+      }
       if (options.scene === 'company') {
         await getApp().switchCompany(options.companyId);
         if (!current()) return;
@@ -163,6 +194,8 @@ Page({
         await getApp().loadMe();
         if (!current()) return;
       }
+      if (['contract', 'abolish'].includes(options.scene) && result
+          && ['task_finished', 'revoked'].includes(result.status)) clearServiceRecovery(getApp(), options.scene, options);
       this.setData({
         loading: false,
         failed: false,
@@ -219,6 +252,20 @@ Page({
       return;
     }
     if (options.scene === 'personal') {
+      if (!this.data.failed && options.continuationId) {
+        const url = signingContinuationUrl(getApp(), options.continuationId);
+        if (!url) {
+          this.setData({ failed: true, title: '原办理会话已失效', message: '登录或企业已变化，请返回当前企业重新发起' });
+          return;
+        }
+        this._navigating = true;
+        wx.redirectTo({ url, success: () => clearSigningContinuation(getApp(), options.continuationId),
+          fail: () => {
+            this._navigating = false;
+            this.setData({ failed: true, title: '继续办理暂未完成', message: '个人认证已完成，请重试继续本次业务' });
+          } });
+        return;
+      }
       if (!this.data.failed && options.flow !== 'company-create') {
         wx.switchTab({ url: '/pages/index/index' });
         return;
@@ -228,7 +275,9 @@ Page({
         return;
       }
       const query = options.flow === 'company-create'
-        ? `?flow=company-create${options.companyId ? '&companyId=' + encodeURIComponent(options.companyId) : ''}` : '';
+        ? `?flow=company-create${options.companyId ? '&companyId=' + encodeURIComponent(options.companyId) : ''}`
+        : options.continuationId && signingContinuation(getApp(), options.continuationId)
+          ? `?continuationId=${encodeURIComponent(options.continuationId)}` : '';
       wx.redirectTo({ url: `/pages/personal-cert/personal-cert${query}` });
       return;
     }

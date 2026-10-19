@@ -4,12 +4,25 @@
   <view class="state-desc">请稍候，正在建立安全连接</view>
 </view>
 
+<view class="state-page" wx:elif="{{serviceResultReady}}">
+  <view class="state-icon">✓</view>
+  <view class="state-title">{{serviceResultTitle}}</view>
+  <view class="state-desc">{{serviceResultMessage}}</view>
+  <button class="primary-button" bindtap="goBack">返回继续办理</button>
+  <view class="back-link" bindtap="checkResult">重新核验当前状态</view>
+</view>
+
 <view class="state-page" wx:elif="{{errorMessage || serviceCancelled}}">
   <view class="state-icon error">!</view>
   <view class="state-title">{{serviceCancelled ? pageTitle + '已取消' : pageTitle + '暂时无法打开'}}</view>
   <view class="state-desc">{{serviceCancelled ? '本次操作尚未发起，可继续办理或返回上一页' : errorMessage}}</view>
-  <button class="primary-button" bindtap="retry">{{serviceCancelled ? '继续办理' : '重新加载'}}</button>
-    <view class="back-link" bindtap="checkResult" wx:if="{{scene === 'personal' || scene === 'company' || scene === 'legal'}}">已完成认证？刷新认证结果</view>
+  <button class="primary-button" wx:if="{{needsPersonalIdentity}}" bindtap="continuePersonalIdentity">完成本人实名认证</button>
+  <button class="primary-button" wx:else bindtap="retry">{{serviceCancelled ? '继续办理' : '重新加载'}}</button>
+  <view class="back-link" wx:if="{{canRecoverPersonalIdentity && !needsPersonalIdentity}}" bindtap="continuePersonalIdentity">重新核验本人认证并继续</view>
+  <view class="back-link" bindtap="checkResult" wx:if="{{scene === 'member' || scene === 'sealGrant'}}">已完成办理？重新核验当前状态</view>
+  <view class="back-link" bindtap="checkResult" wx:if="{{scene === 'contract' || scene === 'abolish'}}">已完成签署？同步并返回合同</view>
+  <view class="back-link" bindtap="openContractSealAuthorization" wx:if="{{contractSealAuthorizationAvailable && !needsPersonalIdentity}}">办理本合同用印授权</view>
+    <view class="back-link" bindtap="checkResult" wx:if="{{scene === 'personal' || scene === 'company' || scene === 'legal'}}">{{scene === 'company' && options.renewOrganization === '1' ? '返回企业中心，重新签署核验成员状态' : '已完成认证？刷新认证结果'}}</view>
   <view class="back-link" bindtap="goBack">返回上一页</view>
 </view>
 

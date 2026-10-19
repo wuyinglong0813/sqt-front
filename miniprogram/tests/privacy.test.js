@@ -30,6 +30,7 @@ function harness() {
       require: id => {
         if (id.endsWith('/privacy')) return privacy;
         if (id.endsWith('/companyContext')) return require('../utils/companyContext');
+        if (id.endsWith('/signingContinuation')) return require('../utils/signingContinuation');
         if (id.endsWith('/tabBar')) return require('../utils/tabBar');
         if (id.endsWith('/request')) return { request: async options => { calls.push(options); return { url: 'https://provider.test' }; } };
         if (id.endsWith('/fileTransfer')) return {

@@ -10,10 +10,11 @@ function fixture(editing) {
   const calls = [], modals = [], toasts = [];
   const message = '当前账号未获“供方首页”权限，无法授予；请由法人或已获该权限的成员操作';
   let definition, rejectSave = true, profileRefreshes = 0, memberRefreshes = 0;
-  const app = { getCurrentCompanyId: () => '3', refreshSession: async () => { profileRefreshes++; } };
+  const app = { globalData: {}, getCurrentCompanyId: () => '3', refreshSession: async () => { profileRefreshes++; } };
   vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../pages/auth-manage/auth-manage.js'), 'utf8'), {
     Page: value => { definition = value; }, getApp: () => app,
-    require: () => ({ request: async options => {
+    require: name => name.endsWith('/companyContext') ? require('../utils/companyContext')
+      : name.endsWith('/signingContinuation') ? require('../utils/signingContinuation') : ({ request: async options => {
       calls.push(options);
       if (rejectSave) throw new Error(message);
       return null;

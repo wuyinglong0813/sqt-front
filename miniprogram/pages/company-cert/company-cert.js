@@ -266,6 +266,11 @@ Page({
     this.openService(key, this.data.companyId);
   },
 
+  renewOrganizationAuthorization() {
+    if (!this.data.companyId || !this.data.identity || !this.data.identity.enabled) return;
+    wx.navigateTo({ url: `/pages/fadada-auth/fadada-auth?scene=company&companyId=${encodeURIComponent(this.data.companyId)}&renewOrganization=1` });
+  },
+
   openService(scene, companyId) {
     if (scene === 'company') this._awaitingCompanyAuth = true;
     wx.navigateTo({

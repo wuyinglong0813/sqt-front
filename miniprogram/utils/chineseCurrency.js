@@ -195,8 +195,7 @@ function toChineseNum(n) {
  */
 function reorderClauses(clauses) {
   return (clauses || []).map((c, i) => {
-    // 去除标题中可能已有的中文数字前缀（如 "一、xxx" → "xxx"）
-    const title = (c.title || '').replace(/^[一二三四五六七八九十]+、\s*/, '');
+    const title = stripClauseNumber(c.title || '');
     return {
       title,
       content: c.content || '',
@@ -204,6 +203,10 @@ function reorderClauses(clauses) {
       _label: toChineseNum(i + 1) + '、'
     };
   });
+}
+
+function stripClauseNumber(title) {
+  return String(title).trim().replace(/^\s*(?:第[一二三四五六七八九十百零0-9]+条[、.．:：]?\s*|[一二三四五六七八九十百零0-9]+[、.．)）]\s*)/, '');
 }
 
 module.exports = {
@@ -216,5 +219,6 @@ module.exports = {
   normalizeContractColumns,
   normalizeContractTable,
   toChineseNum,
-  reorderClauses
+  reorderClauses,
+  stripClauseNumber
 };

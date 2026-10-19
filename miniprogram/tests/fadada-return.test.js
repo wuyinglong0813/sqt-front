@@ -25,6 +25,7 @@ function harness(handler = async () => ({ status: 'IN_PROGRESS' })) {
       if (name.endsWith('/privacy')) return require('./privacy-fixture')(wx, () => app);
       if (name.endsWith('/request')) return { request: async o => { calls.push(o); return handler(o); } };
       if (name.endsWith('/companyContext')) return require('../utils/companyContext');
+      if (name.endsWith('/signingContinuation')) return require('../utils/signingContinuation');
       if (name.endsWith('/companyOnboarding')) return { returnToCompany: o => navigation.push(`company:${o.companyId || 'draft'}`) };
       throw Error(name);
     }
@@ -621,3 +622,45 @@ for (const finalStatus of ['VERIFIED', 'FAILED']) {
     assert.equal(h.timers.size, 0);
   });
 }
+
+
+test('abolish return waits for provider finalization instead of reporting premature success', async () => {
+  let completed = false;
+  const h = harness(() => completed ? { status: 'revoked', statusText: '已作废', canSign: false }
+    : { status: 'ABOLISH_sign_completed', initiatorSignStatus: 'signed', counterpartySignStatus: 'signed' });
+  const p = h.page(returnFile); p.data.options = { scene: 'abolish', contractId: '12' };
+  await p.syncResult();
+  assert.equal(p.data.loading, true);
+  assert.match(p.data.message, /双方已签署/);
+  assert.equal(h.navigation.length, 0);
+  completed = true;
+  await h.tick();
+  assert.equal(p.data.loading, false);
+  assert.equal(p.data.failed, false);
+  assert.equal(p.data.message, '已作废');
+});
+
+test('a partially signed abolish clearly asks for the other party signature', async () => {
+  const h = harness(() => ({ status: 'ABOLISH_sign_progress', statusText: '作废签署中',
+    initiatorSignStatus: 'signed', counterpartySignStatus: 'unsigned', canSign: false }));
+  const p = h.page(returnFile); p.data.options = { scene: 'abolish', contractId: '12' };
+  await p.syncResult();
+  assert.equal(p.data.loading, false);
+  assert.equal(p.data.failed, false);
+  assert.equal(p.data.title, '作废签署尚未完成');
+  assert.match(p.data.message, /双方完成作废协议签署后合同才会作废/);
+  assert.equal(h.calls.length, 1);
+});
+
+test('delayed abolish finalization has a bounded retry and an actionable pending result', async () => {
+  const h = harness(() => ({ status: 'ABOLISH_sign_completed',
+    initiatorSignStatus: 'signed', counterpartySignStatus: 'signed' }));
+  const p = h.page(returnFile); p.data.options = { scene: 'abolish', contractId: '12' };
+  p._syncAttempts = 24;
+  await p.syncResult();
+  assert.equal(p.data.loading, false);
+  assert.equal(p.data.failed, true);
+  assert.equal(p.data.title, '作废结果待同步');
+  assert.equal(h.timers.size, 0);
+  assert.equal(h.navigation.length, 0);
+});

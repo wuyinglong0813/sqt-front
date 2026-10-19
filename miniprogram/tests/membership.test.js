@@ -18,8 +18,11 @@ function fixture(handler, confirm = true) {
       getApp: () => app, wx, setTimeout, clearTimeout,
       require(name) {
         if (name.endsWith('/privacy')) return require('./privacy-fixture')(wx, () => app);
-        if (name.endsWith('/request')) return { request: async options => { calls.push(options); return handler(options); } };
+        if (name.endsWith('/request')) return { request: async options => {
+          calls.push(options); return options.url === '/fadada/users/me/identity' ? { status: 'VERIFIED' } : handler(options);
+        } };
         if (name.endsWith('/companyContext')) return contexts;
+        if (name.endsWith('/signingContinuation')) return require('../utils/signingContinuation');
         if (name.endsWith('/membership')) return presentation;
         throw new Error(name);
       },
@@ -51,7 +54,8 @@ test('cancelled signature confirmation never creates a provider task', async () 
   const page = env.page('pages/fadada-auth/fadada-auth.js');
   page.data.scene = 'contract'; page.data.options = { contractId: '12' };
   await page.prepareService();
-  assert.equal(env.calls.length, 1);
+  assert.equal(env.calls.filter(o => o.url.endsWith('/signing/quote')).length, 1);
+  assert.equal(env.calls.filter(o => o.url.endsWith('/sign-url')).length, 0);
   assert.equal(env.modals.length, 1);
   assert.match(page.data.errorMessage, /取消/);
 });
@@ -60,7 +64,8 @@ test('blocked enterprise cannot call sign-url even if user tries the signing pag
   const page = env.page('pages/fadada-auth/fadada-auth.js');
   page.data.scene = 'contract'; page.data.options = { contractId: '12' };
   await page.prepareService();
-  assert.equal(env.calls.length, 1); assert.equal(env.modals.length, 0);
+  assert.equal(env.calls.filter(o => o.url.endsWith('/signing/quote')).length, 1);
+  assert.equal(env.calls.filter(o => o.url.endsWith('/sign-url')).length, 0); assert.equal(env.modals.length, 0);
   assert.match(page.data.errorMessage, /暂停/);
 });
 test('recipient and existing tasks skip debit confirmation and continue signing', async () => {
@@ -82,5 +87,6 @@ test('switching companies while confirming cannot issue sign-url for the new com
   const page = env.page('pages/fadada-auth/fadada-auth.js');
   page.data.scene = 'contract'; page.data.options = { contractId: '12' };
   await page.prepareService();
-  assert.equal(env.calls.length, 1); assert.equal(env.modals.length, 0);
+  assert.equal(env.calls.filter(o => o.url.endsWith('/signing/quote')).length, 1);
+  assert.equal(env.calls.filter(o => o.url.endsWith('/sign-url')).length, 0); assert.equal(env.modals.length, 0);
 });

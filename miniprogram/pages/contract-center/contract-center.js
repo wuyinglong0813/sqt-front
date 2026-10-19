@@ -62,6 +62,10 @@ Page({
       const statusText = { PENDING: '待签署', ACTIVE: '履约中', COMPLETED: '已结束', VOIDED: '已作废', REJECTED: '已拒绝', CANCELLED: '已撤回' };
       const nextContracts = (list || []).map(item => {
         const counterpartyName = item.viewerCounterpartyName || item.counterpartyName || '往来公司';
+        const signingText = item.status === 'PENDING' ? {
+          task_terminated: '签署已终止', expired: '签署已过期', task_expired: '签署已过期',
+          task_finished: '签署结果确认中', sign_completed: '签署结果确认中'
+        }[String(item.signingStatus || '').toLowerCase()] : '';
         return {
           ...item,
           counterpartyName,
@@ -72,7 +76,7 @@ Page({
           amount: Number(item.amount || 0),
           amountText: Number(item.amount || 0).toFixed(2),
           salesAmountText: Number(item.salesAmount || 0).toFixed(2),
-          statusText: statusText[item.status] || item.status,
+          statusText: item.statusText || signingText || statusText[item.status] || item.status,
           createdDate: formatDateTime(item.createdAt)
         };
       });

@@ -1,6 +1,7 @@
 const { request } = require('../../utils/request');
 const { readDraft, clearDraft, discardDraft } = require('../../utils/companyOnboarding');
 const { captureCompanyContext, isCompanyContextCurrent } = require('../../utils/companyContext');
+const { serviceRecovery, serviceRecoveryUrl } = require('../../utils/signingContinuation');
 const dict = require('../../utils/dict');
 const { setTabBarHidden, syncTabBar } = require('../../utils/tabBar');
 const app = getApp();
@@ -28,6 +29,8 @@ function maskCreditCode(code) {
 Page({
   data: {
     isLoggedIn: false,
+    isDesktopWechat: false,
+    serviceRecoveryAvailable: false,
     hasCompany: false,
     company: {},
     companyAbbr: '企业',
@@ -60,7 +63,9 @@ Page({
   onShow() {
     syncTabBar(this, 1);
     const loggedIn = !!(app.globalData.token || wx.getStorageSync('tradepass_token'));
-    this.setData({ isLoggedIn: loggedIn });
+    this.setData({ isLoggedIn: loggedIn, isDesktopWechat: !!app.globalData.isDesktopWechat });
+    const recovery = serviceRecovery(app);
+    this.setData({ serviceRecoveryAvailable: !!(recovery && recovery.target.scene === 'member') });
     if (!loggedIn) return;
     this.loadData();
   },
@@ -314,6 +319,19 @@ Page({
   },
   goPhoneLogin() { wx.navigateTo({ url: '/pages/login/login' }); },
   goCert() { wx.navigateTo({ url: '/pages/company-cert/company-cert' }); },
+  goSigningMembers() {
+    if (!this.data.currentCompanyId) return;
+    wx.navigateTo({ url: `/pages/fadada-auth/fadada-auth?scene=member&companyId=${encodeURIComponent(this.data.currentCompanyId)}` });
+  },
+  renewServiceLink() {
+    const recovery = serviceRecovery(app);
+    if (!recovery || recovery.target.scene !== 'member') return;
+    wx.navigateTo({ url: serviceRecoveryUrl(app) });
+  },
+  goSigningOrganization() {
+    if (!this.data.currentCompanyId || !this.data.canManage || !app.globalData.isDesktopWechat) return;
+    wx.navigateTo({ url: `/pages/fadada-auth/fadada-auth?scene=organization&companyId=${encodeURIComponent(this.data.currentCompanyId)}` });
+  },
   goLegalVerification() {
     if (!this.data.canVerifyLegal || !this.data.currentCompanyId) return;
     wx.navigateTo({ url: `/pages/legal-representative/legal-representative?companyId=${encodeURIComponent(this.data.currentCompanyId)}` });

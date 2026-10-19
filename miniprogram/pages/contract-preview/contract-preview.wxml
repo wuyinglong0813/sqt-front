@@ -22,9 +22,10 @@
     <view class="memo-summary-arrow">›</view>
   </view>
 
-  <view class="contract-manage-actions" wx:if="{{canSignContract || canCancelContract || canEditContract || canDeleteContract || canRequestEnd || canRequestVoid || canResumeContract || (activeContractAction && activeContractAction.bizType === 'CONTRACT')}}">
+  <view class="contract-manage-actions" wx:if="{{canSignContract || canCancelContract || canEditContract || canDeleteContract || canRequestEnd || canRequestVoid || canResumeContract || canManageContractSeal || (activeContractAction && activeContractAction.bizType === 'CONTRACT')}}">
     <button class="contract-manage-button primary" wx:if="{{canSignContract}}" disabled="{{contractActionLoading}}" bindtap="signContract">{{signButtonText}}</button>
     <button class="contract-manage-button ghost" wx:if="{{canCancelContract}}" loading="{{contractActionLoading}}" disabled="{{contractActionLoading}}" bindtap="cancelContract">撤回审批</button>
+    <button class="contract-manage-button ghost" wx:if="{{canManageContractSeal}}" bindtap="openContractSealAuthorization">本合同用印授权</button>
     <button class="contract-manage-button primary" wx:if="{{canEditContract}}" disabled="{{contractActionLoading}}" bindtap="editContract">修改并重新发起</button>
     <button class="contract-manage-button danger" wx:if="{{canDeleteContract}}" loading="{{contractActionLoading}}" disabled="{{contractActionLoading}}" bindtap="deleteContract">删除合同</button>
     <button class="contract-manage-button ghost" wx:if="{{canRequestEnd}}" loading="{{contractActionLoading}}" disabled="{{contractActionLoading}}" bindtap="requestContractEnd">申请结束</button>
@@ -35,9 +36,14 @@
     <button class="contract-manage-button danger" wx:if="{{activeContractAction && activeContractAction.bizType === 'CONTRACT' && activeContractAction.canReview}}" data-decision="APPROVE" bindtap="reviewContractAction">确认{{activeContractAction.actionText}}</button>
   </view>
 
+  <view class="contract-lock-notice" wx:if="{{serviceRecoveryAvailable}}">
+    <view>签署服务页提示链接失效时，请返回这里重新获取链接；正在刷脸时可先完成当前核验。</view>
+    <button class="contract-manage-button ghost" bindtap="renewServiceLink">重新获取链接</button>
+  </view>
+
   <view class="contract-lock-notice" wx:if="{{signing && contract && contract.status === 'PENDING'}}">
     <view class="contract-lock-title">电子签署状态：{{signing.statusText}}</view>
-    <view>合同将在双方依次完成签署并归档后生效。</view>
+    <view>{{signingActionHint}}</view>
   </view>
   <view class="contract-lock-notice" wx:elif="{{signing && contract && contract.status === 'ACTIVE' && electronicAbolishing}}">
     <view class="contract-lock-title">{{signing.statusText || '合同作废签署中'}}</view>
@@ -114,7 +120,7 @@
             <view>日期：{{pdfDate}}</view>
           </view>
         </view>
-        <view class="pdf-section-line">一、{{contractTableTitle}}</view>
+        <view class="pdf-section-line">{{contractTableTitle}}</view>
         <view class="pdf-mini-table" wx:if="{{contractTableColumns.length > 0}}">
           <view class="pdf-mini-row pdf-mini-header">
             <view wx:for="{{contractTableColumns}}" wx:for-item="column" wx:key="*this">{{column}}</view>

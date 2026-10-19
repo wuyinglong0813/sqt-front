@@ -69,6 +69,9 @@
       </view>
       <view class="manage-roles" bindtap="manageRoles">角色与权限 ›</view>
     </view>
+    <view class="member-signing-note" wx:if="{{canGrantSigning}}">{{contractId ? '本次将核验并授权这份合同实际使用的印章。' : ''}}用印授权在有效期内可复用。完成授权页操作后返回，再点“授权签署”核验结果。</view>
+    <view class="manage-roles" wx:if="{{contractId}}" bindtap="returnToContract">返回原合同 ›</view>
+    <view class="member-signing-note" wx:if="{{serviceRecoveryAvailable && canGrantSigning}}">服务页提示链接已失效时，可返回这里办理。<text class="member-role-action" bindtap="renewServiceLink">重新获取链接 ›</text></view>
 
     <view class="member-skeleton" wx:if="{{loading && authorizations.length === 0}}">
       <view class="skeleton-avatar"></view>
@@ -104,6 +107,8 @@
       <view class="member-footer" wx:if="{{item.status === 'ACTIVE'}}">
         <view class="member-permissions">
           <view class="member-role-action" wx:if="{{item.status === 'ACTIVE' && item.roleCode !== 'LEGAL'}}" data-id="{{item.id}}" data-name="{{item.memberName}}" bindtap="showApproveModal">调整角色与权限 ›</view>
+          <view class="member-role-action" wx:if="{{item.canAuthorizeSigning && canGrantSigning}}" data-user-id="{{item.userId}}" bindtap="grantSigning">授权签署 ›</view>
+          <view class="signing-permission-hint" wx:elif="{{item.canAuthorizeSigning}}">请印章管理员授权</view>
         </view>
         <view
           wx:if="{{item.canRemove}}"
