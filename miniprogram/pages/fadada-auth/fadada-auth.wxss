@@ -8,4 +8,7 @@ page { background: #f4f8fd; }
 .primary-button { background: linear-gradient(90deg,#45a8ff,#2788ec); border-radius: 24rpx; color: #fff; font-size: 26rpx; height: 86rpx; line-height: 86rpx; margin-top: 40rpx; width: 100%; }
 .primary-button::after { border: none; }
 .back-link { color: #66809b; font-size: 24rpx; margin-top: 30rpx; padding: 12rpx; }
+.preparation-page { padding-top: 130rpx; }
+.preparation-page .state-desc { color: #61758b; font-size: 25rpx; line-height: 1.8; margin-top: 24rpx; }
+.preparation-page .back-link { margin-top: 18rpx; }
 @keyframes spin { to { transform: rotate(360deg); } }

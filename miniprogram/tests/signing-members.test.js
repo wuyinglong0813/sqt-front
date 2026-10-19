@@ -15,6 +15,7 @@ function harness(handler = async () => ({ url: 'https://example.test/members' })
   let timerId = 0;
   const wx = {
     navigateTo: options => navigation.push(options.url),
+    redirectTo: options => navigation.push(options.url),
     switchTab: options => navigation.push(options.url),
     navigateBack: () => navigation.push('back'),
     showToast: options => toasts.push(options),
@@ -255,16 +256,16 @@ test('legacy VERIFIED polling cannot close supplementary consent before organiza
   const p = h.page('pages/fadada-auth/fadada-auth.js'); p._visible = true;
   p.data.scene = 'company'; p.data.options = { companyId: '3', renewOrganization: '1' };
   await p.prepareService();
-  assert.equal(p.pollTimer, null);
+  assert.ok(p.pollTimer);
   await p.pollStatus();
   p.onHide(); p.onShow();
   await p.pollStatus();
-  assert.equal(p.pollTimer, null);
+  assert.ok(p.pollTimer);
   assert.equal(p.data.serviceUrl, 'https://example.test/add-organization');
-  assert.deepEqual(h.requests.map(options => options.url), ['/fadada/companies/3/auth-url']);
+  assert.deepEqual(h.requests.map(options => options.url), ['/fadada/companies/3/auth-url', '/fadada/companies/3/identity/sync']);
   assert.equal(h.navigation.length, 0);
   p.checkResult();
-  assert.deepEqual(h.navigation, ['/pages/company/company']);
+  assert.match(h.navigation[0], /service-return.*scene=company&renewOrganization=1&companyId=3/);
   p.onUnload();
 });
 

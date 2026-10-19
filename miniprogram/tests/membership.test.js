@@ -10,7 +10,7 @@ const presentation = require('../utils/membership');
 function fixture(handler, confirm = true) {
   const app = { globalData: { token: 'token', currentCompanyId: 'A' } };
   const calls = [], modals = [];
-  const wx = { showModal(o) { modals.push(o); o.success({ confirm }); }, setNavigationBarTitle() {},
+  const wx = { showModal(o) { modals.push(o); o.success({ confirm: o.title === '认证与签署信息处理提示' || confirm }); }, setNavigationBarTitle() {},
     requirePrivacyAuthorize: o => o.success() };
   const page = file => {
     let definition;
@@ -56,7 +56,7 @@ test('cancelled signature confirmation never creates a provider task', async () 
   await page.prepareService();
   assert.equal(env.calls.filter(o => o.url.endsWith('/signing/quote')).length, 1);
   assert.equal(env.calls.filter(o => o.url.endsWith('/sign-url')).length, 0);
-  assert.equal(env.modals.length, 1);
+  assert.equal(env.modals.filter(o => o.title === '确认发起电子签').length, 1);
   assert.match(page.data.errorMessage, /取消/);
 });
 test('blocked enterprise cannot call sign-url even if user tries the signing page', async () => {
@@ -65,7 +65,8 @@ test('blocked enterprise cannot call sign-url even if user tries the signing pag
   page.data.scene = 'contract'; page.data.options = { contractId: '12' };
   await page.prepareService();
   assert.equal(env.calls.filter(o => o.url.endsWith('/signing/quote')).length, 1);
-  assert.equal(env.calls.filter(o => o.url.endsWith('/sign-url')).length, 0); assert.equal(env.modals.length, 0);
+  assert.equal(env.calls.filter(o => o.url.endsWith('/sign-url')).length, 0);
+  assert.equal(env.modals.filter(o => o.title === '确认发起电子签').length, 0);
   assert.match(page.data.errorMessage, /暂停/);
 });
 test('recipient and existing tasks skip debit confirmation and continue signing', async () => {
@@ -80,7 +81,8 @@ test('recipient and existing tasks skip debit confirmation and continue signing'
   assert.equal(page.data.serviceUrl, 'https://example.test/sign');
 });
 test('switching companies while confirming cannot issue sign-url for the new company', async () => {
-  const env = fixture(async () => {
+  const env = fixture(async options => {
+    if (options.url.endsWith('/prerequisites')) return { status: 'READY' };
     env.app.globalData.currentCompanyId = 'B';
     return { canSign: true, newTask: true, message: '使用额度' };
   });
@@ -88,5 +90,6 @@ test('switching companies while confirming cannot issue sign-url for the new com
   page.data.scene = 'contract'; page.data.options = { contractId: '12' };
   await page.prepareService();
   assert.equal(env.calls.filter(o => o.url.endsWith('/signing/quote')).length, 1);
-  assert.equal(env.calls.filter(o => o.url.endsWith('/sign-url')).length, 0); assert.equal(env.modals.length, 0);
+  assert.equal(env.calls.filter(o => o.url.endsWith('/sign-url')).length, 0);
+  assert.equal(env.modals.filter(o => o.title === '确认发起电子签').length, 0);
 });

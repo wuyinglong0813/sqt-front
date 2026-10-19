@@ -7,13 +7,13 @@ const vm = require('node:vm');
 const continuation = require('../utils/signingContinuation');
 
 function harness(handler) {
-  const requests = [], navigation = [], timers = new Map();
+  const requests = [], navigation = [], modals = [], timers = new Map();
   let now = 100000, timerId = 0, stack = [];
   const app = { globalData: { token: 'session', currentCompanyId: '3', userInfo: { id: '7', phone: '13800000000' },
     memberInfo: { permissions: ['all'] } }, getCurrentCompanyId: () => app.globalData.currentCompanyId,
     ensureSessionReady: async () => {} };
   const wx = { setNavigationBarTitle() {}, showToast() {},
-    showModal: o => o.success({ confirm: true }),
+    showModal: o => { modals.push(o); o.success({ confirm: true }); },
     navigateTo: o => { navigation.push(o.url); if (o.success) o.success(); },
     redirectTo: o => { navigation.push(o.url); if (o.success) o.success(); },
     switchTab: o => navigation.push(o.url), navigateBack: () => navigation.push('back') };
@@ -38,8 +38,179 @@ function harness(handler) {
     value.route = `pages/${name}/${name}`; value._visible = true; value._sessionToken = app.globalData.token;
     return value;
   }
-  return { page, app, wx, requests, navigation, timers, advance: ms => { now += ms; }, stack: values => { stack = values; } };
+  return { page, app, wx, requests, navigation, modals, timers, advance: ms => { now += ms; }, stack: values => { stack = values; } };
 }
+
+function preparationHarness(code) {
+  return harness(async o => {
+    if (o.url === '/fadada/users/me/identity') return { status: 'VERIFIED' };
+    if (o.url.endsWith('/prerequisites')) {
+      if (code) throw Object.assign(new Error('需要完成签署准备'), { code });
+      return { status: 'READY' };
+    }
+    if (o.url.endsWith('/quote')) return { canSign: true, newTask: false };
+    if (o.url.endsWith('/sign-url')) return { url: 'https://provider.test/sign' };
+    throw Error('Unexpected endpoint: ' + o.url);
+  });
+}
+
+test('an existing enterprise missing organization consent gets one relevant action before any debit confirmation', async () => {
+  const h = preparationHarness(46101);
+  const p = h.page('fadada-auth'); p.data.scene = 'contract'; p.data.options = { contractId: '9007199254740993' };
+  await p.prepareService();
+  assert.equal(p.data.preparationAction, 'company');
+  assert.equal(p.data.preparationCanProceed, true);
+  assert.equal(p.data.canRecoverPersonalIdentity, false);
+  assert.equal(h.requests.some(o => /quote|sign-url/.test(o.url)), false);
+  assert.equal(h.modals.some(o => o.title === '确认发起电子签'), false);
+  p.continueSigningPreparation(); p.continueSigningPreparation();
+  assert.equal(h.navigation.length, 1);
+  const target = new URL('https://app.test' + h.navigation[0]).searchParams;
+  assert.equal(target.get('scene'), 'company');
+  assert.equal(target.get('companyId'), '3');
+  assert.equal(target.get('renewOrganization'), '1');
+  assert.equal(continuation.signingContinuation(h.app, target.get('continuationId')).target.contractId, '9007199254740993');
+});
+
+test('ordinary members keep their contract and recheck after administrator authorization without opening management', async () => {
+  const h = preparationHarness(46101); h.app.globalData.memberInfo.permissions = ['contract_sign'];
+  const p = h.page('fadada-auth'); p.data.scene = 'contract'; p.data.options = { contractId: '12' };
+  await p.prepareService();
+  assert.equal(p.data.preparationCanProceed, false);
+  await p.continueSigningPreparation();
+  assert.equal(h.navigation.length, 0);
+  assert.equal(h.requests.some(o => o.url.endsWith('/auth-url')), false);
+  assert.equal(p.data.options.contractId, '12');
+});
+
+test('a parent rechecks and continues the same contract after returning from an enterprise prerequisite', async () => {
+  const h = preparationHarness();
+  const p = h.page('fadada-auth'); p.data.scene = 'contract'; p.data.options = { contractId: '12' };
+  p.showServiceError({ code: 46101 }); p.continueSigningPreparation();
+  p.onHide(); await p.onShow();
+  assert.equal(p.data.serviceUrl, 'https://provider.test/sign');
+  assert.equal(h.app._signingIdentityContinuation, undefined);
+  assert.equal(h.requests.filter(o => o.url.endsWith('/sign-url')).length, 1);
+  assert.equal(h.navigation.length, 1);
+});
+
+test('a switch away and back invalidates the parent before it can resume a prerequisite', async () => {
+  const h = preparationHarness();
+  const p = h.page('fadada-auth'); p.data.scene = 'contract'; p.data.options = { contractId: '12' };
+  p.showServiceError({ code: 46101 }); p.continueSigningPreparation(); p.onHide();
+  h.app._companyAccessGeneration = 2;
+  await p.onShow();
+  assert.equal(h.requests.length, 0);
+  assert.match(p.data.errorMessage, /登录或企业已变化/);
+});
+
+test('a signing manager authorizes their own user against the original contract seal', () => {
+  const h = preparationHarness();
+  const p = h.page('fadada-auth'); p.data.scene = 'contract'; p.data.options = { contractId: '9007199254740993' };
+  p.showServiceError({ code: 46104 }); p.continueSigningPreparation();
+  const query = new URL('https://app.test' + h.navigation[0]).searchParams;
+  assert.equal(query.get('scene'), 'sealGrant');
+  assert.equal(query.get('userId'), '7');
+  assert.equal(query.get('contractId'), '9007199254740993');
+  assert.equal(query.has('sealId'), false);
+});
+
+test('the activation child restores its original operation as soon as activated membership is proven', async () => {
+  const h = harness(async () => ({ status: 'READY' }));
+  const id = continuation.createSigningContinuation(h.app, 'abolish', { contractId: '12', reason: '双方协商 & 退货' });
+  const p = h.page('fadada-auth'); p.data.scene = 'member'; p.data.options = { companyId: '3', continuationId: id };
+  await p.loadServiceUrl();
+  assert.equal(p.data.serviceResultReady, false);
+  assert.match(h.navigation[0], /scene=abolish&contractId=12&reason=/);
+  assert.equal(new URL('https://app.test' + h.navigation[0]).searchParams.get('reason'), '双方协商 & 退货');
+});
+
+test('nested personal certification keeps the original contract nonce on native return to the activation child', async () => {
+  const h = harness(async () => ({ status: 'NOT_STARTED' }));
+  const id = continuation.createSigningContinuation(h.app, 'contract', { contractId: '12' });
+  const p = h.page('fadada-auth'); p.data.scene = 'member'; p.data.options = { companyId: '3', continuationId: id };
+  p.continuePersonalIdentity(); p.onHide(); await p.onShow();
+  assert.ok(continuation.signingContinuation(h.app, id));
+  p.continuePersonalIdentity();
+  assert.equal(h.navigation.length, 2);
+  assert.equal(new URL('https://app.test' + h.navigation[1]).searchParams.get('continuationId'), id);
+});
+
+test('a no-URL enterprise authorization requirement is never presented as successful certification', async () => {
+  const h = harness(async () => ({ status: 'AUTHORIZATION_REQUIRED', scene: 'company' }));
+  const p = h.page('fadada-auth'); p.data.scene = 'company'; p.data.options = { companyId: '3' };
+  await p.loadServiceUrl();
+  assert.equal(h.navigation.length, 0);
+  assert.equal(p.data.preparationAction, 'company');
+  assert.equal(p.data.options.renewOrganization, '1');
+  const before = h.requests.length;
+  p.recheckSigningPreparation();
+  assert.equal(h.requests.length, before);
+  assert.match(h.navigation[0], /service-return.*renewOrganization=1/);
+});
+
+test('network failures keep a retry action instead of claiming that authorization is missing', async () => {
+  const h = harness(async o => {
+    if (o.url === '/fadada/users/me/identity') return { status: 'VERIFIED' };
+    throw Error('网络连接超时');
+  });
+  const p = h.page('fadada-auth'); p.data.scene = 'contract'; p.data.options = { contractId: '12' };
+  await p.prepareService();
+  assert.equal(p.data.preparationAction, '');
+  assert.equal(p.data.canRecoverPersonalIdentity, false);
+  assert.match(p.data.errorMessage, /网络连接超时/);
+  assert.equal(h.navigation.length, 0);
+});
+
+test('supplementary polling waits for explicit organization authorization before continuing', async () => {
+  let granted = false;
+  const h = harness(async o => o.url.endsWith('/auth-url') ? { url: 'https://provider.test/organization' }
+    : { status: 'VERIFIED', organizationAuthorized: granted });
+  const id = continuation.createSigningContinuation(h.app, 'contract', { contractId: '12' });
+  const p = h.page('fadada-auth'); p.data.scene = 'company';
+  p.data.options = { companyId: '3', renewOrganization: '1', continuationId: id };
+  await p.prepareService(); await p.pollStatus();
+  assert.equal(h.navigation.length, 0);
+  assert.equal(p.data.serviceUrl, 'https://provider.test/organization');
+  granted = true; h.advance(30001); await p.pollStatus();
+  assert.match(h.navigation[0], /service-return.*renewOrganization=1/);
+  assert.equal(new URL('https://app.test' + h.navigation[0]).searchParams.get('continuationId'), id);
+  assert.equal(h.requests.filter(o => o.url.endsWith('/auth-url')).length, 1);
+});
+
+test('a failed nested prerequisite navigation preserves its original contract continuation for retry', () => {
+  const h = harness(async () => ({ status: 'READY' }));
+  const id = continuation.createSigningContinuation(h.app, 'contract', { contractId: '12' });
+  const p = h.page('fadada-auth'); p.data.scene = 'member'; p.data.options = { companyId: '3', continuationId: id };
+  h.wx.navigateTo = o => o.fail();
+  p.showServiceError({ code: 46101 }); p.continueSigningPreparation();
+  assert.ok(continuation.signingContinuation(h.app, id));
+  assert.equal(p._openingPrerequisite, false);
+});
+
+test('an in-flight abolished-contract response from a previous enterprise cannot open a signing URL', async () => {
+  let finish;
+  const h = harness(async o => {
+    if (o.url === '/fadada/users/me/identity') return { status: 'VERIFIED' };
+    return new Promise(resolve => { finish = resolve; });
+  });
+  const p = h.page('fadada-auth'); p.data.scene = 'abolish'; p.data.options = { contractId: '12', reason: '双方协商' };
+  const pending = p.prepareService();
+  while (!finish) await Promise.resolve();
+  h.app.globalData.currentCompanyId = '4'; finish({ url: 'https://provider.test/old-company' });
+  await pending;
+  assert.equal(p.data.serviceUrl, '');
+  assert.equal(h.navigation.length, 0);
+});
+
+test('a resumed abolish operation sends its literal percent and ampersand reason unchanged', async () => {
+  const h = harness(async () => ({ url: 'https://provider.test/abolish' }));
+  const p = h.page('fadada-auth'); p.data.scene = 'abolish';
+  p.data.options = { contractId: '12', reason: '双方协商退回 50% & 运费另结' };
+  await p.loadServiceUrl();
+  assert.equal(h.requests[0].data.reason, '双方协商退回 50% & 运费另结');
+  assert.equal(p.data.serviceUrl, 'https://provider.test/abolish');
+});
 
 for (const scene of ['contract', 'abolish', 'member']) {
   test(`${scene} completes the employee's personal prerequisite and resumes the exact original operation`, async () => {
@@ -145,6 +316,7 @@ for (const scene of ['member', 'sealGrant']) {
 test('an unused valid signing ticket is retained while a consumed ticket is fetched anew', async () => {
   let tickets = 0;
   const h = harness(async o => o.url === '/fadada/users/me/identity' ? { status: 'VERIFIED' }
+    : o.url.endsWith('/prerequisites') ? { status: 'READY' }
     : o.url.endsWith('/quote') ? { canSign: true, newTask: false }
       : { url: 'https://provider.test/sign?ticket=' + (++tickets) });
   const p = h.page('fadada-auth'); p.data.scene = 'contract'; p.data.options = { contractId: '12' };
@@ -159,6 +331,7 @@ test('an unused valid signing ticket is retained while a consumed ticket is fetc
 test('a valid face-return continuation is preserved instead of creating another signing URL', async () => {
   let tickets = 0;
   const h = harness(async o => o.url === '/fadada/users/me/identity' ? { status: 'VERIFIED' }
+    : o.url.endsWith('/prerequisites') ? { status: 'READY' }
     : o.url.endsWith('/quote') ? { canSign: true, newTask: false }
       : { url: 'https://provider.test/sign?ticket=' + (++tickets) });
   const p = h.page('fadada-auth'); p.data.scene = 'contract'; p.data.options = { contractId: '12' };

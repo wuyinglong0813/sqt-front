@@ -25,9 +25,14 @@
       </view>
     </view>
 
+    <view class="cert-card" wx:if="{{identity && identity.status === 'VERIFIED' && identity.organizationAuthorized !== true}}">
+      <view class="section-title">完善企业签署配置</view>
+      <view class="auth-help-text">企业认证已保留。补充成员授权后，系统会自动关联具备签署权限的已有员工，无需重新邀请。</view>
+      <button bindtap="renewOrganizationAuthorization">完成企业签署授权</button>
+    </view>
+
     <view class="btn-wrap">
       <button class="submit-btn" loading="{{loading}}" disabled="{{loading}}" bindtap="refreshStatus">刷新状态</button>
-      <button wx:if="{{identity && identity.status === 'VERIFIED'}}" bindtap="renewOrganizationAuthorization">补充电子签成员授权</button>
     </view>
 
     <view class="cert-card" wx:if="{{identity && identity.status !== 'VERIFIED'}}">

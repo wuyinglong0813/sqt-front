@@ -54,6 +54,7 @@ Page({
   },
 
   onShow() {
+    this._renewingOrganization = false;
     if (this._resumingClaim) return;
     if (this._awaitingPersonal) {
       this._awaitingPersonal = false;
@@ -267,8 +268,10 @@ Page({
   },
 
   renewOrganizationAuthorization() {
-    if (!this.data.companyId || !this.data.identity || !this.data.identity.enabled) return;
-    wx.navigateTo({ url: `/pages/fadada-auth/fadada-auth?scene=company&companyId=${encodeURIComponent(this.data.companyId)}&renewOrganization=1` });
+    if (this._renewingOrganization || !this.data.companyId || !this.data.identity || !this.data.identity.enabled) return;
+    this._renewingOrganization = true;
+    wx.navigateTo({ url: `/pages/fadada-auth/fadada-auth?scene=company&companyId=${encodeURIComponent(this.data.companyId)}&renewOrganization=1`,
+      fail: () => { this._renewingOrganization = false; } });
   },
 
   openService(scene, companyId) {
