@@ -376,6 +376,101 @@ test('already-authorized backend response opens result confirmation without a ne
   assert.equal(h.navigation[0], '/pages/service-return/service-return?scene=company&companyId=9');
 });
 
+test('reusable company authorization keeps missing applicant evidence in a native review state', async () => {
+  const message = '企业已有有效授权，尚需核对当前本人企业身份';
+  const h = harness(options => options.url.endsWith('/auth-url')
+    ? { url: null, scene: 'company', status: 'IDENTITY_VERIFICATION_REQUIRED' }
+    : { status: 'IN_PROGRESS', failureReason: message });
+  const p = h.page(authFile); p.data.scene = 'company'; p.data.options = { companyId: '9' };
+  await p.loadServiceUrl();
+  assert.equal(p.data.serviceUrl, '');
+  assert.equal(p.data.serviceResultReady, false);
+  assert.equal(p.data.preparationAction, 'identityReview');
+  assert.equal(p.data.preparationCanProceed, false);
+  assert.equal(p.data.preparationTitle, '企业已授权，待核对本人身份');
+  assert.equal(p.data.preparationMessage, message);
+  assert.equal(h.navigation.length, 0);
+  assert.equal(h.app.company, undefined);
+  assert.equal(h.timers.size, 0);
+  h.wx.navigateTo = options => h.navigation.push(options.url);
+  p.openIdentitySupport();
+  assert.deepEqual(h.navigation, ['/pages/help-center/help-center']);
+});
+
+test('first company onboarding checks reusable company consent before separate identity polling', async () => {
+  const h = harness(options => options.url.endsWith('/auth-url')
+    ? { url: null, scene: 'company', status: 'IDENTITY_VERIFICATION_REQUIRED' }
+    : { status: 'IN_PROGRESS', companyAuthorizationReady: false, failureReason: '企业已有有效授权，本人身份待核对' });
+  const p = h.page(authFile); p.data.scene = 'company';
+  p.data.options = { companyId: '9', onboarding: '1' };
+  await p.prepareService();
+  assert.deepEqual(h.calls.map(call => call.url), [
+    '/fadada/companies/9/auth-url', '/fadada/companies/9/identity'
+  ]);
+  assert.equal(p.data.preparationAction, 'identityReview');
+  assert.equal(p.data.serviceUrl, '');
+  assert.equal(h.app.company, undefined);
+  assert.equal(h.timers.size, 0);
+});
+
+test('first company onboarding reuses sufficient consent and applicant evidence without a provider page', async () => {
+  const h = harness(() => ({ url: null, status: 'VERIFIED' }));
+  const p = h.page(authFile); p.data.scene = 'company';
+  p.data.options = { companyId: '9', onboarding: '1' };
+  await p.prepareService();
+  assert.deepEqual(h.calls.map(call => call.url), ['/fadada/companies/9/auth-url']);
+  assert.deepEqual(h.navigation, ['/pages/service-return/service-return?scene=company&companyId=9']);
+  assert.equal(p.data.serviceUrl, '');
+  assert.equal(h.timers.size, 0);
+});
+
+test('a company identity detail outage cannot turn the review state into a new authorization page', async () => {
+  const h = harness(options => {
+    if (options.url.endsWith('/auth-url')) return { url: null, status: 'IDENTITY_VERIFICATION_REQUIRED' };
+    throw new Error('status temporarily unavailable');
+  });
+  const p = h.page(authFile); p.data.scene = 'company'; p.data.options = { companyId: '9' };
+  await p.loadServiceUrl();
+  assert.equal(p.data.preparationAction, 'identityReview');
+  assert.match(p.data.preparationMessage, /已有有效授权已确认/);
+  assert.equal(p.data.errorMessage, '');
+  assert.equal(p.data.serviceUrl, '');
+  assert.equal(h.navigation.length, 0);
+  assert.equal(h.calls.filter(call => call.url.endsWith('/auth-url')).length, 1);
+});
+
+test('an explicit identity recheck continues after the server confirms the applicant evidence', async () => {
+  let verified = false;
+  const h = harness(options => options.url.endsWith('/auth-url')
+    ? { url: null, status: 'IDENTITY_VERIFICATION_REQUIRED' }
+    : { status: verified ? 'VERIFIED' : 'IN_PROGRESS' });
+  const p = h.page(authFile); p.data.scene = 'company'; p.data.options = { companyId: '9' };
+  await p.loadServiceUrl();
+  verified = true;
+  await p.continueSigningPreparation();
+  assert.deepEqual(h.navigation, ['/pages/service-return/service-return?scene=company&companyId=9']);
+  assert.equal(h.calls.filter(call => call.url.endsWith('/auth-url')).length, 1);
+  assert.equal(h.timers.size, 0);
+});
+
+test('a session change while reading applicant evidence cannot expose the old review state', async () => {
+  let finish;
+  const h = harness(options => options.url.endsWith('/auth-url')
+    ? { url: null, status: 'IDENTITY_VERIFICATION_REQUIRED' }
+    : new Promise(resolve => { finish = resolve; }));
+  const p = h.page(authFile); p._sessionToken = 'session';
+  p.data.scene = 'company'; p.data.options = { companyId: '9' };
+  const pending = p.loadServiceUrl();
+  while (!finish) await Promise.resolve();
+  h.app.globalData.token = 'new-session';
+  finish({ status: 'IN_PROGRESS', failureReason: 'old company evidence' });
+  await pending;
+  assert.equal(p.data.preparationAction, '');
+  assert.equal(h.navigation.length, 0);
+  h.wx.navigateTo = () => assert.fail('a stale session cannot open the identity support action');
+  p.openIdentitySupport();
+});
+
 for (const sameSession of [true, false]) {
   test(`native personal redirect restores only the current session company flow: ${sameSession}`, async () => {
     const h = harness(() => ({ status: 'VERIFIED' })); const p = h.page(returnFile);

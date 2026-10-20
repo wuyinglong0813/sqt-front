@@ -172,6 +172,20 @@ Page({
       errorMessage: error.message || '签署状态暂未确认，请重新检查后继续', ...(view || {}) });
   },
 
+  showCompanyIdentityReview(identity = {}) {
+    this.pauseWebViewWatchdog();
+    this.stopStatusPolling();
+    this.setData({ loading: false, serviceUrl: '', errorMessage: '', serviceResultReady: false,
+      preparationAction: 'identityReview', preparationTitle: '企业已授权，待核对本人身份',
+      preparationMessage: identity.failureReason || '企业对商签通的已有有效授权已确认，尚需核对当前申请人本人的法人或经办依据。可联系平台支持补充核验，确认后重新核对。企业资料已保存。',
+      preparationActionText: '重新核对本人身份', preparationCanProceed: false });
+  },
+
+  openIdentitySupport() {
+    if (!this.isPageContextCurrent()) return;
+    wx.navigateTo({ url: '/pages/help-center/help-center' });
+  },
+
   continueSigningPreparation() {
     if (this._openingPrerequisite || !this.isPageContextCurrent()) return;
     const action = this.data.preparationAction;
@@ -309,7 +323,10 @@ Page({
           }
         }
       }
-      const result = this.supplementaryOrganizationScene() ? null : await this.readAuthStatus(true);
+      // First onboarding must let the server check reusable enterprise consent
+      // before asking the new applicant to enter the provider's grant flow.
+      const companyOnboarding = this.data.scene === 'company' && this.data.options.onboarding === '1';
+      const result = this.supplementaryOrganizationScene() || companyOnboarding ? null : await this.readAuthStatus(true);
       if (this._unloaded || token !== getApp().globalData.token
           || !isCompanyContextCurrent(getApp(), context)) return;
       if (result && (result.status === 'VERIFIED'
@@ -524,6 +541,24 @@ Page({
         this.setData({ options: { ...options, renewOrganization: '1' } });
         this.showServiceError({ code: 46101,
           message: '企业认证已保留，电子签成员授权尚未完成。请由企业电子签管理员继续办理授权。' });
+        return;
+      }
+      if (!serviceUrl && scene === 'company' && status === 'IDENTITY_VERIFICATION_REQUIRED') {
+        let identity = {};
+        try {
+          identity = await request({ url: `/fadada/companies/${options.companyId}/identity`,
+            withCompany: false, token, timeout: 15000 });
+        } catch (error) {
+          // The preflight already confirmed reusable company authorization.
+          // A failed detail read must not reopen the provider authorization page.
+        }
+        if (this._unloaded || token !== getApp().globalData.token
+            || !isCompanyContextCurrent(getApp(), context)) return;
+        if (identity && identity.status === 'VERIFIED') {
+          this.openReturnPage();
+          return;
+        }
+        this.showCompanyIdentityReview(identity || {});
         return;
       }
       if (!serviceUrl && status && ['personal', 'company', 'legal'].includes(scene)) {

@@ -26,6 +26,7 @@ Page({
     salesCount: 0,
     returnCount: 0,
     loading: false,
+    saving: false,
     emptyText: TYPE_META.SALES_ORDER.empty
   },
 
@@ -68,11 +69,73 @@ Page({
   },
 
   uploadSalesTemplate() {
-    this.chooseTemplateFile('SALES_ORDER');
+    this.showTemplateOptions('SALES_ORDER');
   },
 
   uploadReturnTemplate() {
-    this.chooseTemplateFile('RETURN_ORDER');
+    this.showTemplateOptions('RETURN_ORDER');
+  },
+
+  showTemplateOptions(documentType) {
+    if (this.data.loading || this.data.saving) return;
+    const meta = TYPE_META[documentType];
+    wx.showActionSheet({
+      itemList: [`使用标准${meta.label}模板（推荐）`, '上传自定义模板文件'],
+      success: result => {
+        if (result.tapIndex === 0) this.restoreStandardTemplate(documentType);
+        if (result.tapIndex === 1) this.explainTemplateUpload(documentType);
+      }
+    });
+  },
+
+  restoreActiveTemplate() {
+    this.restoreStandardTemplate(this.data.activeType);
+  },
+
+  restoreStandardTemplate(documentType) {
+    if (this.data.loading || this.data.saving) return;
+    const meta = TYPE_META[documentType];
+    const templates = documentType === 'RETURN_ORDER' ? this.data.returnTemplates : this.data.salesTemplates;
+    const standardContent = JSON.stringify({ columns: meta.columns, blankRows: meta.blankRows });
+    const standardExists = templates.some(template => {
+      try {
+        const content = JSON.parse(template.content);
+        return template.name === `标准${meta.label}模板`
+          && JSON.stringify(content.columns) === JSON.stringify(meta.columns)
+          && content.blankRows === meta.blankRows;
+      } catch (error) {
+        return false;
+      }
+    });
+    if (standardExists) {
+      this.setData({ activeType: documentType, templates, emptyText: meta.empty });
+      wx.showToast({ title: '标准模板已在列表中', icon: 'none' });
+      return;
+    }
+    wx.showModal({
+      title: `使用标准${meta.label}模板`,
+      content: `无需准备或上传文件，即可添加标准版式。\n包含：${meta.columns.join('、')}。创建单据时会自动带入合同产品，提交前可修改。`,
+      confirmText: '使用模板',
+      success: result => {
+        if (result.confirm) this.saveTemplate({
+          documentType,
+          name: `标准${meta.label}模板`,
+          sourceFileName: '',
+          content: standardContent
+        }, true);
+      }
+    });
+  },
+
+  explainTemplateUpload(documentType) {
+    wx.showModal({
+      title: '上传自定义模板',
+      content: '仅支持商签通 JSON 模板文件，不能上传 Word、PDF、Excel 或单据照片。\n请先将已有模板文件发送到微信聊天，下一步从聊天中选择。没有模板文件时，取消后选择“使用标准模板”即可。',
+      confirmText: '选择文件',
+      success: result => {
+        if (result.confirm) this.chooseTemplateFile(documentType);
+      }
+    });
   },
 
   switchType(e) {
@@ -97,8 +160,12 @@ Page({
       success: async result => {
         const file = result.tempFiles && result.tempFiles[0];
         if (!file) return;
-        const content = await this.readTemplateContent(file.path, file.name, documentType);
-        this.confirmUpload(documentType, file.name, content);
+        try {
+          const content = await this.readTemplateContent(file.path, file.name);
+          this.confirmUpload(documentType, file.name, content);
+        } catch (error) {
+          wx.showModal({ title: '模板文件无法使用', content: error.message, showCancel: false });
+        }
       },
       fail: error => {
         if (error && error.errMsg && !error.errMsg.includes('cancel')) {
@@ -108,32 +175,27 @@ Page({
     }));
   },
 
-  readTemplateContent(filePath, fileName, documentType) {
-    const defaults = TYPE_META[documentType];
-    const defaultContent = JSON.stringify({
-      columns: defaults.columns,
-      blankRows: defaults.blankRows
-    });
+  readTemplateContent(filePath, fileName) {
     if (!String(fileName || '').toLowerCase().endsWith('.json')) {
-      return Promise.resolve(defaultContent);
+      return Promise.reject(new Error('请选择 JSON 模板文件。没有文件时，可返回使用标准模板。'));
     }
-    return new Promise(resolve => {
+    return new Promise((resolve, reject) => {
       wx.getFileSystemManager().readFile({
         filePath,
         encoding: 'utf8',
         success: result => {
           try {
             const parsed = JSON.parse(result.data);
-            if (!Array.isArray(parsed.columns) || parsed.columns.length === 0) {
+            if (!parsed || !Array.isArray(parsed.columns) || parsed.columns.length === 0
+                || parsed.columns.some(column => typeof column !== 'string' || !column.trim())) {
               throw new Error('invalid');
             }
             resolve(JSON.stringify(parsed));
           } catch (error) {
-            wx.showToast({ title: 'JSON格式无效，已采用标准版式', icon: 'none' });
-            resolve(defaultContent);
+            reject(new Error('文件不是有效的单据模板，请联系模板提供者检查文件，或返回使用标准模板。'));
           }
         },
-        fail: () => resolve(defaultContent)
+        fail: () => reject(new Error('无法读取模板文件，请重新选择，或返回使用标准模板。'))
       });
     });
   },
@@ -160,25 +222,37 @@ Page({
     });
   },
 
-  async saveTemplate(payload) {
+  async saveTemplate(payload, isStandard = false) {
+    if (this.data.saving) return;
+    this.setData({ saving: true });
     try {
-      wx.showLoading({ title: '上传中...' });
+      wx.showLoading({ title: isStandard ? '添加中...' : '上传中...', mask: true });
       await request({ url: '/document-templates', method: 'POST', data: payload });
       this.setData({ activeType: payload.documentType });
       await this.loadTemplates();
-      wx.showToast({ title: '模板已上传', icon: 'success' });
+      wx.showToast({ title: isStandard ? '标准模板已添加' : '模板已上传', icon: 'success' });
     } catch (error) {
-      wx.showToast({ title: error.message || '上传失败', icon: 'none' });
+      wx.showToast({ title: error.message || (isStandard ? '模板添加失败' : '上传失败'), icon: 'none' });
     } finally {
       wx.hideLoading();
+      this.setData({ saving: false });
     }
   },
 
   deleteTemplate(e) {
+    if (this.data.loading || this.data.saving) return;
     const template = e.currentTarget.dataset.template;
+    const documentType = template.documentType || this.data.activeType;
+    const meta = TYPE_META[documentType];
+    const templates = documentType === 'RETURN_ORDER' ? this.data.returnTemplates : this.data.salesTemplates;
+    const lastTemplateNotice = templates.length === 1
+      ? `\n这是最后一个${meta.label}模板。删除后需重新添加；可恢复标准版式，自定义内容无法恢复。`
+      : '\n自定义内容删除后无法恢复。';
     wx.showModal({
       title: '删除单据模板',
-      content: `确定删除“${template.name}”吗？`,
+      content: `确定删除“${template.name}”吗？${lastTemplateNotice}\n已生成的单据不受影响。`,
+      confirmText: '确认删除',
+      confirmColor: '#d94a4a',
       success: async result => {
         if (!result.confirm) return;
         try {

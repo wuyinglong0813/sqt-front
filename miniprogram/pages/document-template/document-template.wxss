@@ -51,5 +51,9 @@ page { background: #f4f8fd; }
 .empty { align-items: center; display: flex; flex-direction: column; padding: 86rpx 24rpx 50rpx; }
 .empty image { height: 110rpx; opacity: .72; width: 110rpx; }
 .empty-title { color: #445469; font-size: 28rpx; font-weight: 600; margin-top: 18rpx; }
-.empty-desc { color: #9aa6b4; font-size: 22rpx; margin-top: 8rpx; }
+.empty-desc { color: #7e8b9b; font-size: 22rpx; line-height: 1.6; margin-top: 8rpx; text-align: center; }
+.restore-btn { background: #3498ff; border-radius: 18rpx; color: #fff; font-size: 26rpx; margin: 28rpx 0 0; padding: 0 28rpx; }
+.restore-btn::after { border: 0; }
+.empty-note { color: #9aa6b4; font-size: 21rpx; margin-top: 16rpx; }
+.standard-link { color: #2382e9; font-size: 24rpx; padding: 12rpx 24rpx; text-align: center; }
 .page-end { color: #9aa6b4; font-size: 20rpx; padding: 30rpx 0; text-align: center; }

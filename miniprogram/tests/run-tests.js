@@ -2028,7 +2028,7 @@ test('personal verification returns to the original company draft and continues 
     assert.ok(calls.every(call => call.header['X-Company-Id'] === undefined));
     assert.strictEqual(company.data.companyId, '9007199254740993');
     assert.strictEqual(draft.readDraft(), null);
-    assert.strictEqual(navigations.at(-1), '/pages/fadada-auth/fadada-auth?scene=company&companyId=9007199254740993');
+    assert.strictEqual(navigations.at(-1), '/pages/fadada-auth/fadada-auth?scene=company&companyId=9007199254740993&onboarding=1');
   } finally { env.restore(); }
 });
 

@@ -78,34 +78,61 @@
     <view class="pdf-viewer" wx:else>
       <view class="pdf-state">
         <view class="pdf-state-dot {{(signedContractArchived && signedPreviewReady) || pdfReady ? 'ready' : ''}}"></view>
-        <text wx:if="{{signedContractArchived}}">{{signedPreviewLoading ? '正在读取真实签章页...' : (signedPreviewReady ? '真实签署归档' : '带电子印章的归档 PDF')}}</text>
+        <text wx:if="{{signedContractArchived}}">{{signedPreviewLoading ? '正在读取归档合同...' : (signedPreviewReady ? '真实签署归档' : '带电子印章的归档 PDF')}}</text>
         <text wx:else>{{pdfLoading ? '正在生成标准 PDF...' : (pdfReady ? 'PDF 已就绪' : 'A4 标准 PDF')}}</text>
       </view>
 
-      <view class="signed-preview-card" wx:if="{{signedContractArchived}}">
-        <view class="signed-preview-loading" wx:if="{{signedPreviewLoading}}">
+      <view class="signed-preview-group" wx:if="{{signedContractArchived}}">
+        <view class="signed-preview-summary" wx:if="{{signedPreviewPageCount > 0}}">
+          <text>归档合同 · 共 {{signedPreviewPageCount}} 页</text>
+          <text>{{signedPreviewReady ? '全部页面已展示' : '已展示 ' + signedPreviewLoadedCount + ' 页'}}</text>
+        </view>
+        <view class="signed-preview-card" wx:for="{{signedPreviewPages}}" wx:key="pageNumber">
+          <view class="signed-preview-page-number">第 {{item.pageNumber}} / {{signedPreviewPageCount}} 页</view>
+          <image
+            class="signed-preview-image"
+            wx:if="{{item.filePath && !item.error}}"
+            src="{{item.filePath}}"
+            mode="widthFix"
+            lazy-load="{{true}}"
+            data-page="{{item.pageNumber}}"
+            bindtap="openContractPdf"
+            binderror="onSignedPreviewError"
+          />
+          <view class="signed-preview-loading" wx:elif="{{item.loading}}">
+            <view class="signed-preview-spinner"></view>
+            <view class="signed-preview-loading-title">正在加载第 {{item.pageNumber}} 页</view>
+          </view>
+          <view class="signed-preview-error" wx:else>
+            <view class="signed-preview-error-title">第 {{item.pageNumber}} 页暂未显示</view>
+            <view class="signed-preview-error-desc">{{item.error || '可重新加载此页，或打开归档 PDF'}}</view>
+            <button wx:if="{{!signedPreviewVersionChanged}}" data-page="{{item.pageNumber}}" disabled="{{signedPreviewLoading}}" bindtap="retrySignedContractPreview">重新加载此页</button>
+          </view>
+        </view>
+        <view class="signed-preview-loading signed-preview-card" wx:if="{{signedPreviewLoading && signedPreviewPages.length === 0}}">
           <view class="signed-preview-spinner"></view>
-          <view class="signed-preview-loading-title">正在加载归档合同签章页</view>
+          <view class="signed-preview-loading-title">正在加载归档合同</view>
           <view class="signed-preview-loading-desc">展示内容与签署完成后的归档 PDF 一致</view>
         </view>
         <image
           class="signed-preview-image"
-          wx:elif="{{signedPreviewReady && signedPreviewFilePath}}"
+          wx:elif="{{signedPreviewLegacy && signedPreviewFilePath}}"
           src="{{signedPreviewFilePath}}"
           mode="widthFix"
           bindtap="openContractPdf"
           binderror="onSignedPreviewError"
         />
-        <view class="signed-preview-error" wx:else>
+        <view class="signed-preview-error signed-preview-card" wx:elif="{{signedPreviewPages.length === 0}}">
           <view class="signed-preview-error-icon">章</view>
-          <view class="signed-preview-error-title">真实签章页暂未显示</view>
-          <view class="signed-preview-error-desc">{{signedPreviewError || '可重新加载，或直接打开归档 PDF 查看双方电子印章'}}</view>
-          <button bindtap="retrySignedContractPreview">重新加载签章页</button>
+          <view class="signed-preview-error-title">归档合同暂未显示</view>
+          <view class="signed-preview-error-desc">{{signedPreviewError || '可重新加载，或直接打开归档 PDF 查看完整合同'}}</view>
+          <button bindtap="retrySignedContractPreview">重新加载合同</button>
         </view>
-        <view class="signed-preview-caption" wx:if="{{signedPreviewReady}}">
+        <view class="signed-preview-caption" wx:if="{{signedPreviewLoadedCount > 0 || signedPreviewLegacy}}">
           <view class="signed-preview-verified">✓ 真实签署文件</view>
-          <view>当前展示归档 PDF 的签章页，点击可打开完整合同</view>
+          <view>{{signedPreviewLegacy ? '当前仅展示签章页，请点击查看 PDF 阅读完整合同' : (signedPreviewReady ? '全部页面按原文顺序展示，点击可打开 PDF' : '请等待其余页面加载，失败页面可单独重试')}}</view>
         </view>
+        <button class="signed-preview-reload" wx:if="{{signedPreviewPages.length > 0 && !signedPreviewLoading && !signedPreviewReady}}" bindtap="retrySignedContractPreview">重新加载全部页面</button>
       </view>
 
       <view class="pdf-paper" wx:else bindtap="openContractPdf">
@@ -170,7 +197,7 @@
         <button class="pdf-button primary" loading="{{pdfLoading}}" disabled="{{pdfLoading}}" bindtap="openContractPdf">查看 PDF</button>
         <button class="pdf-button secondary" loading="{{pdfLoading}}" disabled="{{pdfLoading}}" bindtap="downloadContractPdf">下载 PDF</button>
       </view>
-      <view class="pdf-tip">{{signedContractArchived ? '页面直接展示真实归档合同的签章页；打开 PDF 后可查看全部页面并保存或转发。' : '双方完成电子签署后，这里将展示归档合同中的真实电子印章。'}}</view>
+      <view class="pdf-tip">{{signedContractArchived ? (signedPreviewLegacy ? '完整合同请通过“查看 PDF”打开，也可保存或转发。' : '页面按顺序展示真实归档合同的全部页面；打开 PDF 可保存或转发。') : '双方完成电子签署后，这里将展示归档合同中的真实电子印章。'}}</view>
 
     </view>
   </block>

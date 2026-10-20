@@ -277,8 +277,12 @@ Page({
   openService(scene, companyId) {
     if (scene === 'company') this._awaitingCompanyAuth = true;
     wx.navigateTo({
-      url: `/pages/fadada-auth/fadada-auth?scene=${scene}&companyId=${companyId}`
+      url: `/pages/fadada-auth/fadada-auth?scene=${scene}&companyId=${companyId}${scene === 'company' ? '&onboarding=1' : ''}`
     });
+  },
+
+  openIdentitySupport() {
+    if (!this._unloaded) wx.navigateTo({ url: '/pages/help-center/help-center' });
   },
 
   refreshStatus() {

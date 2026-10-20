@@ -3,8 +3,8 @@
     <view class="hero-title">交易单据模板</view>
     <view class="hero-desc">合同、销售单和退货单统一使用企业模板</view>
     <view class="upload-grid">
-      <button class="upload-btn primary" bindtap="uploadSalesTemplate">＋ 上传销售单模板</button>
-      <button class="upload-btn secondary" bindtap="uploadReturnTemplate">＋ 上传退货单模板</button>
+      <button class="upload-btn primary" disabled="{{loading || saving}}" bindtap="uploadSalesTemplate">＋ 添加销售单模板</button>
+      <button class="upload-btn secondary" disabled="{{loading || saving}}" bindtap="uploadReturnTemplate">＋ 添加退货单模板</button>
     </view>
   </view>
 
@@ -16,14 +16,16 @@
 
   <view class="format-tip">
     <view class="tip-dot"></view>
-    <view>上传 JSON 模板定义单据列和空白行；创建时会自动带入合同产品，并允许提交前修改。</view>
+    <view>无需准备文件，可直接使用标准模板。误删后可一键恢复标准版式；创建单据时自动带入合同产品，提交前可修改。</view>
   </view>
 
   <view class="loading" wx:if="{{loading && templates.length === 0}}">加载中...</view>
   <view class="empty" wx:elif="{{templates.length === 0}}">
     <image src="/images/icons/template.svg" mode="aspectFit"/>
     <view class="empty-title">{{emptyText}}</view>
-    <view class="empty-desc">点击上方对应按钮上传模板</view>
+    <view class="empty-desc">模板误删或首次使用？无需上传文件即可恢复标准版式</view>
+    <button class="restore-btn" loading="{{saving}}" disabled="{{saving}}" bindtap="restoreActiveTemplate">一键恢复标准{{activeType === 'RETURN_ORDER' ? '退货单' : '销售单'}}模板</button>
+    <view class="empty-note">自定义模板删除后需重新上传原文件</view>
   </view>
 
   <view class="template-list" wx:else>
@@ -38,5 +40,6 @@
     </view>
   </view>
 
+  <view class="standard-link" wx:if="{{!loading && templates.length > 0}}" bindtap="restoreActiveTemplate">使用标准{{activeType === 'RETURN_ORDER' ? '退货单' : '销售单'}}模板</view>
   <view class="page-end">生成单据时可选择合同默认模板或企业模板</view>
 </view>

@@ -773,14 +773,31 @@ page { background: #f4f8fd; }
 
 .pdf-state-dot.ready { background: #16a46d; }
 
+.signed-preview-summary {
+  color: #617386;
+  display: flex;
+  font-size: 22rpx;
+  justify-content: space-between;
+  line-height: 1.5;
+  margin: 0 0 14rpx;
+}
+
 .signed-preview-card {
   background: #fff;
   border-radius: 8rpx;
   box-shadow: 0 5rpx 18rpx rgba(0, 0, 0, .16);
-  margin: 0 auto;
+  margin: 0 auto 20rpx;
   overflow: hidden;
   position: relative;
   width: 100%;
+}
+
+.signed-preview-page-number {
+  background: #f5f9fd;
+  color: #617386;
+  font-size: 22rpx;
+  padding: 14rpx 22rpx;
+  text-align: center;
 }
 
 .signed-preview-image {
@@ -855,6 +872,15 @@ page { background: #f4f8fd; }
 }
 
 .signed-preview-error button::after { border: 0; }
+
+.signed-preview-reload {
+  background: #fff;
+  color: #2185e8;
+  font-size: 24rpx;
+  margin-top: 16rpx;
+}
+
+.signed-preview-reload::after { border: 0; }
 
 .signed-preview-caption {
   align-items: center;

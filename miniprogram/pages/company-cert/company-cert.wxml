@@ -25,6 +25,12 @@
       </view>
     </view>
 
+    <view class="cert-card" wx:if="{{identity && identity.status !== 'VERIFIED' && identity.companyAuthorizationReady === true}}">
+      <view class="section-title">企业授权已确认，待核对本人身份</view>
+      <view class="auth-help-text">企业对商签通的已有有效授权可继续使用。尚需补充当前申请人本人的法人或经办依据，可联系平台支持核验。</view>
+      <button bindtap="openIdentitySupport">联系平台支持补充核验</button>
+    </view>
+
     <view class="cert-card" wx:if="{{identity && identity.status === 'VERIFIED' && identity.organizationAuthorized !== true}}">
       <view class="section-title">完善企业签署配置</view>
       <view class="auth-help-text">企业认证已保留。补充成员授权后，系统会自动关联具备签署权限的已有员工，无需重新邀请。</view>
@@ -37,9 +43,9 @@
 
     <view class="cert-card" wx:if="{{identity && identity.status !== 'VERIFIED'}}">
       <view class="section-title">企业已有电子签实名？</view>
-      <view class="auth-help-text">可使用原有企业实名，继续办理对商签通的授权。</view>
-      <view class="auth-help-text">若服务页提示“您不是企业的超级管理员”，请按页面提示提交申请，由原超管处理授权。</view>
-      <view class="auth-help-text">原超管完成授权后，回到本页点击“刷新状态”，系统将继续核验本人的企业身份与权限。</view>
+      <view class="auth-help-text">系统先查询并复用企业对商签通的已有有效授权，再核对申请人本人的企业身份与权限。</view>
+      <view class="auth-help-text">已有授权满足本次入驻需要时，可继续使用。本人的企业身份依据不足时，可联系平台支持补充核验。</view>
+      <view class="auth-help-text">确实缺少企业授权时，按电子签服务页面提供的方式继续办理；官方页面要求管理员确认时，再处理对应申请。</view>
       <view class="auth-help-text">退出后可从“企业 → 待完成企业认证”继续办理，企业资料已保存。</view>
     </view>
 
@@ -48,8 +54,8 @@
   <view class="agree-page" wx:else>
     <view class="agree-card">
       <view class="agree-title">企业信息确认</view>
-      <view class="cert-step-desc">法人本人或授权经办人均可申请。办理时需授权核对企业实名、本人企业成员身份及管理权限，系统根据核验结果开通相应身份。</view>
-      <view class="auth-help-text">已在电子签平台实名的企业可使用原有实名办理商签通授权；若当前账号不是原企业超管，需要原超管处理授权申请。</view>
+      <view class="cert-step-desc">法人本人或授权经办人均可申请。系统分别核对已有企业授权及申请人本人的法人或经办依据，再根据核验结果开通相应身份。</view>
+      <view class="auth-help-text">已在电子签平台实名的企业，优先复用对商签通的已有有效授权；企业授权与申请人本人的身份分别核验。</view>
       <view class="agree-row">
         <view class="agree-key">企业/个体工商户名称</view>
         <view class="agree-val">{{companyName}}</view>

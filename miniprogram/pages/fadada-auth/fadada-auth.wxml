@@ -17,6 +17,7 @@
   <view class="state-title">{{preparationTitle}}</view>
   <view class="state-desc">{{preparationMessage}}</view>
   <button class="primary-button" bindtap="continueSigningPreparation">{{preparationActionText}}</button>
+  <view class="back-link" wx:if="{{preparationAction === 'identityReview'}}" bindtap="openIdentitySupport">联系平台支持补充核验</view>
   <view class="back-link" bindtap="goBack">返回</view>
 </view>
 

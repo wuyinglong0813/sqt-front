@@ -94,6 +94,12 @@ Page({
     signedPreviewReady: false,
     signedPreviewFilePath: '',
     signedPreviewError: '',
+    signedPreviewPages: [],
+    signedPreviewPageCount: 0,
+    signedPreviewLoadedCount: 0,
+    signedPreviewLegacy: false,
+    signedPreviewArchiveKey: '',
+    signedPreviewVersionChanged: false,
     canSignContract: false,
     signButtonText: '签署合同',
     electronicAbolishing: false,
@@ -152,6 +158,10 @@ Page({
   onShow() {
     if (!this.hasLoadedContract) return;
     this.loadContractDetail().then(() => this.syncContractSigningInBackground());
+  },
+
+  onUnload() {
+    this._signedPreviewGeneration = (this._signedPreviewGeneration || 0) + 1;
   },
 
   onPullDownRefresh() {
@@ -366,11 +376,20 @@ Page({
       }, () => {
         if (this.data.signedContractArchived) {
           this.loadSignedContractPreview();
-        } else if (this.data.signedPreviewFilePath || this.data.signedPreviewError) {
+        } else if (this.data.signedPreviewPages.length || this.data.signedPreviewFilePath
+          || this.data.signedPreviewError || this.data.signedPreviewLoading) {
+          this._signedPreviewGeneration = (this._signedPreviewGeneration || 0) + 1;
           this.setData({
+            signedPreviewLoading: false,
             signedPreviewReady: false,
             signedPreviewFilePath: '',
-            signedPreviewError: ''
+            signedPreviewError: '',
+            signedPreviewPages: [],
+            signedPreviewPageCount: 0,
+            signedPreviewLoadedCount: 0,
+            signedPreviewLegacy: false,
+            signedPreviewArchiveKey: '',
+            signedPreviewVersionChanged: false
           });
         }
         if (canViewContractContent) this.loadContractMemo();
@@ -767,52 +786,178 @@ Page({
 
   async loadSignedContractPreview(force) {
     if (!this.data.signedContractArchived || this.data.signedPreviewLoading) return;
-    if (this.data.signedPreviewReady && this.data.signedPreviewFilePath && !force) return;
-    const filePath = `${wx.env.USER_DATA_PATH}/contract-${this.data.contractId}-signed-preview.png`;
-    if (!force && localFileReady(filePath)) {
-      this.setData({
-        signedPreviewLoading: false,
-        signedPreviewReady: true,
-        signedPreviewFilePath: filePath,
-        signedPreviewError: ''
-      });
-      return;
-    }
-    try {
-      wx.getFileSystemManager().unlinkSync(filePath);
-    } catch (error) {
-      // 首次加载签章页时文件不存在。
-    }
+    const { request } = require('../../utils/request');
+    const generation = (this._signedPreviewGeneration || 0) + 1;
+    this._signedPreviewGeneration = generation;
     this.setData({
       signedPreviewLoading: true,
-      signedPreviewReady: false,
       signedPreviewError: ''
     });
     try {
-      const result = await downloadChunkedApiFile(
-        `/contracts/${this.data.contractId}/signed-preview-chunk-data`, filePath
-      );
-      this.setData({
-        signedPreviewLoading: false,
-        signedPreviewReady: true,
-        signedPreviewFilePath: result.filePath,
-        signedPreviewError: ''
+      let manifest;
+      try {
+        manifest = await request({
+          url: `/contracts/${this.data.contractId}/signed-preview-manifest`, timeout: 60000
+        });
+      } catch (error) {
+        // A rolling deployment may still serve the old signature-page endpoint.
+        // Permission and network failures must never silently become a partial preview.
+        if (Number(error.statusCode) !== 404 && Number(error.code) !== 404) throw error;
+        await this.loadLegacySignedContractPreview(force, generation);
+        return;
+      }
+      if (!this.isSignedPreviewCurrent(generation)) return;
+      const pageCount = Number(manifest && manifest.pageCount);
+      if (!Number.isSafeInteger(pageCount) || pageCount <= 0) {
+        throw new Error('归档合同页数异常，请重新加载或查看 PDF');
+      }
+      if (!manifest.archiveKey) throw new Error('归档合同版本异常，请重新加载或查看 PDF');
+      const archiveKey = encodeURIComponent(String(manifest.archiveKey))
+        .replace(/\./g, '%2E');
+      if (!force && this.data.signedPreviewReady && !this.data.signedPreviewLegacy
+        && archiveKey === this.data.signedPreviewArchiveKey
+        && pageCount === this.data.signedPreviewPageCount) return;
+      const pages = Array.from({ length: pageCount }, (_, index) => ({
+        pageNumber: index + 1, filePath: '', loading: true, error: ''
+      }));
+      this.setData({ signedPreviewPages: pages, signedPreviewPageCount: pageCount,
+        signedPreviewLoadedCount: 0, signedPreviewArchiveKey: archiveKey,
+        signedPreviewReady: false, signedPreviewFilePath: '', signedPreviewLegacy: false,
+        signedPreviewVersionChanged: false });
+      this.cleanObsoleteSignedPreviewFiles(pageCount);
+      // Start with the first page and reveal every page in reading order. Keeping
+      // the downloads sequential also avoids flooding the mini-program file API.
+      for (let pageNumber = 1; pageNumber <= pageCount; pageNumber += 1) {
+        if (!this.isSignedPreviewCurrent(generation)) return;
+        await this.loadSignedContractPreviewPage(pageNumber, force, generation);
+        if (this.data.signedPreviewVersionChanged) break;
+      }
+    } catch (error) {
+      if (!this.isSignedPreviewCurrent(generation)) return;
+      this.setData({ signedPreviewPages: [], signedPreviewPageCount: 0,
+        signedPreviewLoadedCount: 0, signedPreviewReady: false, signedPreviewFilePath: '',
+        signedPreviewLegacy: false, signedPreviewError: error.message || '归档合同加载失败' });
+    } finally {
+      if (this.isSignedPreviewCurrent(generation)) this.setData({ signedPreviewLoading: false });
+    }
+  },
+
+  isSignedPreviewCurrent(generation) {
+    return this.data.signedContractArchived && generation === this._signedPreviewGeneration;
+  },
+
+  updateSignedPreviewPage(pageNumber, patch) {
+    const pages = this.data.signedPreviewPages.map(page => page.pageNumber === pageNumber
+      ? { ...page, ...patch } : page);
+    const loadedCount = pages.filter(page => !!page.filePath && !page.error).length;
+    this.setData({
+      signedPreviewPages: pages,
+      signedPreviewLoadedCount: loadedCount,
+      signedPreviewReady: pages.length > 0 && loadedCount === pages.length
+    });
+  },
+
+  signedPreviewPageFilePath(pageNumber) {
+    return `${wx.env.USER_DATA_PATH}/contract-${this.data.contractId}-signed-${this.data.signedPreviewArchiveKey}-page-${pageNumber}.png`;
+  },
+
+  cleanObsoleteSignedPreviewFiles(pageCount) {
+    const prefix = `contract-${this.data.contractId}-signed-`;
+    const retained = new Set(Array.from({ length: pageCount }, (_, index) =>
+      this.signedPreviewPageFilePath(index + 1)));
+    try {
+      const fileSystem = wx.getFileSystemManager();
+      fileSystem.readdirSync(wx.env.USER_DATA_PATH).forEach(name => {
+        const filePath = `${wx.env.USER_DATA_PATH}/${name}`;
+        if (name.startsWith(prefix) && name.endsWith('.png') && !retained.has(filePath)) {
+          try { fileSystem.unlinkSync(filePath); } catch (error) {}
+        }
       });
     } catch (error) {
+      // Cache cleanup must not prevent reading the archived contract.
+    }
+  },
+
+  async loadSignedContractPreviewPage(pageNumber, force, generation) {
+    const filePath = this.signedPreviewPageFilePath(pageNumber);
+    if (!force && localFileReady(filePath)) {
+      this.updateSignedPreviewPage(pageNumber, { filePath, loading: false, error: '' });
+      return;
+    }
+    this.updateSignedPreviewPage(pageNumber, { filePath: '', loading: true, error: '' });
+    try {
+      wx.getFileSystemManager().unlinkSync(filePath);
+    } catch (error) {
+      // The page may not have been downloaded yet.
+    }
+    try {
+      const result = await downloadChunkedApiFile(
+        `/contracts/${this.data.contractId}/signed-preview-chunk-data?page=${pageNumber}`
+          + `&archiveKey=${this.data.signedPreviewArchiveKey}`, filePath
+      );
+      if (!this.isSignedPreviewCurrent(generation)) return;
+      this.updateSignedPreviewPage(pageNumber, { filePath: result.filePath, loading: false, error: '' });
+    } catch (error) {
+      if (!this.isSignedPreviewCurrent(generation)) return;
+      if (Number(error.code) === 409 || Number(error.statusCode) === 409) {
+        this.setData({ signedPreviewVersionChanged: true, signedPreviewReady: false,
+          signedPreviewLoadedCount: 0, signedPreviewPages: this.data.signedPreviewPages.map(page => ({
+            ...page, filePath: '', loading: false, error: '归档版本已更新，请重新加载全部页面'
+          })) });
+        return;
+      }
+      this.updateSignedPreviewPage(pageNumber, { filePath: '', loading: false,
+        error: error.message || `第 ${pageNumber} 页加载失败` });
+    }
+  },
+
+  async loadLegacySignedContractPreview(force, generation) {
+    if (!this.isSignedPreviewCurrent(generation)) return;
+    this.setData({ signedPreviewReady: false, signedPreviewFilePath: '', signedPreviewLegacy: false,
+      signedPreviewPages: [], signedPreviewPageCount: 0, signedPreviewLoadedCount: 0 });
+    const filePath = `${wx.env.USER_DATA_PATH}/contract-${this.data.contractId}-signed-preview.png`;
+    let result = { filePath };
+    if (force || !localFileReady(filePath)) {
+      result = await downloadChunkedApiFile(
+        `/contracts/${this.data.contractId}/signed-preview-chunk-data`, filePath
+      );
+    }
+    if (this.isSignedPreviewCurrent(generation)) {
       this.setData({
-        signedPreviewLoading: false,
-        signedPreviewReady: false,
-        signedPreviewFilePath: '',
-        signedPreviewError: error.message || '真实签章页加载失败'
+        signedPreviewReady: true,
+        signedPreviewFilePath: result.filePath,
+        signedPreviewError: '',
+        signedPreviewLegacy: true,
+        signedPreviewPages: [],
+        signedPreviewPageCount: 0,
+        signedPreviewLoadedCount: 0
       });
     }
   },
 
-  retrySignedContractPreview() {
-    this.loadSignedContractPreview(true);
+  async retrySignedContractPreview(event) {
+    if (this.data.signedPreviewLoading) return;
+    const pageNumber = Number(event && event.currentTarget && event.currentTarget.dataset.page);
+    if (!pageNumber || this.data.signedPreviewVersionChanged
+      || !this.data.signedPreviewPages.some(page => page.pageNumber === pageNumber)) {
+      return this.loadSignedContractPreview(true);
+    }
+    const generation = this._signedPreviewGeneration;
+    this.setData({ signedPreviewLoading: true });
+    try {
+      await this.loadSignedContractPreviewPage(pageNumber, true, generation);
+    } finally {
+      if (this.isSignedPreviewCurrent(generation)) this.setData({ signedPreviewLoading: false });
+    }
   },
 
-  onSignedPreviewError() {
+  onSignedPreviewError(event) {
+    const pageNumber = Number(event && event.currentTarget && event.currentTarget.dataset.page);
+    if (pageNumber) {
+      this.updateSignedPreviewPage(pageNumber, { filePath: '', loading: false,
+        error: `第 ${pageNumber} 页显示失败，请重新加载或查看 PDF` });
+      return;
+    }
     this.setData({
       signedPreviewReady: false,
       signedPreviewFilePath: '',
