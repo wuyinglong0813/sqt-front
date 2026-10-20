@@ -60,9 +60,15 @@ test('an existing enterprise missing organization consent gets one relevant acti
   await p.prepareService();
   assert.equal(p.data.preparationAction, 'company');
   assert.equal(p.data.preparationCanProceed, true);
+  assert.equal(p.data.preparationActionText, '授权后重新检查');
+  assert.match(p.data.preparationMessage, /与个人实名分开.*超管办理一次.*无需逐人重复办理企业授权/);
+  assert.match(p.data.preparationMessage, /商签通管理员与电子签平台企业超管是两个身份/);
   assert.equal(p.data.canRecoverPersonalIdentity, false);
   assert.equal(h.requests.some(o => /quote|sign-url/.test(o.url)), false);
   assert.equal(h.modals.some(o => o.title === '确认发起电子签'), false);
+  await p.recheckSigningPreparation();
+  assert.equal(h.navigation.length, 0);
+  assert.equal(h.requests.some(o => o.url.endsWith('/auth-url')), false);
   p.continueSigningPreparation(); p.continueSigningPreparation();
   assert.equal(h.navigation.length, 1);
   const target = new URL('https://app.test' + h.navigation[0]).searchParams;
@@ -70,6 +76,31 @@ test('an existing enterprise missing organization consent gets one relevant acti
   assert.equal(target.get('companyId'), '3');
   assert.equal(target.get('renewOrganization'), '1');
   assert.equal(continuation.signingContinuation(h.app, target.get('continuationId')).target.contractId, '9007199254740993');
+});
+
+test('a colleague resumes the same contract after company consent without personally reopening company authorization', async () => {
+  let authorized = false;
+  const h = harness(async o => {
+    if (o.url === '/fadada/users/me/identity') return { status: 'VERIFIED' };
+    if (o.url.endsWith('/prerequisites')) {
+      if (!authorized) throw Object.assign(new Error('等待企业超管授权'), { code: 46101 });
+      return { status: 'READY' };
+    }
+    if (o.url.endsWith('/quote')) return { canSign: true, newTask: false };
+    if (o.url.endsWith('/sign-url')) return { url: 'https://provider.test/employee-sign' };
+    throw Error('Unexpected endpoint: ' + o.url);
+  });
+  h.app.globalData.memberInfo = { roleCode: 'ADMIN', permissions: ['company_manage', 'contract_sign'] };
+  const p = h.page('fadada-auth'); p.data.scene = 'contract'; p.data.options = { contractId: '12' };
+  await p.prepareService();
+  assert.equal(p.data.preparationCanProceed, true);
+  assert.equal(h.navigation.length, 0);
+  authorized = true;
+  await p.recheckSigningPreparation();
+  assert.equal(p.data.serviceUrl, 'https://provider.test/employee-sign');
+  assert.equal(p.data.options.contractId, '12');
+  assert.equal(h.requests.some(o => o.url.endsWith('/auth-url')), false);
+  assert.equal(h.navigation.length, 0);
 });
 
 test('ordinary members keep their contract and recheck after administrator authorization without opening management', async () => {

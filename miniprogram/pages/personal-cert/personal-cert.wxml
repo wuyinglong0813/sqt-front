@@ -42,8 +42,8 @@
       <view class="info-row" wx:if="{{identity.verifiedName}}">
         <text class="info-label">认证姓名</text><text class="info-value">{{identity.verifiedName}}</text>
       </view>
-      <view class="info-row" wx:if="{{identity.identMethod}}">
-        <text class="info-label">认证方式</text><text class="info-value">{{identity.identMethod}}</text>
+      <view class="info-row" wx:if="{{identity.verificationChannel}}">
+        <text class="info-label">认证渠道</text><text class="info-value">{{identity.verificationChannel}}</text>
       </view>
       <view class="info-row" wx:if="{{identity.verifiedAt}}">
         <text class="info-label">通过时间</text><text class="info-value minor">{{identity.verifiedAt}}</text>

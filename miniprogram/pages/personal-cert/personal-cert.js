@@ -14,7 +14,7 @@ const EMPTY_IDENTITY = {
   status: 'NOT_STARTED',
   statusText: '待认证',
   verifiedName: '',
-  identMethod: '',
+  verificationChannel: '',
   failureReason: '',
   verifiedAt: ''
 };
@@ -24,6 +24,19 @@ function formatBeijingTime(value) {
   if (!text) return '';
   const matched = text.match(/^(\d{4}-\d{2}-\d{2})[T\s]+(\d{2}:\d{2}:\d{2})/);
   return matched ? `${matched[1]} ${matched[2]}` : text.replace(/T\s*/, ' ');
+}
+
+function identityForDisplay(value) {
+  const identity = value || EMPTY_IDENTITY;
+  const display = {
+    ...identity,
+    verificationChannel: identity.status === 'VERIFIED' ? '电子签实名认证' : '',
+    verifiedAt: formatBeijingTime(identity.verifiedAt)
+  };
+  // Provider identity metadata does not establish which method completed this session.
+  // Keep it in the backend record instead of presenting it as the user's latest choice.
+  delete display.identMethod;
+  return display;
 }
 
 Page({
@@ -133,9 +146,7 @@ Page({
         });
       }
       const status = identity && STATUS_VIEW[identity.status] ? identity.status : 'NOT_STARTED';
-      const displayIdentity = identity
-        ? { ...identity, verifiedAt: formatBeijingTime(identity.verifiedAt) }
-        : EMPTY_IDENTITY;
+      const displayIdentity = identityForDisplay(identity);
       this.setData({
         identity: displayIdentity,
         providerEnabled: !!(identity && identity.providerEnabled),
@@ -169,7 +180,7 @@ Page({
       }
     } catch (error) {
       if (identity && this._identityContinuationId) this.setData({
-        identity: { ...identity, failureReason: error.message || '认证状态待重新核验' },
+        identity: { ...identityForDisplay(identity), failureReason: error.message || '认证状态待重新核验' },
         providerEnabled: !!identity.providerEnabled,
         statusView: { ...STATUS_VIEW.IN_PROGRESS, desc: '认证状态暂未确认，请刷新结果或重新核验后继续原业务。' }
       });

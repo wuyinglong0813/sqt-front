@@ -16,7 +16,11 @@
   <view class="state-icon">…</view>
   <view class="state-title">{{preparationTitle}}</view>
   <view class="state-desc">{{preparationMessage}}</view>
-  <button class="primary-button" bindtap="continueSigningPreparation">{{preparationActionText}}</button>
+  <block wx:if="{{preparationAction === 'company'}}">
+    <button class="primary-button" bindtap="recheckSigningPreparation">{{preparationActionText}}</button>
+    <view class="back-link" wx:if="{{preparationCanProceed && !(scene === 'company' && options.renewOrganization === '1')}}" bindtap="continueSigningPreparation">我是电子签超管，去授权</view>
+  </block>
+  <button class="primary-button" wx:else bindtap="continueSigningPreparation">{{preparationActionText}}</button>
   <view class="back-link" wx:if="{{preparationAction === 'identityReview'}}" bindtap="openIdentitySupport">联系平台支持补充核验</view>
   <view class="back-link" bindtap="goBack">返回</view>
 </view>

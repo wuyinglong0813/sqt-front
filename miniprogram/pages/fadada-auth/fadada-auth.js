@@ -62,7 +62,9 @@ Page({
       options = { ...options, reason };
     }
     const scene = SCENES[options.scene] ? options.scene : 'personal';
-    const config = SCENES[scene];
+    const config = scene === 'company' && options.renewOrganization === '1'
+      ? { ...SCENES.company, title: '企业签署授权', loading: '正在核验企业签署授权' }
+      : SCENES[scene];
     this.setData({ scene, options, pageTitle: config.title, loadingText: config.loading });
     this.setData({ contractSealAuthorizationAvailable: !!options.contractId && this.canManageContractSeal() });
     wx.setNavigationBarTitle({ title: config.title });
@@ -131,11 +133,20 @@ Page({
     const targetIsSelf = this.data.scene !== 'sealGrant'
       || String(this.data.options.userId || '') === String((getApp().globalData.userInfo || {}).id || '');
     let view;
-    if ([46101, 46106].includes(code)) {
+    if (code === 46101) {
+      const canProceed = this.canAuthorizeCompany();
+      view = {
+        preparationAction: 'company',
+        preparationTitle: '企业需完成一次签署授权',
+        preparationMessage: '这是企业对商签通的授权，与个人实名分开。请电子签平台企业超管办理一次，完成后同企业有签署权限的同事可复用，无需逐人重复办理企业授权。商签通管理员与电子签平台企业超管是两个身份。',
+        preparationActionText: '授权后重新检查',
+        preparationCanProceed: canProceed
+      };
+    } else if (code === 46106) {
       const canProceed = this.canAuthorizeCompany() || this.data.scene === 'company';
       view = {
-        preparationAction: code === 46101 ? 'company' : 'companyIdentity',
-        preparationTitle: code === 46101 ? '完成企业签署授权' : '完成企业认证',
+        preparationAction: 'companyIdentity',
+        preparationTitle: '完成企业认证',
         preparationMessage: canProceed
           ? '由企业电子签管理员确认授权。'
           : '请企业电子签管理员完成授权。',
@@ -540,7 +551,7 @@ Page({
       if (!serviceUrl && scene === 'company' && status === 'AUTHORIZATION_REQUIRED') {
         this.setData({ options: { ...options, renewOrganization: '1' } });
         this.showServiceError({ code: 46101,
-          message: '企业认证已保留，电子签成员授权尚未完成。请由企业电子签管理员继续办理授权。' });
+          message: '企业认证已保留，请电子签平台企业超管完成对商签通的一次签署授权，其他员工无需逐人重复办理企业授权。' });
         return;
       }
       if (!serviceUrl && scene === 'company' && status === 'IDENTITY_VERIFICATION_REQUIRED') {

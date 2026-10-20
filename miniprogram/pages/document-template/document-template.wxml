@@ -16,7 +16,7 @@
 
   <view class="format-tip">
     <view class="tip-dot"></view>
-    <view>无需准备文件，可直接使用标准模板。误删后可一键恢复标准版式；创建单据时自动带入合同产品，提交前可修改。</view>
+    <view>点击模板可查看内容。标准模板无需上传文件，创建单据时自动带入合同产品，提交前可修改。</view>
   </view>
 
   <view class="loading" wx:if="{{loading && templates.length === 0}}">加载中...</view>
@@ -24,22 +24,113 @@
     <image src="/images/icons/template.svg" mode="aspectFit"/>
     <view class="empty-title">{{emptyText}}</view>
     <view class="empty-desc">模板误删或首次使用？无需上传文件即可恢复标准版式</view>
-    <button class="restore-btn" loading="{{saving}}" disabled="{{saving}}" bindtap="restoreActiveTemplate">一键恢复标准{{activeType === 'RETURN_ORDER' ? '退货单' : '销售单'}}模板</button>
+    <button class="restore-btn" loading="{{saving}}" disabled="{{saving}}" bindtap="restoreActiveTemplate">预览并恢复标准模板</button>
     <view class="empty-note">自定义模板删除后需重新上传原文件</view>
   </view>
 
   <view class="template-list" wx:else>
-    <view class="template-card" wx:for="{{templates}}" wx:key="id">
+    <view class="template-card" wx:for="{{templates}}" wx:key="id" data-template="{{item}}" bindtap="previewTemplate" hover-class="template-card-pressed">
       <view class="template-icon">{{activeType === 'RETURN_ORDER' ? '退' : '销'}}</view>
       <view class="template-copy">
         <view class="template-name">{{item.name}}</view>
         <view class="template-meta">{{item.sourceText}}<text wx:if="{{item.dateText}}"> · {{item.dateText}}</text></view>
       </view>
-      <view class="template-tag">{{item.typeLabel}}</view>
-      <view class="template-delete" data-template="{{item}}" bindtap="deleteTemplate">删除</view>
+      <view class="template-view">预览 ›</view>
+      <view class="template-delete" data-template="{{item}}" catchtap="deleteTemplate">删除</view>
     </view>
   </view>
 
-  <view class="standard-link" wx:if="{{!loading && templates.length > 0}}" bindtap="restoreActiveTemplate">使用标准{{activeType === 'RETURN_ORDER' ? '退货单' : '销售单'}}模板</view>
+  <view class="standard-link" wx:if="{{!loading && templates.length > 0}}" bindtap="restoreActiveTemplate">查看标准{{activeType === 'RETURN_ORDER' ? '退货单' : '销售单'}}模板</view>
   <view class="page-end">生成单据时可选择合同默认模板或企业模板</view>
+
+  <view class="template-layer" wx:if="{{addType}}">
+    <view class="layer-mask" bindtap="closeTemplateOptions" catchtouchmove="noop"></view>
+    <view class="template-panel options-panel">
+      <view class="panel-heading"><view>添加{{addLabel}}模板</view><view class="panel-close" bindtap="closeTemplateOptions">×</view></view>
+      <view class="panel-intro">先查看模板内容，再决定使用哪种方式</view>
+      <view class="template-option recommended" bindtap="previewStandardOption">
+        <view class="option-heading">使用标准模板 <text class="recommended-tag">推荐</text><text class="option-arrow">›</text></view>
+        <view class="option-desc">无需准备文件。含商品明细、金额合计和签收栏，创建单据时可修改内容。</view>
+        <view class="option-action">预览标准{{addLabel}}模板</view>
+      </view>
+      <view class="template-option" bindtap="explainTemplateUpload">
+        <view class="option-heading">导入自定义表格列 <text class="option-arrow">›</text></view>
+        <view class="option-desc">已有商签通 JSON 模板文件时使用。仅调整表格列名和行数，暂不支持 Word、PDF、Excel 或照片。</view>
+        <view class="option-action">查看文件要求与示例</view>
+      </view>
+    </view>
+  </view>
+
+  <view class="template-layer" wx:if="{{uploadGuideType}}">
+    <view class="layer-mask" bindtap="closeUploadGuide" catchtouchmove="noop"></view>
+    <view class="template-panel">
+      <view class="panel-heading"><view>导入{{uploadGuideLabel}}模板</view><view class="panel-close" bindtap="closeUploadGuide">×</view></view>
+      <scroll-view class="panel-scroll" scroll-y>
+        <view class="guide-section">
+          <view class="guide-title">需要上传什么？</view>
+          <view class="guide-copy">商签通 JSON 模板定义文件（.json，256 KB 以内），包含表格列名和最少展示行数。它用于生成新的单据，不是已填写的销售单。</view>
+          <view class="guide-note">暂不支持 Word、PDF、Excel、扫描件或照片；不支持导入图片、页眉等自定义排版。</view>
+        </view>
+        <view class="guide-section">
+          <view class="guide-title">没有文件？直接用标准模板</view>
+          <view class="guide-copy">日常开单无需制作模板文件，商品、数量、单价等内容可在创建单据时填写。</view>
+          <view class="option-action" bindtap="useStandardFromGuide">查看标准{{uploadGuideLabel}}模板 ›</view>
+        </view>
+        <view class="guide-section">
+          <view class="guide-title">已有文件，怎么导入？</view>
+          <view class="guide-copy">1. 将模板文件发送到微信聊天。</view>
+          <view class="guide-copy">2. 点下方“从微信聊天选择 JSON”。</view>
+          <view class="guide-copy">3. 预览表格列和行数，确认后保存到企业模板。</view>
+        </view>
+        <view class="guide-section">
+          <view class="guide-title">交给模板维护人员的格式示例</view>
+          <view class="guide-copy">columns 填写表格列名（最多 20 列，每列 60 字以内）；blankRows 为最少展示行数（8～50）。只支持这两个字段。</view>
+          <text class="json-example" selectable>{{uploadExample}}</text>
+          <view class="example-actions"><button class="example-copy" bindtap="copyUploadExample">复制示例</button><button class="example-copy" bindtap="shareUploadExample">发送示例文件</button></view>
+          <view class="guide-copy">可将示例文件发给模板维护人员调整；也可复制示例，在电脑上保存为 UTF-8 编码的 .json 文件，再发送到微信聊天。</view>
+        </view>
+      </scroll-view>
+      <view class="panel-footer"><button class="panel-primary" bindtap="chooseUploadFile">从微信聊天选择 JSON</button></view>
+    </view>
+  </view>
+
+  <view class="template-layer" wx:if="{{preview}}">
+    <view class="layer-mask" bindtap="closeTemplatePreview" catchtouchmove="noop"></view>
+    <view class="template-panel">
+      <view class="panel-heading"><view>{{preview.label}}模板预览</view><view class="panel-close" bindtap="closeTemplatePreview">×</view></view>
+      <scroll-view class="panel-scroll" scroll-y>
+        <view class="preview-summary">
+          <block wx:if="{{preview.mode === 'upload'}}">
+            <view class="guide-title">模板名称</view>
+            <input class="preview-name-input" maxlength="60" value="{{preview.name}}" placeholder="请输入模板名称" bindinput="onPreviewNameInput"/>
+          </block>
+          <view class="preview-name" wx:else>{{preview.name}}</view>
+          <view class="guide-copy">{{preview.columns.length}} 列 · 最少 {{preview.blankRows}} 行 · {{preview.sourceText}}</view>
+        </view>
+        <view class="preview-notice">以下为内容示意，使用示例数据；实际单据以生成后的 PDF 为准。</view>
+        <view class="document-sample">
+          <view class="sample-company">本方企业名称</view>
+          <view class="sample-title">{{preview.label}}</view>
+          <view class="sample-info">往来单位：示例客户</view>
+          <view class="sample-info">关联合同：创建时带入</view>
+          <view class="sample-info">单据编号、日期：创建时生成</view>
+          <view class="table-scroll-hint">左右滑动查看全部表格列</view>
+          <scroll-view class="sample-table-scroll" scroll-x>
+            <view class="sample-table" style="width: {{preview.tableWidth}}rpx;">
+              <view class="sample-table-row sample-table-head"><view class="sample-cell" wx:for="{{preview.columns}}" wx:for-item="column" wx:for-index="ci" wx:key="ci">{{column}}</view></view>
+              <view class="sample-table-row" wx:for="{{preview.rows}}" wx:for-item="row" wx:for-index="ri" wx:key="ri"><view class="sample-cell" wx:for="{{row}}" wx:for-item="cell" wx:for-index="ci" wx:key="ci">{{cell}}</view></view>
+            </view>
+          </scroll-view>
+          <view class="sample-info" wx:if="{{preview.blankRows > 8}}">预览展示前 8 行，生成时最少 {{preview.blankRows}} 行</view>
+          <view class="sample-total">合计金额（元）：200.00（示例）</view>
+          <view class="sample-signatures"><text>制单人</text><text>审核人</text><text>客户签收</text></view>
+        </view>
+        <view class="preview-help">创建单据时自动带入合同商品；可修改往来单位、商品明细、数量、单价和备注，确认后再生成单据。</view>
+      </scroll-view>
+      <view class="panel-footer">
+        <button class="panel-primary" wx:if="{{preview.mode === 'existing'}}" bindtap="closeTemplatePreview">查看完毕</button>
+        <button class="panel-primary" wx:else loading="{{saving}}" disabled="{{saving}}" bindtap="applyPreviewTemplate">{{preview.mode === 'upload' ? '确认导入企业模板' : (preview.alreadyAdded ? '标准模板已在列表，完成预览' : '使用此标准模板')}}</button>
+      </view>
+    </view>
+  </view>
 </view>

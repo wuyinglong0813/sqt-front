@@ -27,7 +27,13 @@ Page({
     returnCount: 0,
     loading: false,
     saving: false,
-    emptyText: TYPE_META.SALES_ORDER.empty
+    emptyText: TYPE_META.SALES_ORDER.empty,
+    addType: '',
+    addLabel: '',
+    uploadGuideType: '',
+    uploadGuideLabel: '',
+    uploadExample: '',
+    preview: null
   },
 
   onShow() {
@@ -46,13 +52,14 @@ Page({
         request({ url: '/document-templates?type=SALES_ORDER' }),
         request({ url: '/document-templates?type=RETURN_ORDER' })
       ]);
-      const decorate = list => (list || []).map(item => ({
+      const decorate = (list, documentType) => (list || []).map(item => ({
         ...item,
+        documentType: item.documentType || documentType,
         dateText: formatDateTime(item.updatedAt || item.createdAt),
-        sourceText: item.sourceFileName || '标准版式'
+        sourceText: item.sourceFileName || (item.name === `标准${TYPE_META[documentType].label}模板` ? '标准版式' : '自定义版式')
       }));
-      const salesTemplates = decorate(sales);
-      const returnTemplates = decorate(returns);
+      const salesTemplates = decorate(sales, 'SALES_ORDER');
+      const returnTemplates = decorate(returns, 'RETURN_ORDER');
       this.setData({
         salesTemplates,
         returnTemplates,
@@ -78,14 +85,15 @@ Page({
 
   showTemplateOptions(documentType) {
     if (this.data.loading || this.data.saving) return;
-    const meta = TYPE_META[documentType];
-    wx.showActionSheet({
-      itemList: [`使用标准${meta.label}模板（推荐）`, '上传自定义模板文件'],
-      success: result => {
-        if (result.tapIndex === 0) this.restoreStandardTemplate(documentType);
-        if (result.tapIndex === 1) this.explainTemplateUpload(documentType);
-      }
-    });
+    this.setData({ addType: documentType, addLabel: TYPE_META[documentType].label });
+  },
+
+  closeTemplateOptions() {
+    this.setData({ addType: '' });
+  },
+
+  previewStandardOption() {
+    this.restoreStandardTemplate(this.data.addType);
   },
 
   restoreActiveTemplate() {
@@ -95,9 +103,19 @@ Page({
   restoreStandardTemplate(documentType) {
     if (this.data.loading || this.data.saving) return;
     const meta = TYPE_META[documentType];
+    if (!meta) return;
+    this.openTemplatePreview({
+      documentType,
+      name: `标准${meta.label}模板`,
+      sourceFileName: '',
+      content: JSON.stringify({ columns: meta.columns, blankRows: meta.blankRows })
+    }, 'standard');
+  },
+
+  standardTemplateExists(documentType) {
+    const meta = TYPE_META[documentType];
     const templates = documentType === 'RETURN_ORDER' ? this.data.returnTemplates : this.data.salesTemplates;
-    const standardContent = JSON.stringify({ columns: meta.columns, blankRows: meta.blankRows });
-    const standardExists = templates.some(template => {
+    return templates.some(template => {
       try {
         const content = JSON.parse(template.content);
         return template.name === `标准${meta.label}模板`
@@ -107,35 +125,127 @@ Page({
         return false;
       }
     });
-    if (standardExists) {
-      this.setData({ activeType: documentType, templates, emptyText: meta.empty });
-      wx.showToast({ title: '标准模板已在列表中', icon: 'none' });
-      return;
-    }
-    wx.showModal({
-      title: `使用标准${meta.label}模板`,
-      content: `无需准备或上传文件，即可添加标准版式。\n包含：${meta.columns.join('、')}。创建单据时会自动带入合同产品，提交前可修改。`,
-      confirmText: '使用模板',
-      success: result => {
-        if (result.confirm) this.saveTemplate({
-          documentType,
-          name: `标准${meta.label}模板`,
-          sourceFileName: '',
-          content: standardContent
-        }, true);
-      }
+  },
+
+  explainTemplateUpload() {
+    const documentType = this.data.addType;
+    const meta = TYPE_META[documentType];
+    if (!meta) return;
+    this.setData({
+      addType: '',
+      uploadGuideType: documentType,
+      uploadGuideLabel: meta.label,
+      uploadExample: JSON.stringify({ columns: meta.columns, blankRows: meta.blankRows }, null, 2)
     });
   },
 
-  explainTemplateUpload(documentType) {
-    wx.showModal({
-      title: '上传自定义模板',
-      content: '仅支持商签通 JSON 模板文件，不能上传 Word、PDF、Excel 或单据照片。\n请先将已有模板文件发送到微信聊天，下一步从聊天中选择。没有模板文件时，取消后选择“使用标准模板”即可。',
-      confirmText: '选择文件',
-      success: result => {
-        if (result.confirm) this.chooseTemplateFile(documentType);
-      }
+  closeUploadGuide() {
+    this.setData({ uploadGuideType: '' });
+  },
+
+  copyUploadExample() {
+    wx.setClipboardData({ data: this.data.uploadExample });
+  },
+
+  shareUploadExample() {
+    if (!wx.shareFileMessage) {
+      wx.showToast({ title: '当前微信版本请使用复制示例', icon: 'none' });
+      return;
+    }
+    const fileName = `${this.data.uploadGuideLabel}模板示例.json`;
+    const filePath = `${wx.env.USER_DATA_PATH}/${fileName}`;
+    wx.getFileSystemManager().writeFile({
+      filePath,
+      data: this.data.uploadExample,
+      encoding: 'utf8',
+      success: () => wx.shareFileMessage({
+        filePath,
+        fileName,
+        fail: error => {
+          if (!String(error && error.errMsg || '').includes('cancel')) {
+            wx.showToast({ title: '示例发送失败，可复制示例', icon: 'none' });
+          }
+        }
+      }),
+      fail: () => wx.showToast({ title: '示例文件生成失败，可复制示例', icon: 'none' })
     });
+  },
+
+  chooseUploadFile() {
+    if (this.data.uploadGuideType) this.chooseTemplateFile(this.data.uploadGuideType);
+  },
+
+  useStandardFromGuide() {
+    this.restoreStandardTemplate(this.data.uploadGuideType);
+  },
+
+  previewTemplate(e) {
+    const template = e.currentTarget.dataset.template;
+    this.openTemplatePreview({ ...template, documentType: template.documentType || this.data.activeType }, 'existing');
+  },
+
+  openTemplatePreview(template, mode) {
+    try {
+      const parsed = JSON.parse(template.content);
+      if (!parsed || !Array.isArray(parsed.columns) || parsed.columns.length === 0
+          || parsed.columns.some(column => typeof column !== 'string' || !column.trim())) {
+        throw new Error('invalid');
+      }
+      const blankRows = Math.max(8, Number(parsed.blankRows) || 8);
+      const sampleValue = column => {
+        if (column.includes('序号')) return '1';
+        if (['品名', '名称', '产品', '商品'].some(key => column.includes(key))) return '示例商品';
+        if (column.includes('规格') || column.includes('型号')) return '标准型';
+        if (column.includes('数量')) return '2';
+        if (column.includes('单价')) return '100.00';
+        if (column.includes('金额')) return '200.00';
+        if (column.includes('单位')) return '件';
+        if (column.includes('原因')) return '示例退货原因';
+        return '—';
+      };
+      this.setData({
+        addType: '',
+        uploadGuideType: '',
+        preview: {
+          ...template,
+          mode,
+          sourceText: template.sourceFileName || (template.name === `标准${TYPE_META[template.documentType].label}模板` ? '标准版式，无需上传文件' : '自定义表格版式'),
+          label: TYPE_META[template.documentType].label,
+          columns: parsed.columns,
+          rows: Array.from({ length: Math.min(blankRows, 8) }, (_, index) => parsed.columns.map(column => index === 0 ? sampleValue(column) : '')),
+          blankRows,
+          tableWidth: Math.max(640, parsed.columns.length * 120),
+          alreadyAdded: mode === 'standard' && this.standardTemplateExists(template.documentType)
+        }
+      });
+    } catch (error) {
+      wx.showModal({ title: '模板无法预览', content: '模板内容不完整，请重新导入有效的 JSON 模板，或使用标准模板。', showCancel: false });
+    }
+  },
+
+  closeTemplatePreview() {
+    if (!this.data.saving) this.setData({ preview: null });
+  },
+
+  onPreviewNameInput(e) {
+    this.setData({ 'preview.name': e.detail.value });
+  },
+
+  async applyPreviewTemplate() {
+    const preview = this.data.preview;
+    if (!preview || preview.mode === 'existing' || this.data.saving) return;
+    if (preview.mode === 'standard' && this.standardTemplateExists(preview.documentType)) {
+      const templates = preview.documentType === 'RETURN_ORDER' ? this.data.returnTemplates : this.data.salesTemplates;
+      this.setData({ activeType: preview.documentType, templates, emptyText: TYPE_META[preview.documentType].empty, preview: null });
+      wx.showToast({ title: '标准模板已在列表中', icon: 'none' });
+      return;
+    }
+    const name = String(preview.name || '').trim();
+    if (!name) {
+      wx.showToast({ title: '模板名称不能为空', icon: 'none' });
+      return;
+    }
+    await this.saveTemplate({ documentType: preview.documentType, name, sourceFileName: preview.sourceFileName, content: preview.content }, preview.mode === 'standard');
   },
 
   switchType(e) {
@@ -161,6 +271,7 @@ Page({
         const file = result.tempFiles && result.tempFiles[0];
         if (!file) return;
         try {
+          if (file.size > 256 * 1024) throw new Error('模板文件需小于 256 KB。请上传只包含表格列名和行数的 JSON 文件。');
           const content = await this.readTemplateContent(file.path, file.name);
           this.confirmUpload(documentType, file.name, content);
         } catch (error) {
@@ -190,7 +301,17 @@ Page({
                 || parsed.columns.some(column => typeof column !== 'string' || !column.trim())) {
               throw new Error('invalid');
             }
-            resolve(JSON.stringify(parsed));
+            if (parsed.columns.length > 20 || parsed.columns.some(column => column.length > 60)
+                || (parsed.blankRows !== undefined && (!Number.isInteger(parsed.blankRows) || parsed.blankRows < 8 || parsed.blankRows > 50))) {
+              reject(new Error('模板最多 20 列，每个列名最多 60 字；blankRows 需为 8 到 50 的整数。可复制格式示例后调整。'));
+              return;
+            }
+            const unsupported = Object.keys(parsed).some(key => key !== 'columns' && key !== 'blankRows');
+            if (unsupported) {
+              reject(new Error('模板仅支持 columns（表格列名）和 blankRows（最少展示行数），不支持导入商品、图片或其他版式。请参考格式示例。'));
+              return;
+            }
+            resolve(JSON.stringify({ columns: parsed.columns.map(column => column.trim()), blankRows: parsed.blankRows || 8 }));
           } catch (error) {
             reject(new Error('文件不是有效的单据模板，请联系模板提供者检查文件，或返回使用标准模板。'));
           }
@@ -205,21 +326,7 @@ Page({
     const baseName = String(fileName || `${meta.label}模板`)
       .replace(/\.[^.]+$/, '')
       .slice(0, 60);
-    wx.showModal({
-      title: `上传${meta.label}模板`,
-      editable: true,
-      placeholderText: '请输入模板名称',
-      content: baseName,
-      success: async result => {
-        if (!result.confirm) return;
-        const name = String(result.content || baseName).trim();
-        if (!name) {
-          wx.showToast({ title: '模板名称不能为空', icon: 'none' });
-          return;
-        }
-        await this.saveTemplate({ documentType, name, sourceFileName: fileName, content });
-      }
-    });
+    this.openTemplatePreview({ documentType, name: baseName, sourceFileName: fileName, content }, 'upload');
   },
 
   async saveTemplate(payload, isStandard = false) {
@@ -228,7 +335,7 @@ Page({
     try {
       wx.showLoading({ title: isStandard ? '添加中...' : '上传中...', mask: true });
       await request({ url: '/document-templates', method: 'POST', data: payload });
-      this.setData({ activeType: payload.documentType });
+      this.setData({ activeType: payload.documentType, preview: null });
       await this.loadTemplates();
       wx.showToast({ title: isStandard ? '标准模板已添加' : '模板已上传', icon: 'success' });
     } catch (error) {
