@@ -11,11 +11,15 @@ Page({
     detail: null,
     items: [],
     warehouses: [],
+    warehousesLoading: false,
+    warehousesError: '',
     memo: '',
     memoDraft: '',
     memoPreview: '尚未记录，点击添加',
     memoUpdatedAt: '',
     memoSaving: false,
+    memoLoading: false,
+    memoError: '',
     showMemoEditor: false,
     receiving: false,
     publishing: false,
@@ -38,11 +42,14 @@ Page({
     signatureSignerName: '',
     signatureActionText: '确认签字并通过',
     loading: false,
+    pdfLoading: false,
+    loadError: '',
     activeAction: null,
     actionLoading: false
   },
 
   onLoad(options) {
+    this._unloaded = false;
     this.setData({
       id: options.id || '',
       documentNo: decodeURIComponent(options.documentNo || '')
@@ -54,18 +61,30 @@ Page({
     this.loadAll().finally(() => wx.stopPullDownRefresh());
   },
 
+  onUnload() {
+    this._unloaded = true;
+    if (this.data.pdfLoading) wx.hideLoading();
+    this._loadSequence = (this._loadSequence || 0) + 1;
+  },
+
+  isCurrentLoad(sequence) {
+    return !this._unloaded && sequence === this._loadSequence;
+  },
+
   async loadAll() {
-    if (!this.data.id || this.data.loading) return;
-    this.setData({ loading: true });
+    if (this._unloaded) return;
+    if (!this.data.id) {
+      this.setData({ loading: false, loadError: '未找到单据，请返回后重试' });
+      return;
+    }
+    const sequence = this._loadSequence = (this._loadSequence || 0) + 1;
+    this.setData({ loading: true, loadError: '', activeAction: null });
     try {
-      const [detail, memo, warehouses, activeAction] = await Promise.all([
-        request({ url: `/trade-documents/${this.data.id}` }),
-        request({ url: `/trade-documents/${this.data.id}/memo` }),
-        request({ url: '/warehouses' }).catch(() => []),
-        request({
-          url: `/bilateral-actions/active?bizType=BUSINESS_DOCUMENT&bizId=${this.data.id}`
-        }).catch(() => ({}))
-      ]);
+      const detailRequest = request({ url: `/trade-documents/${this.data.id}` });
+      this.loadSupportingData(sequence);
+      const detail = await detailRequest;
+      if (!this.isCurrentLoad(sequence)) return;
+      if (!detail) throw new Error('单据加载失败，请重试');
       const content = (detail && detail.content) || {};
       const isReturnOrder = detail.documentType === 'RETURN_ORDER';
       const documentLabel = isReturnOrder ? '退货单' : '销售单';
@@ -83,19 +102,56 @@ Page({
         documentNo: detail.documentNo || this.data.documentNo,
         documentLabel,
         isReturnOrder,
-        items: detail.items || [],
-        warehouses: warehouses || [],
-        activeAction: activeAction && activeAction.id ? activeAction : null,
-        memo: (memo && memo.content) || '',
-        memoDraft: (memo && memo.content) || '',
-        memoPreview: this.memoPreviewText((memo && memo.content) || ''),
-        memoUpdatedAt: memo && memo.updatedAt ? formatDateTime(memo.updatedAt) : ''
+        items: detail.items || []
       });
       wx.setNavigationBarTitle({ title: detail.documentNo || `${documentLabel}详情` });
     } catch (error) {
-      wx.showToast({ title: error.message || '单据加载失败', icon: 'none' });
+      if (!this.isCurrentLoad(sequence)) return;
+      const message = (error && (error.message || error.errMsg)) || '单据加载失败，请重试';
+      this.setData({ loadError: /timeout/i.test(message) ? '单据加载超时，请重试' : message });
     } finally {
-      this.setData({ loading: false });
+      if (this.isCurrentLoad(sequence)) this.setData({ loading: false });
+    }
+  },
+
+  loadSupportingData(sequence) {
+    this.loadMemo(sequence);
+    this.setData({ warehousesLoading: true, warehousesError: '' });
+    request({ url: '/warehouses' }).then(warehouses => {
+      if (this.isCurrentLoad(sequence)) this.setData({ warehouses: warehouses || [] });
+    }).catch(() => {
+      if (this.isCurrentLoad(sequence)) this.setData({ warehousesError: '仓库加载失败，请下拉重试' });
+    }).finally(() => {
+      if (this.isCurrentLoad(sequence)) this.setData({ warehousesLoading: false });
+    });
+    request({
+      url: `/bilateral-actions/active?bizType=BUSINESS_DOCUMENT&bizId=${this.data.id}`
+    }).then(activeAction => {
+      if (this.isCurrentLoad(sequence)) {
+        this.setData({ activeAction: activeAction && activeAction.id ? activeAction : null });
+      }
+    }).catch(() => {});
+  },
+
+  async loadMemo(sequence = this._loadSequence) {
+    if (this.data.showMemoEditor || this.data.memoSaving) return;
+    const memoVersion = this._memoVersion || 0;
+    const isCurrent = () => this.isCurrentLoad(sequence) && memoVersion === (this._memoVersion || 0);
+    this.setData({ memoLoading: true, memoError: '' });
+    try {
+      const memo = await request({ url: `/trade-documents/${this.data.id}/memo` });
+      if (!isCurrent()) return;
+      const content = (memo && memo.content) || '';
+      this.setData({
+        memo: content,
+        memoDraft: content,
+        memoPreview: this.memoPreviewText(content),
+        memoUpdatedAt: memo && memo.updatedAt ? formatDateTime(memo.updatedAt) : ''
+      });
+    } catch (error) {
+      if (isCurrent()) this.setData({ memoError: '进展加载失败，点击重试' });
+    } finally {
+      if (isCurrent()) this.setData({ memoLoading: false });
     }
   },
 
@@ -114,6 +170,14 @@ Page({
       wx.showToast({ title: '合同当前仅允许查看', icon: 'none' });
       return;
     }
+    if (this.data.memoLoading) {
+      wx.showToast({ title: '进展加载中，请稍候', icon: 'none' });
+      return;
+    }
+    if (this.data.memoError) {
+      this.loadMemo();
+      return;
+    }
     this.setData({ showMemoEditor: true, memoDraft: this.data.memo });
   },
 
@@ -124,8 +188,9 @@ Page({
 
   async saveMemo() {
     if (this.data.memoSaving || (this.data.detail && this.data.detail.contractReadOnly)) return;
+    this._memoVersion = (this._memoVersion || 0) + 1;
     try {
-      this.setData({ memoSaving: true });
+      this.setData({ memoSaving: true, memoLoading: false, memoError: '' });
       const memo = await request({
         url: `/trade-documents/${this.data.id}/memo`,
         method: 'POST',
@@ -288,6 +353,7 @@ Page({
   },
 
   chooseReturnWarehouseForPublish() {
+    if (!this.warehousesReady()) return;
     if (this.data.warehouses.length === 0) {
       wx.showToast({ title: '请先在库存管理中创建仓库', icon: 'none' });
       return;
@@ -481,6 +547,7 @@ Page({
     const buyerConfirmingReturn = this.data.isReturnOrder
       && String(detail.viewerCompanyId) === String(detail.buyerCompanyId);
     if (buyerConfirmingReturn) {
+      if (!this.warehousesReady()) return;
       if (this.data.warehouses.length === 0) {
         wx.showToast({ title: '请先创建退货出库仓库', icon: 'none' });
         return;
@@ -516,7 +583,15 @@ Page({
     });
   },
 
+  warehousesReady() {
+    const message = this.data.warehousesLoading ? '仓库加载中，请稍候' : this.data.warehousesError;
+    if (!message) return true;
+    wx.showToast({ title: message, icon: 'none' });
+    return false;
+  },
+
   chooseWarehouse() {
+    if (!this.warehousesReady()) return;
     if (this.data.warehouses.length === 0) {
       wx.showModal({
         title: '请先创建仓库',
@@ -724,16 +799,20 @@ Page({
   },
 
   viewPdf() {
-    this.downloadPdf(false);
+    return this.downloadPdf(false);
   },
 
   async downloadPdf(showToast) {
+    if (!this.data.id || this._unloaded || this.data.pdfLoading) return;
+    this.setData({ pdfLoading: true });
     const safeId = String(this.data.detail && this.data.detail.documentNo || this.data.id)
       .replace(/[\\/:*?"<>|\r\n]/g, '_');
     const filePath = `${wx.env.USER_DATA_PATH}/${this.data.documentLabel}-${safeId}.pdf`;
-    wx.showLoading({ title: '下载PDF中...' });
+    wx.showLoading({ title: '下载PDF中...', mask: true });
     try {
-      const result = await downloadApiFile(`/trade-documents/${this.data.id}/pdf-data`, filePath);
+      const result = await downloadApiFile(`/trade-documents/${this.data.id}/pdf-data`, filePath,
+        { shouldContinue: () => !this._unloaded });
+      if (this._unloaded) return;
       if (showToast) wx.showToast({ title: 'PDF已下载', icon: 'success' });
       wx.openDocument({
         filePath: result.filePath,
@@ -742,9 +821,13 @@ Page({
         fail: () => wx.showToast({ title: 'PDF打开失败', icon: 'none' })
       });
     } catch (error) {
+      if (this._unloaded) return;
       wx.showToast({ title: error.message || 'PDF下载失败', icon: 'none' });
     } finally {
-      wx.hideLoading();
+      if (!this._unloaded) {
+        wx.hideLoading();
+        this.setData({ pdfLoading: false });
+      }
     }
   },
 

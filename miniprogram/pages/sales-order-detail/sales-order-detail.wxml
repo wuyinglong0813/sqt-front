@@ -1,5 +1,9 @@
 <view class="page">
   <view class="loading" wx:if="{{loading && !detail}}">加载单据中...</view>
+  <view class="load-error" wx:if="{{loadError}}">
+    <view>{{loadError}}</view>
+    <button bindtap="loadAll" loading="{{loading}}" disabled="{{loading}}">重新加载</button>
+  </view>
   <block wx:if="{{detail}}">
     <view class="hero">
       <view class="hero-label">{{detail.title}}</view>
@@ -11,7 +15,7 @@
       <view class="memo-summary-icon">记</view>
       <view class="memo-summary-body">
         <view class="memo-summary-head"><text>我的进展</text><text wx:if="{{memoUpdatedAt}}">{{memoUpdatedAt}}</text></view>
-        <view class="memo-summary-text {{memo ? '' : 'empty'}}">{{memoPreview}}</view>
+        <view class="memo-summary-text {{memo ? '' : 'empty'}}">{{memoLoading ? '正在加载进展…' : (memoError || memoPreview)}}</view>
         <view class="memo-summary-private">{{detail.contractReadOnly ? '合同当前只读，不可修改' : '仅当前账号可见'}}</view>
       </view>
       <view class="memo-summary-arrow">›</view>
@@ -50,7 +54,7 @@
       <view class="summary-row"><text>单据日期</text><view>{{detail.date}}</view></view>
       <view class="summary-row"><text>制单人</text><view>{{detail.preparedByName}}</view></view>
       <view class="summary-row"><text>合计金额</text><view class="amount">¥{{detail.totalAmount}}</view></view>
-      <view class="pdf-actions"><button bindtap="viewPdf">查看 PDF</button><button bindtap="downloadPdf">下载 PDF</button></view>
+      <view class="pdf-actions"><button bindtap="viewPdf" loading="{{pdfLoading}}" disabled="{{pdfLoading}}">查看 PDF</button><button bindtap="downloadPdf" loading="{{pdfLoading}}" disabled="{{pdfLoading}}">下载 PDF</button></view>
     </view>
 
     <view class="card">

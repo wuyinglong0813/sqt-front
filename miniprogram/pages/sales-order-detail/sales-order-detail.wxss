@@ -1,6 +1,8 @@
 page { background: #f4f8fd; }
 .page { min-height: 100vh; padding-bottom: calc(34rpx + env(safe-area-inset-bottom)); }
 .loading { color: #94a0ae; font-size: 25rpx; padding: 120rpx 0; text-align: center; }
+.load-error { color: #7c8897; font-size: 25rpx; padding: 70rpx 30rpx; text-align: center; }
+.load-error button { background: #e6f2ff; border: 0; border-radius: 14rpx; color: #267ed7; font-size: 25rpx; margin: 28rpx auto 0; width: 240rpx; }
 .hero { background: linear-gradient(138deg,#45a8ff,#2478df); color: #fff; padding: 34rpx 30rpx 40rpx; }
 .hero-label { color: rgba(255,255,255,.74); font-size: 22rpx; }
 .hero-no { font-size: 36rpx; font-weight: 700; margin-top: 8rpx; }

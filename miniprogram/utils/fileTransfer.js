@@ -1,4 +1,5 @@
 const { request } = require('./request');
+const { captureCompanyContext, isCompanyContextCurrent } = require('./companyContext');
 
 const CLOUD_CHUNK_SIZE = 640 * 1024;
 const CLOUD_CHUNK_CONCURRENCY = 4;
@@ -19,9 +20,48 @@ function writeBase64File(filePath, contentBase64) {
   });
 }
 
-async function downloadApiFile(url, filePath) {
-  const payload = await request({ url, timeout: 60000 });
-  await writeBase64File(filePath, payload && payload.contentBase64);
+function isTransferFailure(error) {
+  return error && error.statusCode === undefined && error.code === undefined
+    && /request:fail.*(?:timeout|time\s*out|network|socket|connect)/i.test(error.message || '');
+}
+
+async function downloadApiFile(url, filePath, options = {}) {
+  const app = getApp();
+  const context = captureCompanyContext(app);
+  const ensureCurrent = () => {
+    if (options.shouldContinue && !options.shouldContinue()) {
+      const error = new Error('已取消下载');
+      error.code = 'FILE_DOWNLOAD_CANCELLED';
+      throw error;
+    }
+    if (!isCompanyContextCurrent(app, context)) {
+      throw new Error('企业或登录状态已变化，请重新打开页面');
+    }
+  };
+  let payload;
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    ensureCurrent();
+    try {
+      payload = await request({ url, timeout: 60000 });
+      break;
+    } catch (error) {
+      ensureCurrent();
+      if (!isTransferFailure(error)) throw error;
+      if (attempt === 1) {
+        throw new Error(/timeout|time\s*out/i.test(error.message || '')
+          ? '下载超时，请检查网络后重试' : '网络连接中断，请重试下载');
+      }
+      // File GETs are safe to retry once after a transient transport failure.
+    }
+  }
+  ensureCurrent();
+  try {
+    await writeBase64File(filePath, payload && payload.contentBase64);
+    ensureCurrent();
+  } catch (error) {
+    try { wx.getFileSystemManager().unlinkSync(filePath); } catch (unlinkError) {}
+    throw error;
+  }
   return {
     filePath,
     fileName: (payload && payload.fileName) || '',

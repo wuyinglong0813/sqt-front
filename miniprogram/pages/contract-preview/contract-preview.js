@@ -147,6 +147,7 @@ Page({
   },
 
   onLoad(options) {
+    this._pdfPageUnloaded = false;
     const contractId = options.contractId || '';
     const contractName = decodeURIComponent(options.contractName || '');
     const counterpartyName = decodeURIComponent(options.counterpartyName || '');
@@ -161,6 +162,8 @@ Page({
   },
 
   onUnload() {
+    this._pdfPageUnloaded = true;
+    if (this._businessDocumentDownloading || this.data.pdfLoading) wx.hideLoading();
     this._signedPreviewGeneration = (this._signedPreviewGeneration || 0) + 1;
   },
 
@@ -980,6 +983,7 @@ Page({
   },
 
   async downloadContractPdfFile(showDownloadedToast) {
+    if (this._pdfPageUnloaded || this.data.pdfLoading || this._businessDocumentDownloading) return;
     const safeName = String(this.data.pdfTitle || '购销合同')
       .replace(/[\\/:*?"<>|\r\n]/g, '_')
       .trim() || '购销合同';
@@ -994,16 +998,21 @@ Page({
     wx.showLoading({ title: '生成PDF中...' });
     try {
       const result = await downloadApiFile(
-        `/contracts/${this.data.contractId}/pdf-data`, filePath
+        `/contracts/${this.data.contractId}/pdf-data`, filePath,
+        { shouldContinue: () => !this._pdfPageUnloaded }
       );
+      if (this._pdfPageUnloaded) return;
       this.setData({ pdfReady: true, pdfFilePath: result.filePath });
       if (showDownloadedToast) wx.showToast({ title: 'PDF已下载', icon: 'success' });
       this.openPdfDocument(result.filePath);
     } catch (error) {
+      if (this._pdfPageUnloaded) return;
       wx.showToast({ title: `PDF下载失败：${error.message || '网络异常'}`, icon: 'none' });
     } finally {
-      wx.hideLoading();
-      this.setData({ pdfLoading: false });
+      if (!this._pdfPageUnloaded) {
+        wx.hideLoading();
+        this.setData({ pdfLoading: false });
+      }
     }
   },
 
@@ -1071,7 +1080,7 @@ Page({
         { originalName }
       );
       wx.showToast({ title: '物流单已上传', icon: 'success' });
-      await this.loadLogisticsDocuments();
+      await this.loadFulfillmentData(true);
     } catch (error) {
       wx.showToast({ title: error.message || '物流单上传失败', icon: 'none' });
     } finally {
@@ -1159,7 +1168,7 @@ Page({
     try {
       await request({ url: `/logistics-documents/${id}/delete`, method: 'POST', data: {} });
       wx.showToast({ title: '物流单已删除', icon: 'success' });
-      await this.loadFulfillmentData();
+      await this.loadFulfillmentData(true);
     } catch (error) {
       wx.showToast({ title: error.message || '删除失败', icon: 'none' });
     }
@@ -1172,58 +1181,73 @@ Page({
     return `${(bytes / 1024 / 1024).toFixed(1)}MB`;
   },
 
-  async loadFulfillmentData() {
-    if (this.data.fulfillmentLoading || !this.data.contractId) return;
+  async loadFulfillmentData(force = false) {
+    if (!this.data.contractId || this._pdfPageUnloaded) return;
+    const contractId = this.data.contractId;
+    const permissions = [this.data.canViewContractContent, this.data.canViewPayments,
+      this.data.canViewInvoices, this.data.canViewOtherAttachments];
+    const key = JSON.stringify([contractId, permissions]);
+    if (!force && this._fulfillmentLoad && this._fulfillmentLoad.key === key) return this._fulfillmentLoad.promise;
+    const pending = { key };
+    this._fulfillmentLoad = pending;
+    const current = () => !this._pdfPageUnloaded && this.data.contractId === contractId
+      && this._fulfillmentLoad === pending;
     const { request } = require('../../utils/request');
     this.setData({ fulfillmentLoading: true });
-    try {
-      const fulfillmentErrors = {};
-      const loadSection = async (key, allowed, path) => {
-        if (!allowed) return [];
-        try { return await request({ url: `/contracts/${this.data.contractId}/${path}` }); }
-        catch (error) {
-          fulfillmentErrors[key] = error.message || '加载失败，请下拉刷新重试';
-          return [];
-        }
-      };
-      const [logistics, payments, invoices, others] = await Promise.all([
-        loadSection('logistics', this.data.canViewContractContent, 'logistics-documents'),
-        loadSection('payments', this.data.canViewPayments, 'attachments?category=PAYMENT_VOUCHER'),
-        loadSection('invoices', this.data.canViewInvoices, 'attachments?category=INVOICE'),
-        loadSection('others', this.data.canViewOtherAttachments, 'attachments?category=OTHER')
-      ]);
-      const logisticsList = (logistics || []).map(item => ({
-        ...item,
-        dateText: formatDateTime(item.createdAt),
-        fileSizeText: this.formatFileSize(item.fileSize)
-      }));
-      const mapAttachment = item => ({
-        ...item,
-        fileSizeText: this.formatFileSize(item.fileSize),
-        dateText: formatDateTime(item.createdAt),
-        isImage: String(item.contentType || '').indexOf('image/') === 0,
-        voucherAmountText: item.voucherAmount === null || item.voucherAmount === undefined
-          ? '金额未填写'
-          : `转款金额 ¥${Number(item.voucherAmount).toFixed(2)}`,
-        invoiceAmountText: item.invoiceAmount === null || item.invoiceAmount === undefined
-          ? '金额未填写'
-          : `发票金额 ¥${Number(item.invoiceAmount).toFixed(2)}`
-      });
-      const paymentAttachments = (payments || []).map(mapAttachment);
-      const invoiceList = (invoices || []).map(mapAttachment);
-      const otherAttachments = (others || []).map(mapAttachment);
-      this.setData({
-        fulfillmentErrors,
-        logisticsList,
-        paymentAttachments,
-        invoiceList,
-        otherAttachments
-      }, () => this.updateFulfillmentCount());
-    } catch (error) {
-      wx.showToast({ title: error.message || '履约资料加载失败', icon: 'none' });
-    } finally {
-      this.setData({ fulfillmentLoading: false });
-    }
+    pending.promise = (async () => {
+      try {
+        const fulfillmentErrors = { logistics: '', payments: '', invoices: '', others: '' };
+        const loadSection = async (section, allowed, path, label) => {
+          if (!allowed) return [];
+          try { return await request({ url: `/contracts/${contractId}/${path}` }); }
+          catch (error) {
+            const message = error.message || '';
+            fulfillmentErrors[section] = /^request:fail/.test(message)
+              ? `${label}加载失败，请下拉刷新重试` : message || `${label}加载失败，请下拉刷新重试`;
+            return null;
+          }
+        };
+        const [logistics, payments, invoices, others] = await Promise.all([
+          loadSection('logistics', permissions[0], 'logistics-documents', '物流单'),
+          loadSection('payments', permissions[1], 'attachments?category=PAYMENT_VOUCHER', '转款凭证'),
+          loadSection('invoices', permissions[2], 'attachments?category=INVOICE', '发票'),
+          loadSection('others', permissions[3], 'attachments?category=OTHER', '其它资料')
+        ]);
+        if (!current()) return;
+        const logisticsList = logistics === null ? this.data.logisticsList : (logistics || []).map(item => ({
+          ...item,
+          dateText: formatDateTime(item.createdAt),
+          fileSizeText: this.formatFileSize(item.fileSize)
+        }));
+        const mapAttachment = item => ({
+          ...item,
+          fileSizeText: this.formatFileSize(item.fileSize),
+          dateText: formatDateTime(item.createdAt),
+          isImage: String(item.contentType || '').indexOf('image/') === 0,
+          voucherAmountText: item.voucherAmount === null || item.voucherAmount === undefined
+            ? '金额未填写'
+            : `转款金额 ¥${Number(item.voucherAmount).toFixed(2)}`,
+          invoiceAmountText: item.invoiceAmount === null || item.invoiceAmount === undefined
+            ? '金额未填写'
+            : `发票金额 ¥${Number(item.invoiceAmount).toFixed(2)}`
+        });
+        this.setData({
+          fulfillmentErrors: { ...this.data.fulfillmentErrors, ...fulfillmentErrors },
+          logisticsList,
+          paymentAttachments: payments === null ? this.data.paymentAttachments : (payments || []).map(mapAttachment),
+          invoiceList: invoices === null ? this.data.invoiceList : (invoices || []).map(mapAttachment),
+          otherAttachments: others === null ? this.data.otherAttachments : (others || []).map(mapAttachment)
+        }, () => this.updateFulfillmentCount());
+      } catch (error) {
+        if (current()) this.setData({
+          fulfillmentErrors: { ...this.data.fulfillmentErrors, others: '履约资料加载失败，请下拉刷新重试' }
+        });
+      } finally {
+        if (current()) this.setData({ fulfillmentLoading: false });
+        if (this._fulfillmentLoad === pending) this._fulfillmentLoad = null;
+      }
+    })();
+    return pending.promise;
   },
 
   updateFulfillmentCount() {
@@ -1238,19 +1262,34 @@ Page({
   },
 
   async loadContractMemo() {
-    if (!this.data.contractId) return;
-    const { request } = require('../../utils/request');
-    try {
-      const memo = await request({ url: `/contracts/${this.data.contractId}/memo` });
-      this.setData({
-        personalMemo: (memo && memo.content) || '',
-        memoDraft: (memo && memo.content) || '',
-        memoPreview: this.memoPreviewText((memo && memo.content) || ''),
-        memoUpdatedAt: memo && memo.updatedAt ? formatDateTime(memo.updatedAt) : ''
-      });
-    } catch (error) {
-      wx.showToast({ title: error.message || '备忘录加载失败', icon: 'none' });
+    if (!this.data.contractId || this._pdfPageUnloaded) return;
+    const contractId = this.data.contractId;
+    if (this._contractMemoLoad && this._contractMemoLoad.contractId === contractId) {
+      return this._contractMemoLoad.promise;
     }
+    const pending = { contractId };
+    this._contractMemoLoad = pending;
+    const current = () => !this._pdfPageUnloaded && this.data.contractId === contractId
+      && this._contractMemoLoad === pending;
+    const { request } = require('../../utils/request');
+    pending.promise = (async () => {
+      try {
+        const memo = await request({ url: `/contracts/${contractId}/memo` });
+        if (!current()) return;
+        this.setData({
+          personalMemo: (memo && memo.content) || '',
+          memoDraft: this.data.showMemoEditor ? this.data.memoDraft : (memo && memo.content) || '',
+          memoPreview: this.memoPreviewText((memo && memo.content) || ''),
+          memoUpdatedAt: memo && memo.updatedAt ? formatDateTime(memo.updatedAt) : '',
+          memoLoadError: ''
+        });
+      } catch (error) {
+        if (current()) this.setData({ memoLoadError: '备忘录加载失败，请下拉刷新重试' });
+      } finally {
+        if (this._contractMemoLoad === pending) this._contractMemoLoad = null;
+      }
+    })();
+    return pending.promise;
   },
 
   onMemoInput(e) {
@@ -1286,10 +1325,12 @@ Page({
         method: 'POST',
         data: { content: this.data.memoDraft }
       });
+      this._contractMemoLoad = null;
       this.setData({
         personalMemo: (memo && memo.content) || '',
         memoDraft: (memo && memo.content) || '',
         memoPreview: this.memoPreviewText((memo && memo.content) || ''),
+        memoLoadError: '',
         showMemoEditor: false,
         memoUpdatedAt: memo && memo.updatedAt ? formatDateTime(memo.updatedAt) : ''
       });
@@ -1538,7 +1579,7 @@ Page({
         title: category === 'OTHER' ? `${label}已上传` : `${label}已提交确认`,
         icon: 'success'
       });
-      await this.loadAttachments(category);
+      await this.loadFulfillmentData(true);
     } catch (error) {
       wx.showToast({ title: error.message || '资料上传失败', icon: 'none' });
     } finally {
@@ -1699,7 +1740,7 @@ Page({
         paymentConfirmationAttachment: null
       });
       wx.showToast({ title: '已签字确认并更新对账', icon: 'success' });
-      await this.loadAttachments(attachment.category);
+      await this.loadFulfillmentData(true);
     } catch (error) {
       wx.showToast({ title: error.message || '签字确认失败', icon: 'none' });
     } finally {
@@ -1741,7 +1782,7 @@ Page({
       });
       wx.showToast({ title: decision === 'APPROVE' ? '已通过并更新对账' : '已驳回', icon: 'success' });
       this.setData({ attachmentLoading: false });
-      await this.loadAttachments(attachment.category);
+      await this.loadFulfillmentData(true);
     } catch (error) {
       wx.showToast({ title: error.message || '确认失败', icon: 'none' });
     } finally {
@@ -1785,7 +1826,7 @@ Page({
         data: {}
       });
       wx.showToast({ title: action === 'withdraw' ? '资料已撤回' : '资料已删除', icon: 'success' });
-      await this.loadAttachments(attachment.category);
+      await this.loadFulfillmentData(true);
     } catch (error) {
       wx.showToast({ title: error.message || '操作失败', icon: 'none' });
     }
@@ -1923,26 +1964,49 @@ Page({
     }
   },
 
-  async loadBusinessDocuments(documentType) {
-    if (!this.data.canViewContractContent) return;
+  async loadBusinessDocuments(documentType, force = false) {
+    if (!this.data.canViewContractContent || !this.data.contractId || this._pdfPageUnloaded) return;
+    const contractId = this.data.contractId;
+    this._businessDocumentLoads = this._businessDocumentLoads || {};
+    const existing = this._businessDocumentLoads[documentType];
+    if (!force && existing && existing.contractId === contractId) return existing.promise;
     const { request } = require('../../utils/request');
     this.documentRequestSeq = this.documentRequestSeq || {};
     const requestSeq = (this.documentRequestSeq[documentType] || 0) + 1;
     this.documentRequestSeq[documentType] = requestSeq;
-    try {
-      const list = await request({
-        url: `/contracts/${this.data.contractId}/documents?type=${documentType}`
-      });
-      const documents = (list || []).map(item => ({
-        ...item,
-        dateText: formatDateTime(item.createdAt)
-      }));
-      if (requestSeq !== this.documentRequestSeq[documentType]) return;
-      const key = documentType === 'RETURN_ORDER' ? 'returnDocuments' : 'salesDocuments';
-      this.setData({ [key]: documents }, () => this.updateFulfillmentCount());
-    } catch (error) {
-      wx.showToast({ title: error.message || '单据加载失败', icon: 'none' });
-    }
+    const errorKey = documentType === 'RETURN_ORDER' ? 'returns' : 'sales';
+    const label = documentType === 'RETURN_ORDER' ? '退货单' : '销售单';
+    const current = () => !this._pdfPageUnloaded && this.data.contractId === contractId
+      && this.data.canViewContractContent && requestSeq === this.documentRequestSeq[documentType];
+    const pending = { contractId };
+    this._businessDocumentLoads[documentType] = pending;
+    pending.promise = (async () => {
+      try {
+        const list = await request({ url: `/contracts/${contractId}/documents?type=${documentType}` });
+        if (!current()) return;
+        const documents = (list || []).map(item => ({
+          ...item,
+          dateText: formatDateTime(item.createdAt)
+        }));
+        const key = documentType === 'RETURN_ORDER' ? 'returnDocuments' : 'salesDocuments';
+        this.setData({
+          [key]: documents,
+          fulfillmentErrors: { ...this.data.fulfillmentErrors, [errorKey]: '' }
+        }, () => this.updateFulfillmentCount());
+      } catch (error) {
+        if (current()) this.setData({
+          fulfillmentErrors: {
+            ...this.data.fulfillmentErrors,
+            [errorKey]: `${label}加载失败，请下拉刷新重试`
+          }
+        });
+      } finally {
+        if (this._businessDocumentLoads[documentType] === pending) {
+          delete this._businessDocumentLoads[documentType];
+        }
+      }
+    })();
+    return pending.promise;
   },
 
   async createBusinessDocument(e) {
@@ -2273,7 +2337,7 @@ Page({
           }
         }
       });
-      await this.loadBusinessDocuments(documentEditorType);
+      await this.loadBusinessDocuments(documentEditorType, true);
       this.setData({ showDocumentEditor: false });
       wx.showToast({ title: `${documentEditorLabel}草稿已保存`, icon: 'success' });
     } catch (error) {
@@ -2285,15 +2349,17 @@ Page({
   },
 
   viewBusinessDocument(e) {
-    this.downloadBusinessDocumentFile(e.currentTarget.dataset.document, false);
+    return this.downloadBusinessDocumentFile(e.currentTarget.dataset.document, false);
   },
 
   downloadBusinessDocument(e) {
-    this.downloadBusinessDocumentFile(e.currentTarget.dataset.document, true);
+    return this.downloadBusinessDocumentFile(e.currentTarget.dataset.document, true);
   },
 
   async downloadBusinessDocumentFile(document, showDownloadedToast) {
-    if (!document || !document.id) return;
+    if (!document || !document.id || this._pdfPageUnloaded
+      || this._businessDocumentDownloading || this.data.pdfLoading) return;
+    this._businessDocumentDownloading = true;
     const label = document.documentType === 'RETURN_ORDER' ? '退货单' : '销售单';
     const safeNo = String(document.documentNo || document.id).replace(/[\\/:*?"<>|\r\n]/g, '_');
     const filePath = `${wx.env.USER_DATA_PATH}/${label}-${safeNo}.pdf`;
@@ -2302,17 +2368,21 @@ Page({
     } catch (error) {
       // 首次生成时目标文件不存在。
     }
-    wx.showLoading({ title: '下载PDF中...' });
+    wx.showLoading({ title: '下载PDF中...', mask: true });
     try {
       const result = await downloadApiFile(
-        `/trade-documents/${document.id}/pdf-data`, filePath
+        `/trade-documents/${document.id}/pdf-data`, filePath,
+        { shouldContinue: () => !this._pdfPageUnloaded }
       );
+      if (this._pdfPageUnloaded) return;
       if (showDownloadedToast) wx.showToast({ title: 'PDF已下载', icon: 'success' });
       this.openPdfDocument(result.filePath);
     } catch (error) {
+      if (this._pdfPageUnloaded) return;
       wx.showToast({ title: error.message || 'PDF下载失败', icon: 'none' });
     } finally {
-      wx.hideLoading();
+      this._businessDocumentDownloading = false;
+      if (!this._pdfPageUnloaded) wx.hideLoading();
     }
   },
 
