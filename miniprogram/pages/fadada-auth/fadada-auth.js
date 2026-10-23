@@ -18,7 +18,7 @@ const SCENES = {
   sealGrant: { title: '授权签署', loading: '正在核验签署授权', withCompany: false },
   organization: { title: '电子签成员', loading: '正在打开电子签成员管理', withCompany: false },
   contract: { title: '合同签署', loading: '正在打开合同签署' },
-  abolish: { title: '合同作废签署', loading: '正在打开作废签署' }
+  abolish: { title: '合同作废', loading: '正在返回合同' }
 };
 
 Page({
@@ -68,6 +68,7 @@ Page({
     this.setData({ scene, options, pageTitle: config.title, loadingText: config.loading });
     this.setData({ contractSealAuthorizationAvailable: !!options.contractId && this.canManageContractSeal() });
     wx.setNavigationBarTitle({ title: config.title });
+    if (scene === 'abolish') return this.showLocalVoidNotice();
     this.ensureDesktopSignWidth();
     this.prepareService();
   },
@@ -76,6 +77,7 @@ Page({
     if (this._unloaded || this._faceRemounting) return;
     this._visible = true;
     this._openingPrerequisite = false;
+    if (this.data.scene === 'abolish') return this.showLocalVoidNotice();
     if (this._awaitingSigningPrerequisite) {
       const pending = this._awaitingSigningPrerequisite;
       this._awaitingSigningPrerequisite = null;
@@ -108,7 +110,19 @@ Page({
     this.restoreDesktopSignWidth(); },
 
   desktopSignScene() {
-    return ['contract', 'abolish', 'organization'].includes(this.data.scene);
+    return ['contract', 'organization'].includes(this.data.scene);
+  },
+
+  showLocalVoidNotice() {
+    this.pauseWebViewWatchdog();
+    this.stopStatusPolling();
+    this._webViewSession = null;
+    clearServiceRecovery(getApp(), 'abolish', this.data.options);
+    if (this.data.options.continuationId) clearSigningContinuation(getApp(), this.data.options.continuationId);
+    this.setData({ loading: false, serviceUrl: '', errorMessage: '', serviceCancelled: false,
+      preparationAction: '', needsPersonalIdentity: false, canRecoverPersonalIdentity: false,
+      serviceResultReady: true, serviceResultTitle: '合同作废流程已更新',
+      serviceResultMessage: '请返回合同详情提交作废申请，对方确认后在商签通内作废。' });
   },
 
   supplementaryOrganizationScene() {
@@ -283,6 +297,7 @@ Page({
   },
 
   async prepareService() {
+    if (this.data.scene === 'abolish') return this.showLocalVoidNotice();
     if (this._preparing || this._unloaded) return;
     this._preparing = true;
     this.setData({ loading: true, errorMessage: '', serviceCancelled: false, preparationAction: '', canRecoverPersonalIdentity: false });
@@ -290,7 +305,7 @@ Page({
     const context = captureCompanyContext(getApp());
     try {
       if (!this.isPageContextCurrent()) throw new Error('登录或企业已变化，请返回当前企业重新发起');
-      if (['contract', 'abolish', 'member'].includes(this.data.scene)) {
+      if (['contract', 'member'].includes(this.data.scene)) {
         this.setData({ canRecoverPersonalIdentity: true });
         let identity = await request({ url: '/fadada/users/me/identity', withCompany: false, token });
         if (this._unloaded || !isCompanyContextCurrent(getApp(), context)) return;
@@ -480,6 +495,7 @@ Page({
   },
 
   async loadServiceUrl() {
+    if (this.data.scene === 'abolish') return this.showLocalVoidNotice();
     if (this._loadingServiceUrl || this._unloaded) return;
     this._loadingServiceUrl = true;
     const token = getApp().globalData.token;
@@ -519,13 +535,12 @@ Page({
           : `/fadada/companies/${options.companyId}/members/${options.userId}/seal-grant-url`;
       }
       if (scene === 'contract') endpoint = `/contracts/${options.contractId}/sign-url`;
-      if (scene === 'abolish') endpoint = `/contracts/${options.contractId}/abolish-url`;
       if (!endpoint) throw new Error('服务参数不完整');
       const result = await request({
         url: endpoint,
         method: 'POST',
         token,
-        data: scene === 'abolish' ? { reason: String(options.reason || '') } : {},
+        data: {},
         withCompany: (scene === 'sealGrant' && !!options.contractId) || config.withCompany !== false,
         companyId: context.companyId,
         timeout: 30000
@@ -590,6 +605,7 @@ Page({
   },
 
   mountServiceUrl(url, context = captureCompanyContext(getApp()), ticket = {}) {
+    if (this.data.scene === 'abolish') return this.showLocalVoidNotice();
     this.pauseWebViewWatchdog();
     const generation = (this._webViewGeneration || 0) + 1;
     this._webViewGeneration = generation;
@@ -744,9 +760,9 @@ Page({
     if (this._reloadingWebView || this._pendingFaceReturn || this._faceRemounting) return;
     const session = this._webViewSession;
     if (!this.isWebViewSessionCurrent(session)) return this.prepareService();
-    const shortTicket = ['contract', 'abolish', 'member', 'sealGrant'].includes(this.data.scene);
+    const shortTicket = ['contract', 'member', 'sealGrant'].includes(this.data.scene);
     const expired = shortTicket && Date.now() - session.issuedAt >= SHORT_TICKET_LIFETIME;
-    const used = ['contract', 'abolish'].includes(this.data.scene) && session.loaded && !session.faceContinuation;
+    const used = this.data.scene === 'contract' && session.loaded && !session.faceContinuation;
     if (expired || used) {
       this._webViewSession = null;
       return this.prepareService();
@@ -797,6 +813,10 @@ Page({
     this.openReturnPage();
   },
   goBack() {
+    if (this.data.scene === 'abolish' && this.data.options.contractId && this.isPageContextCurrent()) {
+      wx.redirectTo({ url: `/pages/contract-preview/contract-preview?contractId=${encodeURIComponent(this.data.options.contractId)}` });
+      return;
+    }
     if (this.data.serviceResultReady && this.finishSigningPrerequisite()) return;
     wx.navigateBack();
   }

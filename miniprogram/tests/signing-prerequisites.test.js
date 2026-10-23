@@ -148,12 +148,11 @@ test('a signing manager authorizes their own user against the original contract 
 
 test('the activation child restores its original operation as soon as activated membership is proven', async () => {
   const h = harness(async () => ({ status: 'READY' }));
-  const id = continuation.createSigningContinuation(h.app, 'abolish', { contractId: '12', reason: '双方协商 & 退货' });
+  const id = continuation.createSigningContinuation(h.app, 'contract', { contractId: '12' });
   const p = h.page('fadada-auth'); p.data.scene = 'member'; p.data.options = { companyId: '3', continuationId: id };
   await p.loadServiceUrl();
   assert.equal(p.data.serviceResultReady, false);
-  assert.match(h.navigation[0], /scene=abolish&contractId=12&reason=/);
-  assert.equal(new URL('https://app.test' + h.navigation[0]).searchParams.get('reason'), '双方协商 & 退货');
+  assert.match(h.navigation[0], /scene=contract&contractId=12/);
 });
 
 test('nested personal certification keeps the original contract nonce on native return to the activation child', async () => {
@@ -219,31 +218,19 @@ test('a failed nested prerequisite navigation preserves its original contract co
   assert.equal(p._openingPrerequisite, false);
 });
 
-test('an in-flight abolished-contract response from a previous enterprise cannot open a signing URL', async () => {
-  let finish;
-  const h = harness(async o => {
-    if (o.url === '/fadada/users/me/identity') return { status: 'VERIFIED' };
-    return new Promise(resolve => { finish = resolve; });
-  });
-  const p = h.page('fadada-auth'); p.data.scene = 'abolish'; p.data.options = { contractId: '12', reason: '双方协商' };
-  const pending = p.prepareService();
-  while (!finish) await Promise.resolve();
-  h.app.globalData.currentCompanyId = '4'; finish({ url: 'https://provider.test/old-company' });
-  await pending;
+test('a retired abolish operation does not request identity, quotas or a provider task', async () => {
+  const h = harness(async o => { throw Error('Unexpected side effect: ' + o.url); });
+  const p = h.page('fadada-auth'); p.data.scene = 'abolish'; p.data.options = { contractId: '12' };
+  await p.prepareService();
+  await p.loadServiceUrl();
   assert.equal(p.data.serviceUrl, '');
+  assert.equal(p.data.serviceResultReady, true);
+  assert.match(p.data.serviceResultTitle, /作废流程已更新/);
+  assert.equal(h.requests.length, 0);
   assert.equal(h.navigation.length, 0);
 });
 
-test('a resumed abolish operation sends its literal percent and ampersand reason unchanged', async () => {
-  const h = harness(async () => ({ url: 'https://provider.test/abolish' }));
-  const p = h.page('fadada-auth'); p.data.scene = 'abolish';
-  p.data.options = { contractId: '12', reason: '双方协商退回 50% & 运费另结' };
-  await p.loadServiceUrl();
-  assert.equal(h.requests[0].data.reason, '双方协商退回 50% & 运费另结');
-  assert.equal(p.data.serviceUrl, 'https://provider.test/abolish');
-});
-
-for (const scene of ['contract', 'abolish', 'member']) {
+for (const scene of ['contract', 'member']) {
   test(`${scene} completes the employee's personal prerequisite and resumes the exact original operation`, async () => {
     let verified = false;
     const h = harness(async o => {

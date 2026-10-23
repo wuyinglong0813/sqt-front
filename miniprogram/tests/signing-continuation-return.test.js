@@ -50,7 +50,6 @@ function harness(handler = async () => ({ status: 'VERIFIED', organizationAuthor
 
 for (const [scene, options] of [
   ['contract', { contractId: '9007199254740993' }],
-  ['abolish', { contractId: '9007199254740993', reason: '协商：50% & 运费不退' }],
   ['member', { companyId: '3' }],
   ['sealGrant', { companyId: '3', userId: '9007199254740995', contractId: '9007199254740993' }]
 ]) {
@@ -75,17 +74,16 @@ for (const [scene, options] of [
   });
 }
 
-test('nested member authentication retains the original abolish operation and its exact reason', () => {
+test('nested member authentication retains the original contract operation', () => {
   const h = harness();
-  const parent = h.original('abolish', { contractId: '9007199254740993', reason: '双方协商 50% & 保留运费' });
+  const parent = h.original('contract', { contractId: '9007199254740993' });
   assert.equal(continuation.createSigningContinuation(h.app, 'member', {
     companyId: '3', continuationId: parent.id }), parent.id);
   const destination = continuation.resumeSigningContinuation(h.app, parent.id);
   const query = new URL('https://app.test' + destination.url).searchParams;
   assert.equal(destination.delta, 0);
-  assert.equal(query.get('scene'), 'abolish');
+  assert.equal(query.get('scene'), 'contract');
   assert.equal(query.get('contractId'), '9007199254740993');
-  assert.equal(query.get('reason'), '双方协商 50% & 保留运费');
   assert.equal(query.get('companyId'), null);
 });
 
@@ -131,7 +129,7 @@ test('a failed real-time organization check never falls back to cached VERIFIED 
 
 test('company consent recreates the original operation if its waiting page no longer exists', async () => {
   const h = harness();
-  const parent = h.original('abolish', { contractId: '9007199254740993', reason: '双方协商 50% & 保留运费' });
+  const parent = h.original('contract', { contractId: '9007199254740993' });
   const expected = continuation.signingContinuationUrl(h.app, parent.id);
   h.stack([h.companySource(parent.id), h.page]);
   h.page.onLoad({ scene: 'company', companyId: '3' });

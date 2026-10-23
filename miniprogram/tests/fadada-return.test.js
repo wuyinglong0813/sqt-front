@@ -283,7 +283,7 @@ test('official bridge restores the callback in a fresh visible page without recr
   assert.equal(h.navigation.length, 2);
 });
 
-for (const scene of ['personal', 'company', 'legal', 'contract', 'abolish']) {
+for (const scene of ['personal', 'company', 'legal', 'contract']) {
   test(`face return preserves ${scene} context and its result still comes from the backend`, async () => {
     const { h, parent, p } = faceHarness();
     parent.data.scene = scene;
@@ -719,43 +719,16 @@ for (const finalStatus of ['VERIFIED', 'FAILED']) {
 }
 
 
-test('abolish return waits for provider finalization instead of reporting premature success', async () => {
-  let completed = false;
-  const h = harness(() => completed ? { status: 'revoked', statusText: '已作废', canSign: false }
-    : { status: 'ABOLISH_sign_completed', initiatorSignStatus: 'signed', counterpartySignStatus: 'signed' });
-  const p = h.page(returnFile); p.data.options = { scene: 'abolish', contractId: '12' };
-  await p.syncResult();
-  assert.equal(p.data.loading, true);
-  assert.match(p.data.message, /双方已签署/);
-  assert.equal(h.navigation.length, 0);
-  completed = true;
-  await h.tick();
-  assert.equal(p.data.loading, false);
-  assert.equal(p.data.failed, false);
-  assert.equal(p.data.message, '已作废');
-});
-
-test('a partially signed abolish clearly asks for the other party signature', async () => {
-  const h = harness(() => ({ status: 'ABOLISH_sign_progress', statusText: '作废签署中',
-    initiatorSignStatus: 'signed', counterpartySignStatus: 'unsigned', canSign: false }));
+test('legacy abolish callback directs the user to local contract handling without provider synchronization', async () => {
+  const h = harness(() => { throw Error('Provider synchronization is retired for local void'); });
   const p = h.page(returnFile); p.data.options = { scene: 'abolish', contractId: '12' };
   await p.syncResult();
   assert.equal(p.data.loading, false);
   assert.equal(p.data.failed, false);
-  assert.equal(p.data.title, '作废签署尚未完成');
-  assert.match(p.data.message, /双方完成作废协议签署后合同才会作废/);
-  assert.equal(h.calls.length, 1);
-});
-
-test('delayed abolish finalization has a bounded retry and an actionable pending result', async () => {
-  const h = harness(() => ({ status: 'ABOLISH_sign_completed',
-    initiatorSignStatus: 'signed', counterpartySignStatus: 'signed' }));
-  const p = h.page(returnFile); p.data.options = { scene: 'abolish', contractId: '12' };
-  p._syncAttempts = 24;
-  await p.syncResult();
-  assert.equal(p.data.loading, false);
-  assert.equal(p.data.failed, true);
-  assert.equal(p.data.title, '作废结果待同步');
-  assert.equal(h.timers.size, 0);
-  assert.equal(h.navigation.length, 0);
+  assert.equal(p.data.title, '合同作废流程已更新');
+  assert.match(p.data.message, /返回合同详情/);
+  assert.equal(h.calls.length, 0);
+  assert.equal(p._awaitingResult, false);
+  p.goBusinessPage();
+  assert.equal(h.navigation[0], '/pages/contract-preview/contract-preview?contractId=12');
 });

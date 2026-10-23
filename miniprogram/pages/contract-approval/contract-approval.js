@@ -298,7 +298,7 @@ Page({
   reviewBilateralAction(e) {
     const item = e.currentTarget.dataset.item;
     const decision = e.currentTarget.dataset.decision;
-    if (!item || !item.actionId) return;
+    if (!item || !item.actionId || (item.bizType === 'CONTRACT' && !['END', 'VOID'].includes(item.actionType))) return;
     if (decision === 'REJECT') {
       wx.showModal({
         title: `拒绝${item.typeText}申请`, editable: true,
@@ -314,10 +314,8 @@ Page({
       title: `确认${item.typeText}`,
       content: item.actionType === 'END'
         ? '确认后合同及履约资料永久只读，不能恢复。'
-        : (item.actionType === 'RESUME'
-          ? '同意取消作废。系统将核实作废签署已终止且原合同仍有效，再恢复履约；核验失败时继续保持只读。'
-          : item.bizType === 'CONTRACT'
-          ? '确认后将进入作废协议签署，双方签署完成后合同才会作废。'
+        : (item.bizType === 'CONTRACT'
+          ? '确认后将在商签通内作废合同，合同及履约资料永久只读，不能恢复履约。'
           : '确认后将保留原记录并冲销相关对账和库存影响。'),
       confirmText: '确认同意', confirmColor: '#d94848',
       success: result => {
@@ -333,14 +331,9 @@ Page({
         url: `/bilateral-actions/${item.actionId}/decision`,
         method: 'POST', data: { decision, reason }
       });
-      if (decision === 'APPROVE' && item.bizType === 'CONTRACT' && item.actionType === 'VOID') {
-        wx.navigateTo({
-          url: `/pages/fadada-auth/fadada-auth?scene=abolish&contractId=${item.contractId}`
-        });
-        return;
-      }
-      wx.showToast({ title: decision === 'APPROVE' ? '已确认' : '已拒绝', icon: 'success' });
       await this.loadPending();
+      wx.showToast({ title: decision === 'APPROVE'
+        ? (item.bizType === 'CONTRACT' && item.actionType === 'VOID' ? '已作废' : '已确认') : '已拒绝', icon: 'success' });
     } catch (error) {
       wx.showToast({ title: error.message || '处理失败', icon: 'none' });
     } finally {

@@ -146,6 +146,17 @@ Page({
         message: '登录或企业已变化，请返回当前企业重新发起' });
       return;
     }
+    if ((this.data.options || {}).scene === 'abolish') {
+      const { continuationId, ...options } = this.data.options;
+      clearSigningContinuation(getApp(), continuationId);
+      clearServiceRecovery(getApp(), 'abolish', options);
+      this._awaitingResult = false;
+      if (this.syncTimer) clearTimeout(this.syncTimer);
+      this.setData({ options, continuingBusiness: false, loading: false, failed: false, countdown: 5,
+        title: '合同作废流程已更新', message: '请返回合同详情查看作废申请和处理结果。' });
+      this.startCountdown();
+      return;
+    }
     this._syncing = true;
     const token = this._resultToken = getApp().globalData.token;
     const current = () => token === getApp().globalData.token && this.resultContextCurrent();
@@ -175,7 +186,7 @@ Page({
         if (!options.companyId) throw new Error('缺少本次认证的企业信息，请返回企业认证页面重试');
         result = await this.readAuthenticationResult(
           `/fadada/companies/${options.companyId}/identity`, options.scene, token);
-      } else if (options.scene === 'contract' || options.scene === 'abolish') {
+      } else if (options.scene === 'contract') {
         result = await request({ url: `/contracts/${options.contractId}/signing/sync`, method: 'POST', token });
       }
       if (!current()) return;
@@ -216,32 +227,6 @@ Page({
             : (result && (result.failureReason || result.message || result.statusText)) || '结果尚未更新，请稍后刷新' });
         return;
       }
-      if (options.scene === 'abolish' && result && result.status !== 'revoked') {
-        const bothSigned = ['initiatorSignStatus', 'counterpartySignStatus'].every(key =>
-          ['signed', 'sign_completed', 'completed'].includes(String(result[key] || '').toLowerCase()));
-        const settling = result.status === 'ABOLISH_sign_completed' || bothSigned;
-        const attempts = this._syncAttempts || 0;
-        const retryLimit = settling ? MAX_SYNC_ATTEMPTS : 3;
-        const stopped = /terminated|expired|UNCERTAIN/.test(String(result.status || ''));
-        // The provider can return before its task-detail API has caught up. Keep
-        // checking final completion; a partial signature remains an explicit next step.
-        if (!stopped && (settling || result.canSign) && attempts < retryLimit) {
-          this._syncAttempts = attempts + 1;
-          this._awaitingResult = true;
-          this.setData({ loading: true, failed: false, title: '正在确认作废签署结果',
-            message: settling ? '双方已签署，正在等待作废结果同步' : '正在接收签署结果，请稍候' });
-          this.scheduleResultSync();
-          return;
-        }
-        this.setData({ loading: false, failed: settling,
-          title: settling ? '作废结果待同步' : '作废签署尚未完成',
-          message: settling ? '双方签署结果仍在确认中，可重新同步或返回合同详情刷新'
-            : stopped ? (result.statusText || '请返回合同详情查看并处理作废任务')
-            : result.canSign ? '请返回合同详情继续签署作废协议'
-            : '请返回合同详情查看待签署方，双方完成作废协议签署后合同才会作废' });
-        if (!settling) this.startCountdown();
-        return;
-      }
       if (options.scene === 'company' && options.continuationId) {
         this.setData({ loading: false, failed: false, title: '企业授权已完成',
           message: '授权已确认，正在继续原业务' });
@@ -273,7 +258,7 @@ Page({
         await getApp().loadMe();
         if (!current()) return;
       }
-      if (['contract', 'abolish'].includes(options.scene) && result
+      if (options.scene === 'contract' && result
           && ['task_finished', 'revoked'].includes(result.status)) clearServiceRecovery(getApp(), options.scene, options);
       this.setData({
         loading: false,

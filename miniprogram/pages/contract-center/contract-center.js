@@ -76,7 +76,8 @@ Page({
           amount: Number(item.amount || 0),
           amountText: Number(item.amount || 0).toFixed(2),
           salesAmountText: Number(item.salesAmount || 0).toFixed(2),
-          statusText: item.statusText || signingText || statusText[item.status] || item.status,
+          statusText: ['COMPLETED', 'VOIDED'].includes(item.status) ? statusText[item.status]
+            : (item.statusText || signingText || statusText[item.status] || item.status),
           createdDate: formatDateTime(item.createdAt)
         };
       });

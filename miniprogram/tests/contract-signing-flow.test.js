@@ -46,115 +46,66 @@ function harness({ signing, action = {}, permissions = ['all'], syncResult = nul
   return { page, app, modals, requests, navigations, toasts };
 }
 
-test('approved but incomplete abolish offers bilateral recovery while keeping fulfillment frozen', async () => {
-  const env = harness({ signing: { status: 'ABOLISH_task_terminated', abolishApproved: true, canSign: true } });
+test('an active contract can request local void even if electronic signing status is unavailable', async () => {
+  const env = harness({ signingError: '电子签状态不可用' });
   await env.page.loadContractDetail();
-  assert.equal(env.toasts.length, 0);
-  assert.equal(env.page.data.contractReadOnly, true);
-  assert.equal(env.page.data.canResumeContract, true);
-  env.page.requestContractResume();
+  assert.equal(env.page.data.contractReadOnly, false);
+  assert.equal(env.page.data.canRequestVoid, true);
+  assert.equal(env.page.data.canSignContract, false);
+  env.page.requestContractVoid();
   let submitted;
   env.page.submitBilateralAction = (...args) => { submitted = args; };
-  env.modals[0].success({ confirm: true, content: '双方继续履约' });
-  assert.deepEqual(submitted, ['CONTRACT', '12', 'RESUME', '双方继续履约', false]);
+  env.modals[0].success({ confirm: true, content: '双方协商停止合作' });
+  assert.deepEqual(submitted, ['CONTRACT', '12', 'VOID', '双方协商停止合作', false]);
 });
 
-test('pending recovery hides both another recovery request and provider signing', async () => {
-  const env = harness({ signing: { status: 'abolishing', abolishApproved: true, canSign: true },
-    action: { id: '21', bizType: 'CONTRACT', actionType: 'RESUME', canReview: true, actionText: '恢复履约' } });
-  await env.page.loadContractDetail();
-  assert.equal(env.page.data.canResumeContract, false);
-  assert.equal(env.page.data.canSignContract, false);
-  assert.equal(env.page.data.contract.statusText, '恢复履约待确认');
-  env.page.reviewContractAction({ currentTarget: { dataset: { decision: 'APPROVE' } } });
-  assert.match(env.modals[0].content, /原合同仍有效/);
-  assert.match(env.modals[0].content, /核验失败/);
-});
-
-test('accepting recovery refreshes the contract without opening a new abolish signing task', async () => {
-  const env = harness({ signing: { status: 'abolishing', abolishApproved: true },
-    action: { id: '21', bizType: 'CONTRACT', actionType: 'RESUME', canReview: true } });
-  await env.page.loadContractDetail();
-  await env.page.submitContractActionDecision('21', 'APPROVE', '');
-  assert.equal(env.requests.filter(item => item.url === '/bilateral-actions/21/decision').length, 1);
-  assert.equal(env.navigations.length, 0);
-});
-
-test('unknown provider creation outcome exposes no unsafe recovery or signing button', async () => {
-  const env = harness({ signing: { status: 'ABOLISH_CREATION_UNCERTAIN', abolishApproved: true, canSign: true } });
+test('pending local void approval freezes fulfillment and describes permanent local void', async () => {
+  const env = harness({ signing: { canSign: true },
+    action: { id: '21', status: 'PENDING', bizType: 'CONTRACT', actionType: 'VOID', canReview: true, actionText: '作废' } });
   await env.page.loadContractDetail();
   assert.equal(env.page.data.contractReadOnly, true);
-  assert.equal(env.page.data.canResumeContract, false);
   assert.equal(env.page.data.canSignContract, false);
-});
-
-test('contract viewers without signing permission cannot request recovery', async () => {
-  const env = harness({ signing: { status: 'abolishing', abolishApproved: true, canSign: true },
-    permissions: ['contract_view'] });
-  await env.page.loadContractDetail();
-  assert.equal(env.page.data.canResumeContract, false);
-  assert.equal(env.page.data.canSignContract, false);
-});
-
-test('approved abolish shows the remaining signature step instead of fulfillment', async () => {
-  const env = harness({ signing: { status: 'task_finished', statusText: '待签署作废协议', abolishApproved: true, canSign: true } });
-  await env.page.loadContractDetail();
-  assert.equal(env.page.data.contract.status, 'ACTIVE');
-  assert.equal(env.page.data.contract.statusText, '待签署作废协议');
-  assert.equal(env.page.data.signButtonText, '签署作废协议');
-  assert.equal(env.page.data.contractReadOnly, true);
-});
-
-test('known abolish progress keeps fulfillment frozen when the signing status request fails', async () => {
-  const env = harness({ signingError: '签署状态暂时不可用',
-    contractProgress: { statusText: '待签署作废协议', abolishPending: true } });
-  await env.page.loadContractDetail();
-  assert.equal(env.toasts.length, 0);
-  assert.equal(env.page.data.contract.status, 'ACTIVE');
-  assert.equal(env.page.data.contract.statusText, '待签署作废协议');
-  assert.equal(env.page.data.electronicAbolishing, true);
-  assert.equal(env.page.data.contractReadOnly, true);
+  assert.equal(env.page.data.canRequestVoid, false);
   assert.equal(env.page.data.canCreateSalesOrder, false);
   assert.equal(env.page.data.canCreateReturnOrder, false);
-  assert.equal(env.page.data.canSignContract, false);
+  assert.equal(env.page.data.contract.statusText, '作废待确认');
+  env.page.reviewContractAction({ currentTarget: { dataset: { decision: 'APPROVE' } } });
+  assert.match(env.modals[0].content, /商签通内作废.*永久只读/);
+  assert.doesNotMatch(env.modals[0].content, /签署作废|作废协议|法大大/);
 });
 
-test('first opening a contract synchronizes a completed abolish and reloads the legal status', async () => {
-  const env = harness({ signing: { status: 'ABOLISH_sign_completed', statusText: '作废签署中', abolishApproved: true },
-    syncResult: { status: 'revoked', statusText: '已作废', canSign: false } });
+test('contract viewers without signing permission cannot request local void', async () => {
+  const env = harness({ signing: { canAbolish: true }, permissions: ['contract_view'] });
+  await env.page.loadContractDetail();
+  assert.equal(env.page.data.canRequestVoid, false);
+});
+
+test('local void takes precedence over stale provider metadata and pending actions', async () => {
+  const env = harness({ contractStatus: 'VOIDED',
+    contractProgress: { statusText: '待签署作废协议', abolishPending: true },
+    action: { id: '21', status: 'PENDING', bizType: 'CONTRACT', actionType: 'VOID', canReview: true },
+    signing: { status: 'ABOLISH_CREATION_UNCERTAIN', abolishApproved: true, canSign: true } });
   env.page.onLoad({ contractId: '12' });
   await new Promise(resolve => setImmediate(resolve));
-  assert.equal(env.requests.filter(item => item.url === '/contracts/12/signing/sync').length, 1);
-  assert.equal(env.page.data.contract.status, 'VOIDED');
   assert.equal(env.page.data.contract.statusText, '已作废');
-  assert.equal(env.page.data.electronicAbolishing, false);
+  assert.equal(env.page.data.contractReadOnly, true);
+  assert.equal(env.page.data.activeContractAction, null);
   assert.equal(env.page.data.canSignContract, false);
+  assert.equal(env.requests.some(item => item.url.endsWith('/signing/sync')), false);
 });
 
-test('the contract list preserves server abolish progress independently from legal state', async () => {
+test('the contract list displays local void state independently of the original signed task', async () => {
   let page;
-  const app = { globalData: {} };
   vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../pages/contract-center/contract-center.js'), 'utf8'), {
-    Page: value => { page = value; }, getApp: () => app, wx: { showToast() {} },
+    Page: value => { page = value; }, getApp: () => ({ globalData: {} }), wx: { showToast() {} },
     require: id => id.endsWith('/request') ? { request: async options => options.url === '/contracts/summary'
-      ? {} : { items: [{ id: '12', status: 'ACTIVE', statusText: '作废签署中' }] } }
+      ? {} : { items: [{ id: '12', status: 'VOIDED', signingStatus: 'task_finished', statusText: '待签署作废协议' }] } }
       : { formatDateTime: () => '' }
   });
   page.setData = value => Object.assign(page.data, value);
   await page.loadContracts(true);
-  assert.equal(page.data.contracts[0].status, 'ACTIVE');
-  assert.equal(page.data.contracts[0].statusText, '作废签署中');
-});
-
-test('unexpected activity on a retired abolish task is shown instead of swallowed by background sync', async () => {
-  const env = harness({ signing: { status: 'task_finished', statusText: '已签署并归档', canSign: false },
-    syncError: '已取消作废任务的远程状态发生变化，需要核实处理' });
-  await env.page.loadContractDetail();
-  await env.page.syncContractSigningInBackground();
-  assert.equal(env.modals.length, 1);
-  assert.equal(env.modals[0].title, '作废状态需要核实');
-  assert.match(env.modals[0].content, /需要核实处理/);
-  assert.equal(env.page.data.electronicAbolishing, false);
+  assert.equal(page.data.contracts[0].status, 'VOIDED');
+  assert.equal(page.data.contracts[0].statusText, '已作废');
 });
 
 for (const [status, text] of [['task_terminated', '签署已终止'], ['expired', '签署已过期'], ['task_expired', '签署已过期']]) {

@@ -1,6 +1,7 @@
 const { captureCompanyContext, isCompanyContextCurrent } = require('./companyContext');
 
-const SCENES = ['contract', 'abolish', 'member', 'sealGrant', 'company'];
+const SCENES = ['contract', 'member', 'sealGrant', 'company'];
+const RECOVERY_SCENES = ['contract', 'member', 'sealGrant'];
 
 function createSigningContinuation(app, scene, options = {}) {
   // A prerequisite can itself need authentication. Keep the first business
@@ -25,7 +26,6 @@ function createSigningContinuation(app, scene, options = {}) {
   else {
     if (!options.contractId) return '';
     target.contractId = String(options.contractId);
-    if (scene === 'abolish' && options.reason) target.reason = String(options.reason);
   }
   const id = Date.now().toString(36) + '-' + Math.random().toString(36).slice(2);
   app._signingIdentityContinuation = { id, context, target };
@@ -75,7 +75,7 @@ function clearSigningContinuation(app, id) {
 }
 
 function rememberServiceRecovery(app, scene, options) {
-  if (!['contract', 'abolish', 'member', 'sealGrant'].includes(scene)) return;
+  if (!RECOVERY_SCENES.includes(scene)) return;
   const target = { scene };
   for (const key of ['companyId', 'contractId', 'userId', 'reason', 'continuationId']) {
     if (options[key]) target[key] = String(options[key]);
@@ -85,7 +85,8 @@ function rememberServiceRecovery(app, scene, options) {
 
 function serviceRecovery(app) {
   const pending = app._fadadaServiceRecovery;
-  return pending && isCompanyContextCurrent(app, pending.context) ? pending : null;
+  return pending && RECOVERY_SCENES.includes(pending.target.scene)
+    && isCompanyContextCurrent(app, pending.context) ? pending : null;
 }
 
 function serviceRecoveryUrl(app) {
@@ -95,8 +96,8 @@ function serviceRecoveryUrl(app) {
 }
 
 function clearServiceRecovery(app, scene, options) {
-  const pending = serviceRecovery(app);
-  if (pending && pending.target.scene === scene
+  const pending = app._fadadaServiceRecovery;
+  if (pending && isCompanyContextCurrent(app, pending.context) && pending.target.scene === scene
       && ['companyId', 'contractId', 'userId'].every(key => String(pending.target[key] || '') === String(options[key] || ''))) {
     delete app._fadadaServiceRecovery;
   }

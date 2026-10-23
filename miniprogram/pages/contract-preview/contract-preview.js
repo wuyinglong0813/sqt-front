@@ -84,7 +84,6 @@ Page({
     canDeleteContract: false,
     canRequestEnd: false,
     canRequestVoid: false,
-    canResumeContract: false,
     contractReadOnly: false,
     activeContractAction: null,
     contractActionLoading: false,
@@ -102,7 +101,6 @@ Page({
     signedPreviewVersionChanged: false,
     canSignContract: false,
     signButtonText: '签署合同',
-    electronicAbolishing: false,
     canCreateSalesOrder: false,
     canCreateReturnOrder: false,
     createAsDraft: false,
@@ -285,7 +283,7 @@ Page({
         || String(contract.createdAt || '').slice(0, 10);
       const viewerDirection = contract.viewerDirection || contract.direction;
       const isSupplier = viewerDirection === 'SALE';
-      const actionPending = !!(activeContractAction && activeContractAction.id);
+      const actionPending = contract.status === 'ACTIVE' && !!(activeContractAction && activeContractAction.id);
       const signingStatus = String((signing && signing.status) || contract.signingStatus || '');
       const pendingSigningText = contract.status === 'PENDING' ? {
         task_terminated: '签署已终止', expired: '签署已过期', task_expired: '签署已过期',
@@ -293,10 +291,7 @@ Page({
       }[signingStatus.toLowerCase()] : '';
       const signingStopped = contract.status === 'PENDING'
         && ['task_terminated', 'expired', 'task_expired'].includes(signingStatus.toLowerCase());
-      const electronicAbolishing = contract.status === 'ACTIVE' && (contract.abolishPending === true || !!(signing && signing.abolishApproved)
-        || signingStatus === 'abolishing' || signingStatus.startsWith('ABOLISH_') || signingStatus === 'revoked');
-      const contractReadOnly = actionPending || electronicAbolishing
-        || ['COMPLETED', 'VOIDED'].includes(contract.status);
+      const contractReadOnly = actionPending || ['COMPLETED', 'VOIDED'].includes(contract.status);
       const canCreateSalesOrder = canCreateDocument && isSupplier
         && !contractReadOnly && (contract.status === 'PENDING' || contract.status === 'ACTIVE');
       const canCreateReturnOrder = canCreateDocument && !contractReadOnly
@@ -310,12 +305,10 @@ Page({
           ...contract,
           statusText: actionPending
             ? (activeContractAction.bizType === 'CONTRACT'
-              ? (activeContractAction.actionType === 'END' ? '结束待确认'
-                : (activeContractAction.actionType === 'RESUME' ? '恢复履约待确认' : '作废待确认'))
+              ? (activeContractAction.actionType === 'END' ? '结束待确认' : '作废待确认')
               : `${activeContractAction.targetText || '履约资料'}作废待确认`)
-            : electronicAbolishing
-              ? ((signing && signing.statusText) || contract.statusText || '待签署作废协议')
-              : (pendingSigningText || contract.statusText || statusMap[contract.status] || contract.status),
+            : (['COMPLETED', 'VOIDED'].includes(contract.status) ? statusMap[contract.status]
+              : (pendingSigningText || contract.statusText || statusMap[contract.status] || contract.status)),
           amount: contract.amount || 0,
           contractAmountText: money(contract.amount),
           salesAmountText: money(contract.salesAmount),
@@ -340,29 +333,21 @@ Page({
         canEditContract: canManageContract && !contractReadOnly && outgoing && ['PENDING', 'REJECTED', 'CANCELLED'].includes(contract.status),
         canDeleteContract: canManageContract && !contractReadOnly && outgoing && ['REJECTED', 'CANCELLED'].includes(contract.status),
         canRequestEnd: canManageContract && !contractReadOnly && contract.status === 'ACTIVE',
-        canRequestVoid: canManageContract && !contractReadOnly && contract.status === 'ACTIVE'
-          && !!(signing && signing.canAbolish && !signing.abolishApproved),
+        canRequestVoid: canManageContract && !contractReadOnly && contract.status === 'ACTIVE',
         contractReadOnly,
         activeContractAction: actionPending ? activeContractAction : null,
-        canResumeContract: canManageContract && !actionPending && contract.status === 'ACTIVE'
-          && !!(signing && signing.abolishApproved) && signingStatus !== 'ABOLISH_CREATION_UNCERTAIN',
         signing: pendingSigningText ? { ...(signing || {}), status: signingStatus, statusText: pendingSigningText } : signing,
         signingActionHint: signingStopped ? '本次电子签署已停止，发起方可修改后重新发起或撤回合同。'
           : pendingSigningText ? '正在核验双方签署及归档结果，请稍后刷新同步。'
           : '合同将在双方依次完成签署并归档后生效。',
-        canManageContractSeal: ['PENDING', 'ACTIVE'].includes(contract.status)
+        canManageContractSeal: !contractReadOnly && ['PENDING', 'ACTIVE'].includes(contract.status)
           && this.hasAnyPermission('seal_manage') && this.hasAnyPermission('member_manage', 'auth_manage'),
         serviceRecoveryAvailable: !!(canManageContract && recovery && recovery.target.contractId === this.data.contractId
-          && ((recovery.target.scene === 'contract' && contract.status === 'PENDING' && !pendingSigningText)
-            || (recovery.target.scene === 'abolish' && contract.status === 'ACTIVE' && electronicAbolishing))),
+          && recovery.target.scene === 'contract' && contract.status === 'PENDING' && !pendingSigningText),
         signedContractArchived: !!(signing && signing.signedFileArchived),
-        canSignContract: canManageContract && !!(signing && signing.canSign)
-          && !(actionPending && activeContractAction.actionType === 'RESUME')
-          && signingStatus !== 'ABOLISH_CREATION_UNCERTAIN' && !pendingSigningText,
-        signButtonText: signing && (signing.abolishApproved
-          || String(signing.status || '').startsWith('ABOLISH_') || signing.status === 'abolishing')
-          ? '签署作废协议' : '签署合同',
-        electronicAbolishing,
+        canSignContract: canManageContract && contract.status === 'PENDING'
+          && !!(signing && signing.canSign) && !pendingSigningText,
+        signButtonText: '签署合同',
         canCreateSalesOrder,
         canCreateReturnOrder,
         createAsDraft,
@@ -423,9 +408,6 @@ Page({
       await this.loadContractDetail();
     } catch (error) {
       // 页面先使用本地签署状态，远程同步失败不阻塞合同详情展示。
-      if (String(error.message || '').includes('已取消作废任务的远程状态发生变化')) {
-        wx.showModal({ title: '作废状态需要核实', content: error.message, showCancel: false });
-      }
     } finally {
       this.signingSyncInFlight = false;
     }
@@ -440,12 +422,8 @@ Page({
 
   signContract() {
     if (!this.data.canSignContract || this.data.contractActionLoading) return;
-    const signing = this.data.signing || {};
-    const scene = signing.abolishApproved || String(signing.status || '').startsWith('ABOLISH_')
-      || signing.status === 'abolishing'
-      ? 'abolish' : 'contract';
     wx.navigateTo({
-      url: `/pages/fadada-auth/fadada-auth?scene=${scene}&contractId=${this.data.contractId}`
+      url: `/pages/fadada-auth/fadada-auth?scene=contract&contractId=${this.data.contractId}`
     });
   },
   openContractSealAuthorization() {
@@ -546,26 +524,6 @@ Page({
     });
   },
 
-  requestContractResume() {
-    if (!this.data.canResumeContract || this.data.contractActionLoading) return;
-    wx.showModal({
-      title: '取消作废并恢复履约',
-      editable: true,
-      placeholderText: '请输入恢复履约原因',
-      content: '对方同意后，将先终止未完成的作废签署，确认原合同仍有效后恢复履约。',
-      confirmText: '提交申请',
-      success: result => {
-        if (!result.confirm) return;
-        const reason = String(result.content || '').trim();
-        if (!reason) {
-          wx.showToast({ title: '请输入恢复履约原因', icon: 'none' });
-          return;
-        }
-        this.submitBilateralAction('CONTRACT', this.data.contractId, 'RESUME', reason, false);
-      }
-    });
-  },
-
   async submitBilateralAction(bizType, bizId, actionType, reason, riskConfirmed) {
     if (this.data.contractActionLoading) return;
     const { request } = require('../../utils/request');
@@ -588,7 +546,8 @@ Page({
   reviewContractAction(e) {
     const decision = e.currentTarget.dataset.decision;
     const action = this.data.activeContractAction;
-    if (!action || !action.id || !action.canReview) return;
+    if (!action || !action.id || !action.canReview
+        || (action.bizType === 'CONTRACT' && !['END', 'VOID'].includes(action.actionType))) return;
     if (decision === 'REJECT') {
       wx.showModal({
         title: `拒绝${action.actionText || '合同操作'}申请`,
@@ -607,9 +566,7 @@ Page({
       title: `同意${action.actionText || '合同操作'}`,
       content: action.actionType === 'END'
         ? '确认后合同永久只读，不能恢复或继续履约。'
-        : (action.actionType === 'RESUME'
-          ? '同意取消作废。系统将先确认作废签署已经安全终止、原合同仍有效，再恢复履约；核验失败时继续保持只读。'
-          : '确认后将进入作废协议签署，双方签署完成后合同才会作废。'),
+        : '确认后将在商签通内作废合同，合同及履约资料永久只读，不能恢复履约。',
       confirmText: '确认同意',
       confirmColor: '#d94848',
       success: result => {
@@ -620,6 +577,7 @@ Page({
 
   async submitContractActionDecision(actionId, decision, reason) {
     const { request } = require('../../utils/request');
+    const action = this.data.activeContractAction;
     try {
       this.setData({ contractActionLoading: true });
       await request({
@@ -627,16 +585,9 @@ Page({
         method: 'POST',
         data: { decision, reason }
       });
-      if (decision === 'APPROVE' && this.data.activeContractAction
-        && this.data.activeContractAction.bizType === 'CONTRACT'
-        && this.data.activeContractAction.actionType === 'VOID') {
-        wx.navigateTo({
-          url: `/pages/fadada-auth/fadada-auth?scene=abolish&contractId=${this.data.contractId}`
-        });
-        return;
-      }
-      wx.showToast({ title: decision === 'APPROVE' ? '已确认' : '已拒绝', icon: 'success' });
       await this.loadContractDetail();
+      wx.showToast({ title: decision === 'APPROVE'
+        ? (action && action.actionType === 'VOID' ? '已作废' : '已确认') : '已拒绝', icon: 'success' });
     } catch (error) {
       wx.showToast({ title: error.message || '处理失败', icon: 'none' });
     } finally {
@@ -646,7 +597,7 @@ Page({
 
   async cancelContractBilateralAction() {
     const action = this.data.activeContractAction;
-    if (!action || !action.id || !action.canCancel || this.data.contractActionLoading) return;
+    if (!action || !action.id || action.status !== 'PENDING' || !action.canCancel || this.data.contractActionLoading) return;
     const { request } = require('../../utils/request');
     try {
       this.setData({ contractActionLoading: true });

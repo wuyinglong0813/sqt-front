@@ -8,8 +8,8 @@
   <view class="state-icon">✓</view>
   <view class="state-title">{{serviceResultTitle}}</view>
   <view class="state-desc">{{serviceResultMessage}}</view>
-  <button class="primary-button" bindtap="goBack">返回继续办理</button>
-  <view class="back-link" bindtap="checkResult">重新核验当前状态</view>
+  <button class="primary-button" bindtap="goBack">{{scene === 'abolish' ? '返回合同详情' : '返回继续办理'}}</button>
+  <view class="back-link" wx:if="{{scene !== 'abolish'}}" bindtap="checkResult">重新核验当前状态</view>
 </view>
 
 <view class="state-page preparation-page" wx:elif="{{preparationAction}}">
@@ -33,7 +33,7 @@
   <button class="primary-button" wx:else bindtap="retry">{{serviceCancelled ? '继续办理' : '重新加载'}}</button>
   <view class="back-link" wx:if="{{canRecoverPersonalIdentity && !needsPersonalIdentity && !serviceCancelled}}" bindtap="continuePersonalIdentity">重新核验本人认证并继续</view>
   <view class="back-link" bindtap="checkResult" wx:if="{{serviceUrl && (scene === 'member' || scene === 'sealGrant')}}">已完成办理？重新核验当前状态</view>
-  <view class="back-link" bindtap="checkResult" wx:if="{{serviceUrl && (scene === 'contract' || scene === 'abolish')}}">已完成签署？同步并返回合同</view>
+  <view class="back-link" bindtap="checkResult" wx:if="{{serviceUrl && scene === 'contract'}}">已完成签署？同步并返回合同</view>
   <view class="back-link" bindtap="checkResult" wx:if="{{!serviceCancelled && (scene === 'personal' || scene === 'company' || scene === 'legal')}}">{{scene === 'company' && options.renewOrganization === '1' ? '已完成授权？检查并继续' : '已完成认证？刷新认证结果'}}</view>
   <view class="back-link" bindtap="goBack">返回上一页</view>
 </view>
