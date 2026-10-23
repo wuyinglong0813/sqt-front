@@ -63,6 +63,8 @@ Page({
       if (source && source._companyFlow && source._flowToken === getApp().globalData.token) {
         options = { ...options, flow: 'company-create',
           companyId: (source._returnOptions || {}).companyId || '' };
+      } else if (source && source._legalClaimCompanyId && source._flowToken === app.globalData.token) {
+        options = { ...options, flow: 'legal-claim', companyId: source._legalClaimCompanyId };
       }
       if (source && source._identityContinuationId
           && signingContinuation(getApp(), source._identityContinuationId)) {
@@ -265,7 +267,8 @@ Page({
         failed: false,
         title: options.scene === 'personal' ? '个人认证成功' : '处理结果已同步',
         message: options.scene === 'personal' ? (options.flow === 'company-create'
-          ? '实名身份已确认，即将继续企业开通流程' : '实名身份已确认，即将进入首页') : (result && (result.statusText || result.status)) || '你可以返回业务页面继续操作'
+          ? '实名身份已确认，即将继续企业开通流程' : options.flow === 'legal-claim'
+            ? '实名身份已确认，即将继续法人认领' : '实名身份已确认，即将进入首页') : (result && (result.statusText || result.status)) || '你可以返回业务页面继续操作'
       });
       if (current()) this.startCountdown();
     } catch (error) {
@@ -327,6 +330,10 @@ Page({
       return;
     }
     if (options.scene === 'personal') {
+      if (options.flow === 'legal-claim' && options.companyId && !this.data.failed) {
+        wx.redirectTo({ url: `/pages/legal-representative/legal-representative?companyId=${encodeURIComponent(options.companyId)}&claim=1` });
+        return;
+      }
       if (!this.data.failed && options.flow !== 'company-create') {
         wx.switchTab({ url: '/pages/index/index' });
         return;
@@ -335,8 +342,8 @@ Page({
         returnToCompany(options);
         return;
       }
-      const query = options.flow === 'company-create'
-        ? `?flow=company-create${options.companyId ? '&companyId=' + encodeURIComponent(options.companyId) : ''}`
+      const query = ['company-create', 'legal-claim'].includes(options.flow)
+        ? `?flow=${options.flow}${options.companyId ? '&companyId=' + encodeURIComponent(options.companyId) : ''}`
         : options.continuationId && signingContinuation(getApp(), options.continuationId)
           ? `?continuationId=${encodeURIComponent(options.continuationId)}` : '';
       wx.redirectTo({ url: `/pages/personal-cert/personal-cert${query}` });

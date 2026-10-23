@@ -1,11 +1,11 @@
 <view class="page">
   <view class="card">
-    <view class="title">核对已有法人身份记录</view>
-    <view class="description">本页用于核对当前账号已有的法人身份记录。身份尚未确认时，可联系平台支持人工核验。</view>
-    <view class="step">1. 法人本人使用自己的账号完成个人实名认证，并确认已加入当前企业。</view>
-    <view class="step">2. 点击“核对已有身份记录”同步结果。个人实名通过、拥有企业管理员权限，也需要确认法人身份记录。</view>
+    <view class="title">{{claimFlow ? '法人自主核验认领' : '核对已有法人身份记录'}}</view>
+    <view class="description">法人本人可使用自己的账号核验认领，无需先加入企业或取得管理员邀请。本页核对已有可信法人身份记录，核验通过后才开通法人权限。</view>
+    <view class="step">1. 法人本人使用自己的账号完成个人实名认证。</view>
+    <view class="step">2. 点击“核验法人身份”核对本人和该企业的法人身份关联。个人实名通过或拥有管理员权限，不代表已经确认法人身份。</view>
     <view class="step">3. 尚未确认时，可通过帮助中心联系平台支持，提供企业名称和本页提示，申请人工核验。</view>
-    <view class="notice">企业已有其他法人账号时，请联系现法人办理变更。</view>
+    <view class="notice">核验依据不足时，本页会保留提示供你继续处理。企业已有其他有效法人账号时，按核验结果办理身份变更。</view>
   </view>
   <view class="card" wx:if="{{message}}">
     <view class="result-title" wx:if="{{messageTitle}}">{{messageTitle}}</view>
@@ -13,5 +13,7 @@
     <view class="support-tip" wx:if="{{reviewRequired}}">请通过帮助中心联系平台支持人工核验；核验确认后可返回本页同步结果。</view>
     <button class="secondary" wx:if="{{reviewRequired}}" bindtap="openSupport">前往帮助中心联系平台支持</button>
   </view>
-  <button class="primary" bindtap="startVerification" loading="{{loading}}" disabled="{{loading || verified}}">{{verified ? '法人身份已确认' : '核对已有身份记录'}}</button>
+  <button class="primary" wx:if="{{needsPersonalIdentity}}" bindtap="openPersonalIdentity" disabled="{{loading}}">先完成个人实名认证</button>
+  <button class="primary" wx:else bindtap="startVerification" loading="{{loading}}" disabled="{{loading || verified}}">{{verified ? '法人身份已确认' : '核验法人身份'}}</button>
+  <button class="secondary" wx:if="{{claimFlow && verified}}" bindtap="enterClaimedCompany" loading="{{enteringCompany}}" disabled="{{enteringCompany}}">进入本企业</button>
 </view>

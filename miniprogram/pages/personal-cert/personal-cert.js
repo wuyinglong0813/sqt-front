@@ -57,6 +57,7 @@ Page({
   onLoad(options = {}) {
     this._flowToken = getApp().globalData.token;
     this._companyFlow = options.flow === 'company-create';
+    this._legalClaimCompanyId = options.flow === 'legal-claim' ? String(options.companyId || '') : '';
     this._returnOptions = options;
     this._identityContinuationId = options.continuationId && signingContinuation(getApp(), options.continuationId)
       ? options.continuationId : '';
@@ -145,6 +146,7 @@ Page({
           withCompany: false
         });
       }
+      if (this._legalClaimCompanyId && (this._unloaded || this._flowToken !== getApp().globalData.token)) return;
       const status = identity && STATUS_VIEW[identity.status] ? identity.status : 'NOT_STARTED';
       const displayIdentity = identityForDisplay(identity);
       this.setData({
@@ -152,6 +154,12 @@ Page({
         providerEnabled: !!(identity && identity.providerEnabled),
         statusView: STATUS_VIEW[status]
       });
+      if (status === 'VERIFIED' && this._legalClaimCompanyId && !this._unloaded && !this._returning
+          && this._flowToken === getApp().globalData.token) {
+        this._returning = true;
+        wx.redirectTo({ url: `/pages/legal-representative/legal-representative?companyId=${encodeURIComponent(this._legalClaimCompanyId)}&claim=1` });
+        return;
+      }
       if (status === 'VERIFIED' && this._completedAuthReturn && !this._unloaded && !this._returning) {
         this._returning = true;
         const query = this._companyFlow ? '&flow=company-create' : '';
@@ -204,7 +212,8 @@ Page({
       return;
     }
     this.setData({ refreshAfterAuth: true });
-    const query = this._companyFlow ? `&flow=company-create${this._returnOptions.companyId ? '&companyId=' + encodeURIComponent(this._returnOptions.companyId) : ''}` : '';
+    const flow = this._companyFlow ? 'company-create' : this._legalClaimCompanyId ? 'legal-claim' : '';
+    const query = flow ? `&flow=${flow}${this._returnOptions.companyId ? '&companyId=' + encodeURIComponent(this._returnOptions.companyId) : ''}` : '';
     const continuation = this._identityContinuationId ? '&continuationId=' + encodeURIComponent(this._identityContinuationId) : '';
     wx.navigateTo({ url: `/pages/fadada-auth/fadada-auth?scene=personal${query}${continuation}` });
   },

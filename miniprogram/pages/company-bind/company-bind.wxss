@@ -250,3 +250,6 @@
 .confirm-btn::after {
   border: none;
 }
+
+.secondary-btn { margin-top: 20rpx; color: #2478df; background: #eef6ff; border-radius: 48rpx; font-size: 28rpx; }
+.secondary-btn::after { border: none; }

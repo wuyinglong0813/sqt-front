@@ -733,7 +733,7 @@ Page({
     const { scene, options } = this.data;
     const query = [`scene=${scene}`];
     if (this.supplementaryOrganizationScene()) query.push('renewOrganization=1');
-    if (options.flow === 'company-create') query.push('flow=company-create');
+    if (['company-create', 'legal-claim'].includes(options.flow)) query.push(`flow=${options.flow}`);
     if (options.companyId) query.push(`companyId=${encodeURIComponent(options.companyId)}`);
     if (options.contractId) query.push(`contractId=${encodeURIComponent(options.contractId)}`);
     if (options.continuationId) query.push(`continuationId=${encodeURIComponent(options.continuationId)}`);

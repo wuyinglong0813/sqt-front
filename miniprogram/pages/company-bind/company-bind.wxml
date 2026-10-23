@@ -22,11 +22,11 @@
     <view class="field-label">法定代表人 / 负责人姓名</view>
     <input class="company-input" placeholder="与营业执照上的姓名一致" maxlength="64" value="{{legalPersonName}}" data-field="legalPersonName" bindinput="onCompanyInput" />
     <button class="confirm-btn" bindtap="continueCreate">下一步，确认企业信息</button>
-    <view class="form-hint form-footer">已有企业的成员，请联系企业管理员获取成员邀请。</view>
+    <view class="form-hint form-footer">企业已开通？法人本人可在“查找已入驻企业”核验认领；普通成员请联系管理员获取邀请。</view>
   </view>
 
   <block wx:if="{{mode === 'search'}}">
-  <view class="search-notice">仅查找已入驻商签通的企业。首次入驻请填写企业资料。</view>
+  <view class="search-notice">法人本人可自主核验认领，无需先成为企业成员。普通成员通过管理员邀请加入。</view>
 
   <!-- 搜索栏 -->
   <view class="search-bar-wrap">
@@ -71,7 +71,9 @@
         <text class="confirm-key">平台状态</text>
         <text class="confirm-val">已认证</text>
       </view>
-      <button class="confirm-btn" bindtap="confirmCompany">如何加入</button>
+      <button class="confirm-btn" bindtap="startLegalClaim">我是法人，核验认领</button>
+      <button class="secondary-btn" bindtap="confirmCompany">普通成员如何加入</button>
+      <view class="form-hint">核验通过后开通本人法人权限；选择企业或个人实名通过不代表认领成功。</view>
     </view>
   </view>
   </block>

@@ -62,7 +62,8 @@ Page({
     wx.showLoading({ title: '搜索中...' });
     try {
       const results = await request({
-        url: `/companies/search?keyword=${encodeURIComponent(keyword)}`
+        url: `/companies/search?keyword=${encodeURIComponent(keyword)}`,
+        withCompany: false
       });
       // Older server versions also returned drafts. Only certified companies have onboarded.
       this.setData({ results: (results || []).filter(company => company.verified === true),
@@ -81,7 +82,15 @@ Page({
     this.setData({ selectedCompany: company });
   },
 
-  // 确认企业，跳转实名认证
+  startLegalClaim() {
+    const company = this.data.selectedCompany;
+    if (!company || company.verified !== true || !company.id) return;
+    wx.navigateTo({
+      url: `/pages/legal-representative/legal-representative?companyId=${encodeURIComponent(company.id)}&claim=1`
+    });
+  },
+
+  // 普通成员通过管理员邀请加入；法人本人使用独立核验入口。
   confirmCompany() {
     const c = this.data.selectedCompany;
     if (!c || c.verified !== true) return;
