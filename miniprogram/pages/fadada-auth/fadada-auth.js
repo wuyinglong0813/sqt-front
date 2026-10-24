@@ -151,8 +151,8 @@ Page({
       const canProceed = this.canAuthorizeCompany();
       view = {
         preparationAction: 'company',
-        preparationTitle: '企业需完成一次签署授权',
-        preparationMessage: '这是企业对商签通的授权，与个人实名分开。请电子签平台企业超管办理一次，完成后同企业有签署权限的同事可复用，无需逐人重复办理企业授权。商签通管理员与电子签平台企业超管是两个身份。',
+        preparationTitle: '补齐企业签署授权',
+        preparationMessage: '已开通电子签的企业无需重新注册。当前需核验或补齐企业对商签通的签署、成员及用印访问授权，与个人实名分开。请电子签平台企业超管办理一次，同企业有签署权限的同事可复用。服务商统一页面可能仍显示“开通电子签”。商签通管理员与电子签企业超管是两个身份。',
         preparationActionText: '授权后重新检查',
         preparationCanProceed: canProceed
       };

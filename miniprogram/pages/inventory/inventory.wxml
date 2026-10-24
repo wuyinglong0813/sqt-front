@@ -1,35 +1,47 @@
 <view class="page">
   <view class="hero">
-    <view class="hero-label">企业库存台账</view>
-    <view class="hero-title">库存管理</view>
-    <view class="hero-sub">支持手动入库，也可通过销售单接收入库</view>
+    <view class="hero-copy"><view class="hero-label">企业库存台账</view><view class="hero-title">库存管理</view></view>
     <view class="metrics">
       <view><text>{{overview.warehouseCount}}</text><label>仓库</label></view>
       <view><text>{{overview.productCount}}</text><label>库存商品</label></view>
     </view>
   </view>
 
-  <view class="section-head"><view><view class="section-title">仓库</view><view class="section-sub">入库时需要选择一个启用仓库</view></view><button bindtap="openCreate">＋ 新建仓库</button></view>
-  <scroll-view class="warehouse-scroll" scroll-x wx:if="{{warehouses.length > 0}}">
+  <view class="section-head"><view><view class="section-title">仓库</view><view class="section-sub">点击仓库筛选库存</view></view><button bindtap="openCreate">＋ 新建仓库</button></view>
+  <scroll-view class="warehouse-scroll" scroll-x enhanced show-scrollbar="{{false}}" wx:if="{{warehouses.length > 0}}">
     <view class="warehouse-row">
-      <view class="warehouse-card" wx:for="{{warehouses}}" wx:key="id"><view class="warehouse-icon">仓</view><view class="warehouse-name">{{item.name}}</view><view class="warehouse-address">{{item.address || '未填写地址'}}</view></view>
+      <view class="warehouse-chip {{filterWarehouseId === '' ? 'active' : ''}}" data-id="" bindtap="selectFilterWarehouse">全部仓库</view>
+      <view class="warehouse-chip {{filterWarehouseId == item.id ? 'active' : ''}}" wx:for="{{warehouses}}" wx:key="id" data-id="{{item.id}}" bindtap="selectFilterWarehouse">{{item.name}}</view>
     </view>
   </scroll-view>
+  <view class="warehouse-address" wx:if="{{filterWarehouseAddress}}">仓库地址：{{filterWarehouseAddress}}</view>
   <view class="empty-inline" wx:if="{{!loading && warehouses.length === 0}}">暂无仓库，先创建仓库后才能直接入库</view>
 
-  <view class="section-head inventory-head"><view><view class="section-title">库存余额</view><view class="section-sub">按仓库、商品、规格汇总</view></view><button wx:if="{{overview.canManualInbound}}" bindtap="openInbound">＋ 手动入库</button></view>
-  <view class="balance-list" wx:if="{{overview.balances.length > 0}}">
-    <view class="balance-card" wx:for="{{overview.balances}}" wx:key="id">
-      <view class="balance-head">
-        <view class="balance-main"><view class="product-name">{{item.productName}}</view><view class="product-meta">{{item.specification || '无规格'}} · {{item.warehouseName}}</view></view>
-        <view class="quantity"><text>{{item.quantity}}</text><label>{{item.baseUnit}}</label></view>
-      </view>
-      <view class="price-row">
-        <view><label>库存单价</label><text>¥{{item.unitPriceText}} / {{item.baseUnit}}</text></view>
-        <view><label>库存金额</label><text>¥{{item.inventoryAmountText}}</text></view>
-      </view>
-    </view>
+  <view class="section-head inventory-head"><view><view class="section-title">库存余额</view><view class="section-sub">按仓库、商品、规格汇总 · {{visibleBalances.length}} 条</view></view><button wx:if="{{overview.canManualInbound}}" bindtap="openInbound">＋ 手动入库</button></view>
+  <view class="search-box">
+    <image src="/images/icons/search.svg" mode="aspectFit"/>
+    <input value="{{searchKeyword}}" bindinput="onSearchInput" placeholder="搜索商品名称、规格或仓库" confirm-type="search"/>
+    <view class="clear-search" wx:if="{{searchKeyword}}" bindtap="clearSearch">清空</view>
   </view>
+  <view class="balance-list" wx:if="{{visibleBalances.length > 0}}">
+    <view class="table-hint"><text>左右滑动查看全部列</text><text>点击商品查看详情</text></view>
+    <view class="inventory-table-shell">
+      <view class="product-column">
+        <view class="table-cell table-header">商品名称</view>
+        <view class="table-cell product-cell" wx:for="{{visibleBalances}}" wx:key="id" data-index="{{index}}" bindtap="showBalanceDetail"><text>{{item.productName}}</text></view>
+      </view>
+      <scroll-view class="inventory-table-scroll" scroll-x enhanced show-scrollbar="{{true}}">
+        <view class="inventory-table">
+          <view class="table-row table-header"><view class="table-cell quantity-cell">库存数量</view><view class="table-cell unit-cell">单位</view><view class="table-cell specification-cell">规格型号</view><view class="table-cell price-cell">库存单价（元）</view><view class="table-cell amount-cell">库存金额（元）</view><view class="table-cell warehouse-cell">仓库</view></view>
+          <view class="table-row" wx:for="{{visibleBalances}}" wx:key="id" data-index="{{index}}" bindtap="showBalanceDetail">
+            <view class="table-cell quantity-cell">{{item.quantity}}</view><view class="table-cell unit-cell">{{item.baseUnit}}</view><view class="table-cell specification-cell">{{item.specification || '—'}}</view><view class="table-cell price-cell">{{item.unitPriceText}}</view><view class="table-cell amount-cell">{{item.inventoryAmountText}}</view><view class="table-cell warehouse-cell">{{item.warehouseName}}</view>
+          </view>
+        </view>
+      </scroll-view>
+    </view>
+    <view class="table-footer">共 {{visibleBalances.length}} 条库存记录</view>
+  </view>
+  <view class="empty" wx:if="{{!loading && overview.balances.length > 0 && visibleBalances.length === 0}}"><view>没有匹配的库存</view><text>试试其他商品名称、规格或仓库</text><button class="reset-filters" bindtap="clearFilters">查看全部库存</button></view>
   <view class="empty" wx:if="{{!loading && overview.balances.length === 0}}"><image src="/images/icons/inventory.svg" mode="aspectFit"/><view>暂无库存</view><text>点击“手动入库”添加库存，或从销售单接收入库</text></view>
   <view class="loading" wx:if="{{loading}}">库存加载中...</view>
 

@@ -38,10 +38,10 @@ test('calcTableTotal normalizes rows and rounds currency values', () => {
   assert.strictEqual(result.totalAmountCn, '陆元陆角柒分');
 });
 
-test('contract table appends remarks without losing them and keeps fees separate', () => {
+test('contract table preserves explicit columns and remarks and keeps fees separate', () => {
   const normalized = normalizeContractTable(
-    ['产品名称', '规格型号', '单位', '数量', '单价(元)', '金额(元)'],
-    [['商品A', 'S', '件', '2', '3', '6']]
+    ['产品名称', '规格型号', '单位', '数量', '单价(元)', '金额(元)', '备注'],
+    [['商品A', 'S', '件', '2', '3', '6', '']]
   );
   assert.deepStrictEqual(normalized.columns.slice(-2), ['金额(元)', '备注']);
   normalized.rows[0][6] = '加急送货';
@@ -1276,7 +1276,7 @@ test('member invitation waits for a code and cannot share across companies', asy
 });
 
 test('member invitation reaches confirmation for an account with no enterprise', async () => {
-  const previous = { ...app }; const data = { ...app.globalData }; const oldModal = wx.showModal;
+  const previous = { ...app }; const data = { ...app.globalData }; const oldModal = wx.showModal; const oldRequest = wx.request;
   app.globalData.token = 'member-token'; app.globalData.userInfo = { id: 'new-user' };
   app.globalData.memberInfo = null; app.globalData.pendingInvite = { type: 'member', code: 'join-code' };
   app.getCurrentCompanyId = () => ''; app.restoreStoredSession = () => {}; app.ensureSessionReady = async () => {};
@@ -1284,6 +1284,7 @@ test('member invitation reaches confirmation for an account with no enterprise',
   context.startApprovalPolling = () => {}; context.clearSessionRestoreTimer = () => {};
   context.restoreHomeSnapshot = () => {}; context.initRoleFromMember = () => {};
   let modal; let accepted;
+  wx.request = options => options.success({ statusCode: 200, data: { code: 0, data: { companyName: '邀请企业全称', type: 'member' } } });
   wx.showModal = options => { modal = options; };
   context.processInvite = code => { accepted = code; };
   try {
@@ -1292,7 +1293,7 @@ test('member invitation reaches confirmation for an account with no enterprise',
     assert.strictEqual(modal.title, '申请加入企业组织');
     modal.success({ confirm: true }); modal.complete();
     assert.strictEqual(accepted, 'join-code');
-  } finally { Object.assign(app, previous); app.globalData = data; wx.showModal = oldModal; }
+  } finally { Object.assign(app, previous); app.globalData = data; wx.showModal = oldModal; wx.request = oldRequest; }
 });
 
 test('partner sharing waits for invite creation and rejects stale company context', async () => {

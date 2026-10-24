@@ -43,8 +43,18 @@
   <!-- 产品表格 -->
   <view class="card" wx:if="{{tableSection}}">
     <view class="section-title">{{tableSection.title}}</view>
+    <view class="table-toolbar">
+      <text class="table-hint">左右滑动可查看全部列</text>
+      <view class="column-toggle" bindtap="toggleColumnEditor">{{editingColumns ? '完成列管理' : '管理列'}}</view>
+    </view>
+    <view class="column-manager" wx:if="{{editingColumns}}">
+      <view class="column-chip" wx:for="{{tableSection.columns}}" wx:for-item="col" wx:for-index="ci" wx:key="ci">
+        <text>{{col}}</text><view class="column-remove" data-index="{{ci}}" bindtap="deleteTableColumn">✕</view>
+      </view>
+      <view class="column-guide">点击列名旁的 × 删除整列，其他列的内容会保留。</view>
+    </view>
     <scroll-view class="table-scroll" scroll-x enable-flex>
-      <view class="table-wrap">
+      <view class="table-wrap" style="width: {{tableSection.columns.length * 150 + 56}}rpx;">
         <!-- 表头 -->
         <view class="table-row table-header">
           <view class="th" wx:for="{{tableSection.columns}}" wx:for-item="col" wx:key="*this">
@@ -55,10 +65,10 @@
         <!-- 数据行 -->
         <view class="table-row" wx:for="{{tableRows}}" wx:for-item="row" wx:for-index="ri" wx:key="ri">
           <view class="td" wx:for="{{tableSection.columns}}" wx:for-item="col" wx:for-index="ci" wx:key="ci">
-            <block wx:if="{{ci === amountColumnIndex}}">
+            <block wx:if="{{ci === amountColumnIndex && amountAutoCalculated}}">
               <input class="td-input num auto" type="digit" value="{{row[ci]}}" disabled/>
             </block>
-            <block wx:elif="{{ci === quantityColumnIndex || ci === priceColumnIndex}}">
+            <block wx:elif="{{ci === quantityColumnIndex || ci === priceColumnIndex || ci === amountColumnIndex}}">
                 <input class="td-input num" type="digit" value="{{row[ci]}}" data-row="{{ri}}" data-col="{{ci}}" bindfocus="onNumberCellFocus" bindblur="onNumberCellBlur" bindinput="onTableCellChange"/>
             </block>
             <block wx:else>
@@ -73,7 +83,11 @@
     </scroll-view>
 
     <!-- 添加行 -->
-    <view class="table-add" bindtap="addTableRow">＋ 添加产品行</view>
+    <view class="table-actions">
+      <view class="table-add" bindtap="addTableRow">＋ 添加产品行</view>
+      <view class="table-add" bindtap="addTableColumn">＋ 添加列</view>
+    </view>
+    <view class="table-total-hint">{{tableTotalHint}}</view>
 
     <!-- 合计 -->
     <view class="table-summary">

@@ -48,15 +48,15 @@ page { background: #f4f8fd; }
 
 /* ====== 产品表格 ====== */
 .table-scroll { width: 100%; }
-.table-wrap { min-width: 900rpx; }
+.table-wrap { min-width: 100%; }
 .table-row { display: flex; align-items: center; }
 .table-header { background: #eaf4ff; border-radius: 8rpx 8rpx 0 0; }
 .th {
-  flex: 1; min-width: 130rpx; padding: 16rpx 6rpx;
+  flex: 1; min-width: 0; padding: 16rpx 6rpx; box-sizing: border-box;
   font-size: 24rpx; color: #3498ff; font-weight: 600; text-align: center;
 }
 .th-del { flex: 0 0 56rpx; min-width: 56rpx; }
-.td { flex: 1; min-width: 130rpx; padding: 6rpx 3rpx; }
+.td { flex: 1; min-width: 0; padding: 6rpx 3rpx; box-sizing: border-box; }
 .td-del { flex: 0 0 56rpx; min-width: 56rpx; display: flex; justify-content: center; align-items: center; }
 .td-input {
   width: 100%; height: 56rpx; font-size: 24rpx; color: #333;
@@ -112,3 +112,15 @@ page { background: #f4f8fd; }
 .btn-delete { color: #ef4444; font-size: 28rpx; margin-top: 24rpx; text-align: center; }
 
 .safe-bottom { height: 60rpx; }
+
+.table-toolbar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16rpx; gap: 12rpx; }
+.table-hint, .table-total-hint, .column-guide { font-size: 22rpx; color: #8795a6; line-height: 1.6; }
+.column-toggle { color: #2689ea; font-size: 24rpx; padding: 10rpx 0 10rpx 18rpx; flex-shrink: 0; }
+.column-manager { display: flex; flex-wrap: wrap; gap: 12rpx; padding: 18rpx; margin-bottom: 16rpx; border-radius: 12rpx; background: #f4f8fd; }
+.column-chip { display: flex; align-items: center; max-width: 100%; background: #fff; border: 1rpx solid #dce9f8; border-radius: 10rpx; color: #42536a; font-size: 24rpx; padding-left: 16rpx; }
+.column-chip text { overflow-wrap: anywhere; }
+.column-remove { color: #e53e3e; font-size: 22rpx; padding: 14rpx 16rpx; flex-shrink: 0; }
+.column-guide { width: 100%; }
+.table-actions { display: flex; gap: 16rpx; }
+.table-actions .table-add { flex: 1; }
+.table-total-hint { margin-top: 12rpx; }

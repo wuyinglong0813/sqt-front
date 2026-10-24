@@ -9,6 +9,10 @@ Page({
     loading: false,
     overview: { warehouseCount: 0, productCount: 0, balances: [] },
     warehouses: [],
+    visibleBalances: [],
+    searchKeyword: '',
+    filterWarehouseId: '',
+    filterWarehouseAddress: '',
     showCreate: false,
     warehouseName: '',
     warehouseAddress: '',
@@ -31,13 +35,16 @@ Page({
         request({ url: '/inventory/overview' }),
         request({ url: '/warehouses' })
       ]);
-      const nextOverview = overview || this.data.overview;
+      const nextOverview = { ...(overview || this.data.overview) };
       nextOverview.balances = (nextOverview.balances || []).map(item => ({
         ...item,
         unitPriceText: Number(item.unitPrice || 0).toFixed(2),
         inventoryAmountText: Number(item.inventoryAmount || 0).toFixed(2)
       }));
-      this.setData({ overview: nextOverview, warehouses: warehouses || [] });
+      const nextWarehouses = warehouses || [];
+      const filterWarehouseId = nextWarehouses.some(item => String(item.id) === this.data.filterWarehouseId)
+        ? this.data.filterWarehouseId : '';
+      this.applyInventoryFilters({ overview: nextOverview, warehouses: nextWarehouses, filterWarehouseId });
     } catch (error) {
       wx.showToast({ title: error.message || '库存加载失败', icon: 'none' });
     } finally {
@@ -45,12 +52,48 @@ Page({
     }
   },
 
+  applyInventoryFilters(patch = {}) {
+    const state = { ...this.data, ...patch };
+    const keyword = state.searchKeyword.trim().toLowerCase();
+    const warehouse = state.warehouses.find(item => String(item.id) === state.filterWarehouseId);
+    const visibleBalances = state.overview.balances.filter(item => {
+      if (state.filterWarehouseId && String(item.warehouseId) !== state.filterWarehouseId) return false;
+      return !keyword || [item.productName, item.specification, item.warehouseName]
+        .some(value => String(value || '').toLowerCase().includes(keyword));
+    });
+    this.setData({ ...patch, visibleBalances, filterWarehouseAddress: warehouse && warehouse.address || '' });
+  },
+
+  selectFilterWarehouse(e) {
+    this.applyInventoryFilters({ filterWarehouseId: String(e.currentTarget.dataset.id || '') });
+  },
+
+  onSearchInput(e) {
+    this.applyInventoryFilters({ searchKeyword: e.detail.value });
+  },
+
+  clearSearch() {
+    this.applyInventoryFilters({ searchKeyword: '' });
+  },
+
+  clearFilters() {
+    this.applyInventoryFilters({ searchKeyword: '', filterWarehouseId: '' });
+  },
+
+  showBalanceDetail(e) {
+    const item = this.data.visibleBalances[Number(e.currentTarget.dataset.index)];
+    if (!item) return;
+    wx.showModal({ title: '库存明细', showCancel: false, confirmText: '知道了',
+      content: `商品：${item.productName}\n规格：${item.specification || '无规格'}\n仓库：${item.warehouseName}\n库存数量：${item.quantity} ${item.baseUnit}\n库存单价：¥${item.unitPriceText} / ${item.baseUnit}\n库存金额：¥${item.inventoryAmountText}` });
+  },
+
   openInbound() {
     if (!this.data.warehouses.length) {
       wx.showToast({ title: '请先新建仓库', icon: 'none' });
       return;
     }
-    this.setData({ showInbound: true, warehouseIndex: 0,
+    const selectedIndex = this.data.warehouses.findIndex(item => String(item.id) === this.data.filterWarehouseId);
+    this.setData({ showInbound: true, warehouseIndex: Math.max(0, selectedIndex),
       inbound: { requestId: `manual-${Date.now()}-${Math.random().toString(36).slice(2)}`,
         productName: '', specification: '', baseUnit: '', quantity: '', unitPrice: '', remark: '' } });
   },

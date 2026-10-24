@@ -85,7 +85,8 @@ test('a locally voided contract remains permanently read only despite stale prov
   await page.loadContractDetail();
   assert.equal(page.data.contract.statusText, '已作废');
   assert.equal(page.data.contractReadOnly, true);
-  for (const flag of ['canSignContract', 'canResumeContract', 'canEditContract', 'canCancelContract', 'canDeleteContract',
+  assert.equal(page.data.canDeleteContract, true);
+  for (const flag of ['canSignContract', 'canResumeContract', 'canEditContract', 'canCancelContract',
     'canRequestEnd', 'canRequestVoid', 'canCreateSalesOrder', 'canCreateReturnOrder', 'canManageContractSeal']) {
     assert.notEqual(page.data[flag], true, `${flag} must be unavailable on a voided contract`);
   }
@@ -169,4 +170,21 @@ test('electronic void continuations and recovery links are rejected, including c
   assert.equal(continuation.signingContinuationUrl(h.app, 'old'), '');
   assert.equal(continuation.serviceRecovery(h.app), null);
   assert.equal(continuation.serviceRecoveryUrl(h.app), '');
+});
+
+
+test('the receiving enterprise can remove a voided contract from its own list', async () => {
+  const h = harness(async options => options.url === '/contracts/12'
+    ? { id: '12', status: 'VOIDED', perspective: 'INCOMING', direction: 'PURCHASE', terms: '{}' } : {});
+  const page = h.page('contract-preview');
+  page.data.contractId = '12';
+  for (const method of ['loadContractMemo', 'loadSignedContractPreview', 'promptProjectLedgerIfNeeded']) page[method] = () => {};
+  await page.loadContractDetail();
+  assert.equal(page.data.canDeleteContract, true);
+  page.deleteContract();
+  assert.match(h.modals[0].content, /仅从我方合同列表移除/);
+  assert.equal(h.calls.filter(call => call.method === 'POST').length, 0);
+  h.modals[0].success({ confirm: true });
+  await h.settled();
+  assert.equal(h.calls.filter(call => call.url === '/contracts/12/delete').length, 1);
 });

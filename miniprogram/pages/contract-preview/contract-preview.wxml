@@ -23,10 +23,9 @@
     <view class="memo-summary-arrow">›</view>
   </view>
 
-  <view class="contract-manage-actions" wx:if="{{canSignContract || canCancelContract || canEditContract || canDeleteContract || canRequestEnd || canRequestVoid || canManageContractSeal || (activeContractAction && activeContractAction.bizType === 'CONTRACT')}}">
+  <view class="contract-manage-actions" wx:if="{{canSignContract || canCancelContract || canEditContract || canDeleteContract || canRequestEnd || canRequestVoid || (activeContractAction && activeContractAction.bizType === 'CONTRACT')}}">
     <button class="contract-manage-button primary" wx:if="{{canSignContract}}" disabled="{{contractActionLoading}}" bindtap="signContract">{{signButtonText}}</button>
     <button class="contract-manage-button ghost" wx:if="{{canCancelContract}}" loading="{{contractActionLoading}}" disabled="{{contractActionLoading}}" bindtap="cancelContract">撤回审批</button>
-    <button class="contract-manage-button ghost" wx:if="{{canManageContractSeal}}" bindtap="openContractSealAuthorization">本合同用印授权</button>
     <button class="contract-manage-button primary" wx:if="{{canEditContract}}" disabled="{{contractActionLoading}}" bindtap="editContract">修改并重新发起</button>
     <button class="contract-manage-button danger" wx:if="{{canDeleteContract}}" loading="{{contractActionLoading}}" disabled="{{contractActionLoading}}" bindtap="deleteContract">删除合同</button>
     <button class="contract-manage-button ghost" wx:if="{{canRequestEnd}}" loading="{{contractActionLoading}}" disabled="{{contractActionLoading}}" bindtap="requestContractEnd">申请结束</button>
@@ -52,7 +51,7 @@
     <view>处理完成前，合同及全部履约资料暂时只读。</view>
   </view>
   <view class="contract-lock-notice terminal" wx:elif="{{contract && (contract.status === 'COMPLETED' || contract.status === 'VOIDED')}}">
-    该合同{{contract.status === 'COMPLETED' ? '已结束' : '已作废'}}，仅允许查看和下载。
+    该合同{{contract.status === 'COMPLETED' ? '已结束，仅允许查看和下载。' : '已作废，正文及履约资料仅允许查看和下载，可从我方列表删除。'}}
   </view>
 
   <!-- 合同正文与履约资料两个一级入口。 -->

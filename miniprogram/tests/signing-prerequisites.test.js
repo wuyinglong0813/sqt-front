@@ -61,8 +61,8 @@ test('an existing enterprise missing organization consent gets one relevant acti
   assert.equal(p.data.preparationAction, 'company');
   assert.equal(p.data.preparationCanProceed, true);
   assert.equal(p.data.preparationActionText, '授权后重新检查');
-  assert.match(p.data.preparationMessage, /与个人实名分开.*超管办理一次.*无需逐人重复办理企业授权/);
-  assert.match(p.data.preparationMessage, /商签通管理员与电子签平台企业超管是两个身份/);
+  assert.match(p.data.preparationMessage, /无需重新注册.*与个人实名分开.*超管办理一次.*同企业.*可复用/);
+  assert.match(p.data.preparationMessage, /统一页面可能仍显示“开通电子签”.*商签通管理员与电子签企业超管是两个身份/);
   assert.equal(p.data.canRecoverPersonalIdentity, false);
   assert.equal(h.requests.some(o => /quote|sign-url/.test(o.url)), false);
   assert.equal(h.modals.some(o => o.title === '确认发起电子签'), false);

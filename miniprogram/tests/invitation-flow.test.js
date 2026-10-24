@@ -19,7 +19,7 @@ function harness(storage = {}) {
     showToast: options => toasts.push(options),
     request: options => {
       requests.push(options);
-      options.success({ statusCode: 200, data: { code: 0, data: { message: '已建立客户关系' } } });
+      options.success({ statusCode: 200, data: { code: 0, data: options.url.includes('/companies/invitations/') ? { companyId: 'inviter', companyName: '被邀请加入的企业全称', type: 'member' } : { message: '已建立客户关系' } } });
     }
   };
   const root = path.join(__dirname, '..');
@@ -174,7 +174,7 @@ test('confirmation uses the refreshed enterprise name and cannot accept for a ch
   env.app.globalData.currentCompanyId = 'company-2';
   env.modals[0].success({ confirm: true });
   env.modals[0].complete();
-  assert.equal(env.requests.length, 0);
+  assert.equal(env.requests.filter(r => r.method === 'POST').length, 0);
 });
 
 test('a failed acceptance keeps the invitation available and never records success', async () => {
@@ -227,5 +227,42 @@ test('member invitation still reaches join confirmation when the account has no 
   env.app.globalData.token = 'other-token';
   env.modals[0].success({ confirm: true });
   env.modals[0].complete();
-  assert.equal(env.requests.length, 0);
+  assert.equal(env.requests.filter(r => r.method === 'POST').length, 0);
+});
+
+
+test('member confirmation loads the inviting enterprise rather than the current enterprise', async () => {
+  const env = harness();
+  env.app.onShow({ scene: 1007, query: { inviteCode: 'member-code', type: 'member' } });
+  const page = env.home();
+  await page.onShow();
+  assert.match(env.modals[0].content, /被邀请加入的企业全称/);
+  assert.doesNotMatch(env.modals[0].content, /河北云域科技有限公司/);
+  assert.equal(env.requests[0].header['X-Company-Id'], undefined);
+  assert.equal(env.requests.filter(r => r.method === 'POST').length, 0);
+});
+
+test('member confirmation never accepts an invitation whose company could not be loaded', async () => {
+  const env = harness();
+  env.app.onShow({ scene: 1007, query: { inviteCode: 'member-code', type: 'member' } });
+  env.wx.request = options => options.fail({ errMsg: 'request:fail timeout' });
+  await env.home().onShow();
+  assert.equal(env.modals.length, 0);
+  assert.ok(env.app.globalData.pendingInvite);
+  assert.equal(env.toasts.length, 1);
+});
+
+test('a stale member invitation preview cannot open a confirmation for a new invitation', async () => {
+  const env = harness();
+  env.app.onShow({ scene: 1007, query: { inviteCode: 'old-code', type: 'member' } });
+  let preview;
+  env.wx.request = options => { preview = options; };
+  const page = env.home();
+  const showing = page.onShow();
+  await new Promise(resolve => setImmediate(resolve));
+  env.app.onShow({ scene: 1008, query: { inviteCode: 'new-code', type: 'member' } });
+  preview.success({ statusCode: 200, data: { code: 0, data: { companyName: '旧企业', type: 'member' } } });
+  await showing;
+  assert.equal(env.modals.length, 0);
+  assert.equal(env.app.globalData.pendingInvite.code, 'new-code');
 });

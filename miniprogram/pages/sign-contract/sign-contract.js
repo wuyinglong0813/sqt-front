@@ -53,6 +53,8 @@ Page({
     quantityColumnIndex: 3,
     priceColumnIndex: 4,
     amountColumnIndex: 5,
+    amountAutoCalculated: true,
+    tableTotalHint: '',
     feeTypeOptions: FEE_TYPE_OPTIONS,
     feeItems: [],
     activeFeeTypeIndex: -1,
@@ -245,11 +247,16 @@ Page({
   },
 
   tableColumnMetadata(columns) {
+    const quantityColumnIndex = findContractColumn(columns, ['数量']);
+    const priceColumnIndex = findContractColumn(columns, ['单价']);
+    const amountColumnIndex = findContractColumn(columns, ['金额']);
+    const amountAutoCalculated = quantityColumnIndex >= 0 && priceColumnIndex >= 0;
     return {
-      productColumnIndex: findContractColumn(columns, ['品名', '名称', '产品'], 0),
-      quantityColumnIndex: findContractColumn(columns, ['数量'], 3),
-      priceColumnIndex: findContractColumn(columns, ['单价'], 4),
-      amountColumnIndex: findContractColumn(columns, ['金额'], 5)
+      productColumnIndex: findContractColumn(columns, ['品名', '名称', '产品']),
+      quantityColumnIndex, priceColumnIndex, amountColumnIndex, amountAutoCalculated,
+      tableTotalHint: amountAutoCalculated
+        ? '商品合计按数量 × 单价计算'
+        : amountColumnIndex >= 0 ? '金额列可直接填写，商品合计按金额列相加' : '未设置金额或数量、单价列，商品合计为 0'
     };
   },
 
@@ -306,22 +313,22 @@ Page({
     const amountIndex = this.tableColumnIndex('amount');
     const productIndex = this.tableColumnIndex('product');
     const specificationIndex = this.tableColumnIndex('specification');
-    const value = columnIndex === quantityIndex || columnIndex === priceIndex
+    const value = [quantityIndex, priceIndex, amountIndex].includes(columnIndex)
       ? normalizeNumericText(e.detail.value)
       : e.detail.value;
     const targetRow = (this.data.tableRows[rowIndex] || []).slice();
     targetRow[columnIndex] = value;
     this.data.tableRows[rowIndex] = targetRow;
     const changes = { [`tableRows[${rowIndex}][${columnIndex}]`]: value };
-    if ((columnIndex === quantityIndex || columnIndex === priceIndex)
-      && quantityIndex >= 0 && priceIndex >= 0 && amountIndex >= 0) {
-      const amount = Math.round(((parseFloat(targetRow[quantityIndex]) || 0)
-        * (parseFloat(targetRow[priceIndex]) || 0)) * 100) / 100;
-      targetRow[amountIndex] = String(amount);
-      changes[`tableRows[${rowIndex}][${amountIndex}]`] = String(amount);
-      const productTotal = this.data.tableRows.reduce((sum, item) =>
-        sum + (parseFloat((item || [])[amountIndex]) || 0), 0);
-      Object.assign(changes, contractTotalChanges(productTotal, this.data.feeItems));
+    if ([quantityIndex, priceIndex, amountIndex].includes(columnIndex)) {
+      const columns = (this.data.tableSection && this.data.tableSection.columns) || [];
+      const result = calcTableTotal(this.data.tableRows, columns);
+      if (amountIndex >= 0 && quantityIndex >= 0 && priceIndex >= 0) {
+        const amount = result.rows[rowIndex][amountIndex];
+        targetRow[amountIndex] = amount;
+        changes[`tableRows[${rowIndex}][${amountIndex}]`] = amount;
+      }
+      Object.assign(changes, contractTotalChanges(result.totalAmount, this.data.feeItems));
     }
     if (columnIndex === productIndex) {
       const keyword = String(value || '').trim().toLowerCase();
@@ -355,6 +362,7 @@ Page({
     const products = (this.data.inventoryProducts || []).filter(item => item.productName === productName);
     if (!this.data.tableRows[rowIndex] || products.length === 0) return;
     const productIndex = this.tableColumnIndex('product');
+    if (productIndex < 0) return;
     const specificationIndex = this.tableColumnIndex('specification');
     const unitIndex = this.tableColumnIndex('unit');
     const changes = {

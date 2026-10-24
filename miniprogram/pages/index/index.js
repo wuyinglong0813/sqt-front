@@ -172,16 +172,29 @@ Page({
       } else {
         if (this._confirmingInvite) return;
         this._confirmingInvite = true;
-        wx.showModal({
-          title: '申请加入企业组织',
-          content: '是否使用当前账号申请加入邀请方企业？提交后需等待管理员审核并分配角色。',
-          confirmText: '申请加入',
-          success: result => {
-            if (result.confirm && isCompanyContextCurrent(app, context)) this.processInvite(invite.code, invite);
-            else dismissInvite(app, invite);
-          },
-          complete: () => { this._confirmingInvite = false; }
-        });
+        try {
+          const preview = await request({ url: `/companies/invitations/${encodeURIComponent(invite.code)}`, withCompany: false });
+          if (!isCompanyContextCurrent(app, context) || app.globalData.pendingInvite !== invite) {
+            this._confirmingInvite = false;
+            return;
+          }
+          if (!preview || !preview.companyName || preview.type !== 'member') throw new Error('邀请信息已变化，请联系邀请人重新发送邀请');
+          wx.showModal({
+            title: '申请加入企业组织',
+            content: `是否使用当前账号申请加入“${preview.companyName}”？提交后需等待该企业管理员审核并分配角色。`,
+            confirmText: '申请加入',
+            success: result => {
+              if (result.confirm && isCompanyContextCurrent(app, context)) this.processInvite(invite.code, invite);
+              else dismissInvite(app, invite);
+            },
+            complete: () => { this._confirmingInvite = false; }
+          });
+        } catch (error) {
+          this._confirmingInvite = false;
+          if (!isCompanyContextCurrent(app, context) || app.globalData.pendingInvite !== invite) return;
+          if (['邀请码无效', '邀请码已被使用', '邀请码已过期'].includes(error.message)) dismissInvite(app, invite);
+          wx.showToast({ title: error.message || '邀请企业加载失败，请重新打开邀请', icon: 'none' });
+        }
       }
       return;
     }

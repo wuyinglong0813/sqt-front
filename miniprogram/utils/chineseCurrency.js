@@ -115,22 +115,31 @@ const DEFAULT_TEMPLATE = {
  */
 function calcTableTotal(rows, columns = DEFAULT_CONTRACT_COLUMNS) {
   const normalizedColumns = normalizeContractColumns(columns);
-  const quantityIndex = findContractColumn(normalizedColumns, ['数量'], 3);
-  const priceIndex = findContractColumn(normalizedColumns, ['单价'], 4);
-  const amountIndex = findContractColumn(normalizedColumns, ['金额'], 5);
+  const quantityIndex = findContractColumn(normalizedColumns, ['数量']);
+  const priceIndex = findContractColumn(normalizedColumns, ['单价']);
+  const amountIndex = findContractColumn(normalizedColumns, ['金额']);
+  const canMultiply = quantityIndex >= 0 && priceIndex >= 0;
   let total = 0;
   const calcRows = (rows || []).map(row => {
     const next = normalizedColumns.map((_, index) => {
       const value = (row || [])[index];
       return value == null ? '' : String(value);
     });
-    const qty = parseFloat(next[quantityIndex]) || 0;
-    const price = parseFloat(next[priceIndex]) || 0;
-    const amount = Math.round(qty * price * 100) / 100;
-    total += amount;
-    next[quantityIndex] = next[quantityIndex] || '0';
-    next[priceIndex] = next[priceIndex] || '0';
-    next[amountIndex] = String(amount);
+    // Only named columns carry numeric meaning; deleting a column must never turn
+    // an unrelated custom cell into quantity, price or amount by its position.
+    if (canMultiply) {
+      const qty = parseFloat(next[quantityIndex]) || 0;
+      const price = parseFloat(next[priceIndex]) || 0;
+      const amount = Math.round(qty * price * 100) / 100;
+      total += amount;
+      next[quantityIndex] = next[quantityIndex] || '0';
+      next[priceIndex] = next[priceIndex] || '0';
+      if (amountIndex >= 0) next[amountIndex] = String(amount);
+    } else if (amountIndex >= 0) {
+      // Templates without quantity or price can enter the agreed amount directly.
+      total += Math.round((parseFloat(next[amountIndex]) || 0) * 100) / 100;
+      next[amountIndex] = next[amountIndex] || '0';
+    }
     return next;
   });
   return {
@@ -147,23 +156,18 @@ function findContractColumn(columns, aliases, fallback = -1) {
 }
 
 function normalizeContractColumns(columns) {
-  const normalized = Array.isArray(columns) && columns.length > 0
+  // Explicit columns are an agreed layout. Defaults apply only when it is absent.
+  return Array.isArray(columns)
     ? columns.map(column => String(column || ''))
     : DEFAULT_CONTRACT_COLUMNS.slice();
-  if (!normalized.some(column => column.includes('备注'))) normalized.push('备注');
-  return normalized;
 }
 
 function normalizeContractTable(columns, rows) {
-  const sourceColumns = Array.isArray(columns) ? columns.map(column => String(column || '')) : [];
-  const normalizedColumns = normalizeContractColumns(sourceColumns);
-  const remarkAdded = normalizedColumns.length > sourceColumns.length;
-  const normalizedRows = (rows || []).map(row => {
-    const next = Array.isArray(row) ? row.map(value => value == null ? '' : String(value)) : [];
-    if (remarkAdded) next.push('');
-    while (next.length < normalizedColumns.length) next.push('');
-    return next.slice(0, normalizedColumns.length);
-  });
+  const normalizedColumns = normalizeContractColumns(columns);
+  const normalizedRows = (rows || []).map(row => normalizedColumns.map((_, index) => {
+    const value = Array.isArray(row) ? row[index] : '';
+    return value == null ? '' : String(value);
+  }));
   return {
     columns: normalizedColumns,
     rows: normalizedRows.length > 0

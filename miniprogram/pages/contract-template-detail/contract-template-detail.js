@@ -4,8 +4,7 @@ const {
   calcTableTotal,
   findContractColumn,
   normalizeContractTable,
-  reorderClauses,
-  toChineseNum
+  reorderClauses
 } = require('../../utils/chineseCurrency');
 
 function normalizeNumericText(value) {
@@ -26,6 +25,9 @@ Page({
     quantityColumnIndex: 3,
     priceColumnIndex: 4,
     amountColumnIndex: 5,
+    amountAutoCalculated: true,
+    editingColumns: false,
+    tableTotalHint: '',
     totalAmount: '0',
     totalAmountCn: '零元整',
     clauses: [],
@@ -69,9 +71,7 @@ Page({
       fields: (tpl.fields || []).map(f => ({ ...f })),
       tableSection: tableSection ? { title: tableSection.title, columns: normalizedTable.columns } : null,
       tableRows: result.rows,
-      quantityColumnIndex: findContractColumn(normalizedTable.columns, ['数量'], 3),
-      priceColumnIndex: findContractColumn(normalizedTable.columns, ['单价'], 4),
-      amountColumnIndex: findContractColumn(normalizedTable.columns, ['金额'], 5),
+      ...this.tableColumnMetadata(normalizedTable.columns),
       totalAmount: String(result.totalAmount),
       totalAmountCn: result.totalAmountCn,
       clauses
@@ -95,7 +95,7 @@ Page({
     const { row, col } = e.currentTarget.dataset;
     const rows = [...this.data.tableRows];
     if (!rows[row]) rows[row] = [];
-    const value = Number(col) === this.data.quantityColumnIndex || Number(col) === this.data.priceColumnIndex
+    const value = [this.data.quantityColumnIndex, this.data.priceColumnIndex, this.data.amountColumnIndex].includes(Number(col))
       ? normalizeNumericText(e.detail.value)
       : e.detail.value;
     rows[row][col] = value;
@@ -123,9 +123,8 @@ Page({
   addTableRow() {
     const cols = this.data.tableSection ? this.data.tableSection.columns.length : 7;
     const newRow = new Array(cols).fill('');
-    newRow[this.data.quantityColumnIndex] = '0';
-    newRow[this.data.priceColumnIndex] = '0';
-    newRow[this.data.amountColumnIndex] = '0';
+    [this.data.quantityColumnIndex, this.data.priceColumnIndex, this.data.amountColumnIndex]
+      .filter(index => index >= 0).forEach(index => { newRow[index] = '0'; });
     this.recalcTable([...this.data.tableRows, newRow]);
   },
 
@@ -133,6 +132,68 @@ Page({
     const index = e.currentTarget.dataset.index;
     if (this.data.tableRows.length <= 1) return;
     this.recalcTable(this.data.tableRows.filter((_, i) => i !== index));
+  },
+
+  tableColumnMetadata(columns) {
+    const quantityColumnIndex = findContractColumn(columns, ['数量']);
+    const priceColumnIndex = findContractColumn(columns, ['单价']);
+    const amountColumnIndex = findContractColumn(columns, ['金额']);
+    const amountAutoCalculated = quantityColumnIndex >= 0 && priceColumnIndex >= 0;
+    return {
+      quantityColumnIndex, priceColumnIndex, amountColumnIndex, amountAutoCalculated,
+      tableTotalHint: amountAutoCalculated
+        ? '商品合计按数量 × 单价计算'
+        : amountColumnIndex >= 0 ? '金额列可直接填写，商品合计按金额列相加' : '未设置金额或数量、单价列，商品合计为 0'
+    };
+  },
+
+  toggleColumnEditor() {
+    this.setData({ editingColumns: !this.data.editingColumns });
+  },
+
+  async addTableColumn() {
+    const result = await new Promise(resolve => wx.showModal({
+      title: '添加表格列', editable: true, placeholderText: '例如：品牌、材质、交货日期',
+      confirmText: '添加', success: resolve
+    }));
+    if (!result.confirm) return;
+    const name = String(result.content || '').trim();
+    if (!name) { wx.showToast({ title: '请输入列名称', icon: 'none' }); return; }
+    if (name.length > 20) { wx.showToast({ title: '列名称最多20个字', icon: 'none' }); return; }
+    const columns = this.data.tableSection.columns;
+    if (columns.includes(name)) { wx.showToast({ title: '已存在同名列', icon: 'none' }); return; }
+    const numericAliases = ['数量', '单价', '金额'];
+    if (numericAliases.some(alias => name.includes(alias) && findContractColumn(columns, [alias]) >= 0)) {
+      wx.showToast({ title: '数量、单价、金额各保留一列', icon: 'none' }); return;
+    }
+    const nextColumns = columns.concat(name);
+    const rows = this.data.tableRows.map(row => row.concat(''));
+    this.updateTableColumns(nextColumns, rows);
+  },
+
+  async deleteTableColumn(e) {
+    const index = Number(e.currentTarget.dataset.index);
+    const columns = this.data.tableSection.columns;
+    if (!Number.isInteger(index) || index < 0 || index >= columns.length) return;
+    if (columns.length <= 1) { wx.showToast({ title: '至少保留一列', icon: 'none' }); return; }
+    const result = await new Promise(resolve => wx.showModal({
+      title: '删除表格列', content: `删除“${columns[index]}”列及该列所有内容？`,
+      confirmText: '删除', confirmColor: '#e53e3e', success: resolve
+    }));
+    if (!result.confirm) return;
+    this.updateTableColumns(columns.filter((_, ci) => ci !== index),
+      this.data.tableRows.map(row => row.filter((_, ci) => ci !== index)));
+  },
+
+  updateTableColumns(columns, rows) {
+    const result = calcTableTotal(rows, columns);
+    this.setData({
+      tableSection: { ...this.data.tableSection, columns },
+      ...this.tableColumnMetadata(columns),
+      tableRows: result.rows,
+      totalAmount: String(result.totalAmount), totalAmountCn: result.totalAmountCn,
+      editingColumns: true
+    });
   },
 
   recalcTable(rows) {
@@ -168,7 +229,8 @@ Page({
     const { templateId, name, category, title, fields, tableSection, tableRows, clauses } = this.data;
     if (!name.trim()) { wx.showToast({ title: '请输入模板名称', icon: 'none' }); return; }
 
-    const numericColumns = [this.data.quantityColumnIndex, this.data.priceColumnIndex, this.data.amountColumnIndex];
+    const numericColumns = [this.data.quantityColumnIndex, this.data.priceColumnIndex, this.data.amountColumnIndex]
+      .filter(index => index >= 0);
     const saveRows = tableRows.map(r => r.map((value, index) => value || (numericColumns.includes(index) ? '0' : '')));
 
     const content = JSON.stringify({

@@ -68,9 +68,9 @@
     <!-- 产品表格 -->
     <view class="card" wx:if="{{tableSection}}">
       <view class="section-title">{{tableSection.title}}</view>
-      <view class="table-scroll-hint">左右滑动可编辑全部列</view>
+      <view class="table-scroll-hint">左右滑动可编辑全部列 · {{tableTotalHint}}</view>
       <scroll-view class="table-scroll" scroll-x enhanced bounces="{{false}}" show-scrollbar="{{false}}" scroll-with-animation="{{false}}" scroll-left="{{tableScrollLeft}}" bindscroll="onTableScroll" enable-flex>
-        <view class="table-wrap">
+        <view class="table-wrap" style="width: {{tableSection.columns.length * 150 + 56}}rpx;">
           <view class="table-row table-header">
             <view class="th" wx:for="{{tableSection.columns}}" wx:for-item="col" wx:key="*this">
               <text>{{col}}</text>
@@ -79,10 +79,10 @@
           </view>
           <view class="table-row" wx:for="{{tableRows}}" wx:for-item="row" wx:for-index="ri" wx:key="ri">
             <view class="td" wx:for="{{tableSection.columns}}" wx:for-item="col" wx:for-index="ci" wx:key="ci">
-              <block wx:if="{{ci === amountColumnIndex}}">
+              <block wx:if="{{ci === amountColumnIndex && amountAutoCalculated}}">
                 <input class="td-input num auto" type="digit" value="{{row[ci]}}" disabled/>
               </block>
-              <block wx:elif="{{ci === quantityColumnIndex || ci === priceColumnIndex}}">
+              <block wx:elif="{{ci === quantityColumnIndex || ci === priceColumnIndex || ci === amountColumnIndex}}">
                 <input class="td-input num" type="digit" value="{{row[ci]}}" placeholder="0" cursor-spacing="120" adjust-position data-row="{{ri}}" data-col="{{ci}}" bindfocus="onNumberCellFocus" bindblur="onNumberCellBlur" bindinput="onTableCellChange"/>
               </block>
               <block wx:elif="{{ci === productColumnIndex}}">

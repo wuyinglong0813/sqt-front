@@ -331,7 +331,8 @@ Page({
           ? String(contractTable.summary.totalAmountCn) : '',
         canCancelContract: canManageContract && !contractReadOnly && outgoing && contract.status === 'PENDING',
         canEditContract: canManageContract && !contractReadOnly && outgoing && ['PENDING', 'REJECTED', 'CANCELLED'].includes(contract.status),
-        canDeleteContract: canManageContract && !contractReadOnly && outgoing && ['REJECTED', 'CANCELLED'].includes(contract.status),
+        canDeleteContract: canManageContract && (contract.status === 'VOIDED'
+          || (!contractReadOnly && outgoing && ['REJECTED', 'CANCELLED'].includes(contract.status))),
         canRequestEnd: canManageContract && !contractReadOnly && contract.status === 'ACTIVE',
         canRequestVoid: canManageContract && !contractReadOnly && contract.status === 'ACTIVE',
         contractReadOnly,
@@ -340,8 +341,6 @@ Page({
         signingActionHint: signingStopped ? '本次电子签署已停止，发起方可修改后重新发起或撤回合同。'
           : pendingSigningText ? '正在核验双方签署及归档结果，请稍后刷新同步。'
           : '合同将在双方依次完成签署并归档后生效。',
-        canManageContractSeal: !contractReadOnly && ['PENDING', 'ACTIVE'].includes(contract.status)
-          && this.hasAnyPermission('seal_manage') && this.hasAnyPermission('member_manage', 'auth_manage'),
         serviceRecoveryAvailable: !!(canManageContract && recovery && recovery.target.contractId === this.data.contractId
           && recovery.target.scene === 'contract' && contract.status === 'PENDING' && !pendingSigningText),
         signedContractArchived: !!(signing && signing.signedFileArchived),
@@ -426,10 +425,6 @@ Page({
       url: `/pages/fadada-auth/fadada-auth?scene=contract&contractId=${this.data.contractId}`
     });
   },
-  openContractSealAuthorization() {
-    if (!this.data.canManageContractSeal || !this.data.contractId) return;
-    wx.navigateTo({ url: `/pages/auth-manage/auth-manage?contractId=${encodeURIComponent(this.data.contractId)}` });
-  },
   renewServiceLink() {
     const recovery = serviceRecovery(getApp());
     if (!this.data.serviceRecoveryAvailable || !recovery || recovery.target.contractId !== this.data.contractId) return;
@@ -452,7 +447,7 @@ Page({
     if (!this.data.canDeleteContract || this.data.contractActionLoading) return;
     wx.showModal({
       title: '从我方列表删除',
-      content: '仅从我方合同列表移除。对方仍会保留拒绝或撤回的处理记录，删除后无法在列表中恢复。',
+      content: '仅从我方合同列表移除，不影响对方记录和已归档文件，删除后无法在列表中恢复。',
       confirmText: '确认删除',
       confirmColor: '#d94848',
       success: result => {
