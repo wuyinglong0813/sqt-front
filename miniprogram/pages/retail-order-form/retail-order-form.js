@@ -1,5 +1,5 @@
 const { context, sameContext, retailRequest, today, documentView, lineCents, addCents, centsMoney, refundCents } = require('../../utils/retail');
-const blankItem = () => ({ key: `item-${Date.now()}-${Math.random().toString(36).slice(2)}`, lineType: 'PRODUCT', productName: '', specification: '', baseUnit: '', quantity: '', unitPrice: '', remark: '' });
+const blankItem = () => ({ key: `item-${Date.now()}-${Math.random().toString(36).slice(2)}`, lineType: 'PRODUCT', productName: '', model: '', specification: '', baseUnit: '', quantity: '', unitPrice: '', remark: '' });
 Page({
   data: { id: '', customerId: '', customer: null, documentType: 'SALES_ORDER', isReturn: false,
     orderDate: '', remark: '', items: [], totalText: '0.00', originalDocumentId: '', originalDocumentNo: '',
@@ -82,7 +82,7 @@ Page({
   },
   onItemInput(e) {
     const index = Number(e.currentTarget.dataset.index), field = e.currentTarget.dataset.field;
-    const allowed = this.data.isReturn ? ['quantity', 'remark'] : ['productName', 'specification', 'baseUnit', 'quantity', 'unitPrice', 'remark'];
+    const allowed = this.data.isReturn ? ['quantity', 'remark'] : ['productName', 'model', 'specification', 'baseUnit', 'quantity', 'unitPrice', 'remark'];
     if (!allowed.includes(field) || !this.data.items[index]) return;
     this.setData({ [`items[${index}].${field}`]: e.detail.value }); this.recalculate();
   },
@@ -123,7 +123,7 @@ Page({
     const body = { requestId: this.data.requestId, documentType: this.data.documentType, originalDocumentId: this.data.originalDocumentId || null,
       orderDate: this.data.orderDate, remark: this.data.remark,
       items: items.map(item => ({ originalItemId: item.originalItemId || null, lineType: item.lineType,
-        productName: item.productName, specification: item.specification, baseUnit: item.baseUnit,
+        productName: item.productName, model: String(item.model || '').trim(), specification: item.specification, baseUnit: item.baseUnit,
         quantity: item.quantity, unitPrice: item.unitPrice, remark: item.remark || '' })) };
     this.setData({ saving: true, error: '' });
     try {

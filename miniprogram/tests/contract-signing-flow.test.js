@@ -162,3 +162,78 @@ test('the list displays remote terminal states and a refused local contract cons
   await page.loadContracts(true);
   assert.deepEqual(Array.from(page.data.contracts, item => item.statusText), ['签署已终止', '签署已过期', '签署结果确认中', '已拒绝']);
 });
+
+for (const file of ['order-detail', 'contract-center', 'contract-approval']) {
+  test(`${file} preserves server-confirmed signing progress for both enterprise perspectives`, async () => {
+    let page;
+    const records = [
+      { id: '9007199254740993', status: 'PENDING', signingStatus: 'sign_progress', statusText: '我方已签署，等待对方签署' },
+      { id: '9007199254740995', status: 'PENDING', signingStatus: 'sign_progress', statusText: '待我方签署' },
+      { id: '3', status: 'PENDING', signingStatus: 'sign_completed', statusText: '双方已签署，正在归档' },
+      { id: '4', status: 'PENDING', signingStatus: 'sign_progress', statusText: '签署中' }
+    ];
+    vm.runInNewContext(fs.readFileSync(path.join(__dirname, `../pages/${file}/${file}.js`), 'utf8'), {
+      Page: value => { page = value; }, getApp: () => ({ globalData: {} }), wx: { showToast() {} },
+      require: id => id.endsWith('/request') ? { request: async options =>
+        options.url.endsWith('/summary') ? {}
+          : options.url.startsWith('/approvals/') ? []
+            : options.url === '/contracts/pending' ? records : { items: records } }
+        : { formatDateTime: () => '', submissionText: () => '' }
+    });
+    page.setData = value => Object.assign(page.data, value);
+    if (file === 'contract-approval') await page.loadPending();
+    else await page.loadContracts(file === 'order-detail' ? '往来公司' : true);
+    assert.deepEqual(Array.from(page.data.contracts, item => item.statusText), records.map(item => item.statusText));
+    assert.equal(page.data.contracts[0].id, '9007199254740993');
+    assert.equal(page.data.contracts[0].status, 'PENDING');
+    if (file === 'order-detail') {
+      page.applyContractFilter('PENDING');
+      assert.equal(page.data.filteredContracts.length, 4);
+      assert.equal(page.data.contractStats.active, 0);
+    }
+  });
+}
+
+test('counterparty cards keep local void and provider terminal progress distinct', async () => {
+  let page;
+  const records = [
+    { id: '1', status: 'PENDING', signingStatus: 'task_terminated' },
+    { id: '2', status: 'PENDING', signingStatus: 'task_expired' },
+    { id: '3', status: 'PENDING', signingStatus: 'task_finished' },
+    { id: '4', status: 'VOIDED', statusText: '签署中', signingStatus: 'sign_progress' }
+  ];
+  vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../pages/order-detail/order-detail.js'), 'utf8'), {
+    Page: value => { page = value; }, getApp: () => ({ globalData: {} }), wx: {},
+    require: () => ({ request: async () => ({ items: records }) })
+  });
+  page.setData = value => Object.assign(page.data, value);
+  await page.loadContracts('往来公司');
+  assert.deepEqual(Array.from(page.data.contracts, item => item.statusText),
+    ['签署已终止', '签署已过期', '签署结果确认中', '已作废']);
+});
+
+test('contract detail uses fresh signing progress without activating a partially signed contract', async () => {
+  const env = harness({ contractStatus: 'PENDING', contractProgress: { statusText: '签署中' },
+    signing: { status: 'sign_progress', statusText: '我方已签署，等待对方签署',
+      initiatorSignStatus: 'signed', counterpartySignStatus: 'wait_sign', canSign: false } });
+  await env.page.loadContractDetail();
+  assert.equal(env.page.data.contract.status, 'PENDING');
+  assert.equal(env.page.data.contract.statusText, '我方已签署，等待对方签署');
+  assert.equal(env.page.data.pdfSupplierSignText, '已签署');
+  assert.equal(env.page.data.pdfBuyerSignText, '待签署');
+  assert.equal(env.page.data.canSignContract, false);
+  assert.equal(env.page.data.canRequestEnd, false);
+});
+
+test('purchase-initiated contracts assign real signer progress to the correct supplier and buyer', async () => {
+  const env = harness({ contractStatus: 'PENDING',
+    contractProgress: { direction: 'PURCHASE', viewerDirection: 'SALE', perspective: 'INCOMING' },
+    signing: { status: 'sign_progress', statusText: '待我方签署',
+      initiatorSignStatus: 'signed', counterpartySignStatus: 'wait_sign', canSign: true } });
+  await env.page.loadContractDetail();
+  assert.equal(env.page.data.contract.status, 'PENDING');
+  assert.equal(env.page.data.contract.statusText, '待我方签署');
+  assert.equal(env.page.data.pdfSupplierSignText, '待签署');
+  assert.equal(env.page.data.pdfBuyerSignText, '已签署');
+  assert.equal(env.page.data.canSignContract, true);
+});

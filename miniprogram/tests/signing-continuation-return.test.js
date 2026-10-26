@@ -48,6 +48,78 @@ function harness(handler = async () => ({ status: 'VERIFIED', organizationAuthor
     stack: values => { pages = values; }, settled: () => new Promise(resolve => setImmediate(resolve)) };
 }
 
+test('a server-confirmed signature returns directly to the exact contract without a result countdown', async () => {
+  const h = harness(async () => ({ status: 'task_finished', statusText: '合同已完成' }));
+  h.page.onLoad({ scene: 'contract', contractId: '9007199254740993' });
+  await h.settled();
+  assert.deepEqual(h.requests.map(o => [o.url, o.method]),
+    [['/contracts/9007199254740993/signing/sync', 'POST']]);
+  assert.equal(h.navigation.length, 1);
+  assert.equal(h.navigation[0].url, '/pages/contract-preview/contract-preview?contractId=9007199254740993');
+  assert.equal(h.timers.size, 0);
+  h.page.onShow();
+  assert.equal(h.navigation.length, 1);
+});
+
+test('a failed signature sync keeps its retry page instead of silently returning as successful', async () => {
+  const h = harness(async () => { throw Error('签署结果查询暂时失败'); });
+  h.page.onLoad({ scene: 'contract', contractId: '12' });
+  await h.settled();
+  assert.equal(h.page.data.failed, true);
+  assert.match(h.page.data.message, /签署结果查询暂时失败/);
+  assert.equal(h.navigation.length, 0);
+  assert.equal(h.timers.size, 0);
+});
+
+test('a partial signature returns to contract detail with accurate server progress', async () => {
+  const h = harness(async () => ({ status: 'sign_progress', canSign: false,
+    initiatorSignStatus: 'signed', counterpartySignStatus: 'wait_sign', statusText: '我方已签署，等待对方签署' }));
+  h.page.onLoad({ scene: 'contract', contractId: '12' }); await h.settled();
+  assert.equal(h.page.data.message, '我方已签署，等待对方签署');
+  assert.equal(h.navigation[0].url, '/pages/contract-preview/contract-preview?contractId=12');
+  assert.equal(h.timers.size, 0);
+});
+
+test('a provider success parameter cannot confirm a contract whose actors are both still waiting', async () => {
+  const h = harness(async () => ({ status: 'sign_progress', canSign: true,
+    initiatorSignStatus: 'wait_sign', counterpartySignStatus: 'wait_sign', statusText: '签署中' }));
+  h.page.onLoad({ scene: 'contract', contractId: '12', signResult: 'success' }); await h.settled();
+  assert.equal(h.navigation.length, 0);
+  assert.equal(h.page.data.loading, true);
+  for (let i = 0; i < 6; i++) {
+    const [id, callback] = h.timers.entries().next().value;
+    h.timers.delete(id); await callback();
+  }
+  assert.equal(h.page.data.failed, true);
+  assert.equal(h.page.data.title, '签署状态待确认');
+  assert.equal(h.navigation.length, 0);
+  assert.equal(h.timers.size, 0);
+  h.page.goBusinessPage();
+  assert.equal(h.navigation[0].url, '/pages/contract-preview/contract-preview?contractId=12');
+});
+
+test('a delayed own signature callback resumes the original contract after confirmation', async () => {
+  let result = { status: 'sign_progress', canSign: true, initiatorSignStatus: 'wait_sign', counterpartySignStatus: 'wait_sign' };
+  const h = harness(async () => result);
+  h.page.onLoad({ scene: 'contract', contractId: '12' }); await h.settled();
+  result = { status: 'sign_progress', canSign: false, initiatorSignStatus: 'signed', counterpartySignStatus: 'wait_sign' };
+  const [id, callback] = h.timers.entries().next().value;
+  h.timers.delete(id); await callback();
+  assert.equal(h.navigation[0].url, '/pages/contract-preview/contract-preview?contractId=12');
+  assert.equal(h.page.data.failed, false);
+});
+
+test('a company switch during signature sync blocks the old contract return', async () => {
+  let complete;
+  const h = harness(() => new Promise(resolve => { complete = resolve; }));
+  h.page.onLoad({ scene: 'contract', contractId: '12' });
+  h.app.globalData.currentCompanyId = '4';
+  complete({ status: 'task_finished' });
+  await h.settled();
+  assert.equal(h.navigation.length, 0);
+  assert.equal(h.timers.size, 0);
+});
+
 for (const [scene, options] of [
   ['contract', { contractId: '9007199254740993' }],
   ['member', { companyId: '3' }],

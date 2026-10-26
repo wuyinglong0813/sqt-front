@@ -50,8 +50,8 @@ page { background: #f4f8fd; }
 button::after { border: 0; }
 .section-title { color: #203349; font-size: 28rpx; font-weight: 700; }
 .table-scroll { margin-top: 18rpx; width: 100%; }
-.table { border-left: 1rpx solid #dfe8f2; border-top: 1rpx solid #dfe8f2; min-width: 1280rpx; }
-.table-row { display: grid; grid-template-columns: 240rpx 190rpx 120rpx 150rpx 170rpx 180rpx 230rpx; }
+.table { border-left: 1rpx solid #dfe8f2; border-top: 1rpx solid #dfe8f2; min-width: 1470rpx; }
+.table-row { display: grid; grid-template-columns: 240rpx 190rpx 190rpx 120rpx 150rpx 170rpx 180rpx 230rpx; }
 .table-row view { border-bottom: 1rpx solid #dfe8f2; border-right: 1rpx solid #dfe8f2; box-sizing: border-box; color: #405167; font-size: 22rpx; min-height: 68rpx; padding: 14rpx 10rpx; text-align: center; }
 .table-row.header view { background: #eaf4ff; color: #2585df; font-weight: 600; }
 .table-row.fee-row view,.draft-table-row.fee-row > view { background: #fff8ed; }

@@ -79,6 +79,7 @@ Page({
         id: String(item.id),
         companyId: String(item.viewerCounterpartyCompanyId || item.companyId || ''),
         companyName: item.viewerCounterpartyName || item.counterpartyName || '往来公司',
+        statusText: item.statusText || '待签署',
         amountText: money(item.amount),
         createdDate: formatDateTime(item.createdAt)
       }));

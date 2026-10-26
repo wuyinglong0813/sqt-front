@@ -69,10 +69,11 @@ test('blocked enterprise cannot call sign-url even if user tries the signing pag
   assert.equal(env.modals.filter(o => o.title === '确认发起电子签').length, 0);
   assert.match(page.data.errorMessage, /暂停/);
 });
-test('recipient and existing tasks skip debit confirmation and continue signing', async () => {
+test('recipient and existing tasks skip debit confirmation and continue signing', async t => {
   const env = fixture(options => options.url.endsWith('/quote')
     ? { canSign: true, newTask: false, message: '接收方免费' } : { url: 'https://example.test/sign' });
   const page = env.page('pages/fadada-auth/fadada-auth.js');
+  t.after(() => page.onUnload());
   page.data.scene = 'contract'; page.data.options = { contractId: '12' };
   await page.prepareService();
   assert.equal(env.modals.length, 1);

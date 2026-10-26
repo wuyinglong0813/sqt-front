@@ -16,6 +16,16 @@ const AUTH_QUERY_PENDING = {
   ]
 };
 const MAX_SYNC_ATTEMPTS = 24;
+const MAX_SIGNATURE_SYNC_ATTEMPTS = 6;
+
+function contractSigningReturned(result) {
+  if (!result) return false;
+  const status = String(result.status || '').toLowerCase();
+  if (['sign_completed', 'task_finished', 'task_terminated', 'expired', 'task_expired',
+    'revoked', 'voided_local'].includes(status)) return true;
+  return result.canSign === false && [result.initiatorSignStatus, result.counterpartySignStatus]
+    .some(value => ['signed', 'sign_completed', 'completed'].includes(String(value || '').toLowerCase()));
+}
 
 function supplementaryOrganization(options = {}) {
   return options.scene === 'company' && options.renewOrganization === '1';
@@ -118,6 +128,7 @@ Page({
   retrySync() {
     if (this._syncing || this._unloaded) return;
     this._syncAttempts = 0;
+    this._signatureSyncAttempts = 0;
     return this.syncResult();
   },
 
@@ -125,7 +136,7 @@ Page({
     if (this.returnTimer) clearTimeout(this.returnTimer);
     this._successReady = true;
     if (this._hidden || !this.resultContextCurrent()) return;
-    if ((this.data.options || {}).continuationId || ['personal', 'company'].includes((this.data.options || {}).scene)) {
+    if ((this.data.options || {}).continuationId || ['personal', 'company', 'contract'].includes((this.data.options || {}).scene)) {
       // The server has confirmed the result; continue without a second success screen.
       this._successReady = false;
       this.goBusinessPage();
@@ -192,6 +203,21 @@ Page({
         result = await request({ url: `/contracts/${options.contractId}/signing/sync`, method: 'POST', token });
       }
       if (!current()) return;
+      if (options.scene === 'contract' && !contractSigningReturned(result)) {
+        // The provider can return before its signed callback arrives. Confirm
+        // the exact contract instead of accepting a generic success parameter.
+        if ((this._signatureSyncAttempts || 0) < MAX_SIGNATURE_SYNC_ATTEMPTS) {
+          this._signatureSyncAttempts = (this._signatureSyncAttempts || 0) + 1;
+          this._awaitingResult = true;
+          this.setData({ loading: true, failed: false, title: '正在确认合同签署状态',
+            message: '正在核对当前合同的签署记录，请稍候' });
+          this.scheduleResultSync();
+          return;
+        }
+        this.setData({ loading: false, failed: true, title: '签署状态待确认',
+          message: '当前合同尚未收到我方签署完成记录。若已在服务页面完成签署，可重新同步，或返回合同查看双方签署进度。' });
+        return;
+      }
       if (this.supplementaryOrganizationScene() && !this.authenticationCompleted(result, options.scene)) {
         this.setData({ loading: false, failed: true, title: '企业授权尚未确认',
           message: (result && result.failureReason)

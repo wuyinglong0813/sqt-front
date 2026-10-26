@@ -327,11 +327,14 @@ page {
 .contract-card-head {
   align-items: center;
   display: flex;
+  flex-wrap: wrap;
+  gap: 8rpx 12rpx;
   justify-content: space-between;
 }
 
 .contract-sequence {
   color: #738298;
+  flex-shrink: 0;
   font-size: 19rpx;
   font-weight: 650;
   letter-spacing: 1rpx;
@@ -343,7 +346,9 @@ page {
   display: flex;
   flex-shrink: 0;
   font-size: 20rpx;
-  margin-left: 12rpx;
+  line-height: 1.5;
+  margin-left: auto;
+  max-width: 100%;
   padding: 5rpx 11rpx;
 }
 
@@ -351,6 +356,7 @@ page {
   background: currentColor;
   border-radius: 50%;
   height: 9rpx;
+  flex-shrink: 0;
   margin-right: 7rpx;
   width: 9rpx;
 }

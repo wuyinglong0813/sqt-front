@@ -64,7 +64,8 @@ Page({
         const counterpartyName = item.viewerCounterpartyName || item.counterpartyName || '往来公司';
         const signingText = item.status === 'PENDING' ? {
           task_terminated: '签署已终止', expired: '签署已过期', task_expired: '签署已过期',
-          task_finished: '签署结果确认中', sign_completed: '签署结果确认中'
+          task_finished: '签署结果确认中', sign_completed: '双方已签署，正在归档',
+          sign_progress: '签署中', finish_creation: '签署中'
         }[String(item.signingStatus || '').toLowerCase()] : '';
         return {
           ...item,

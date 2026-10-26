@@ -110,14 +110,14 @@
         <view class="suggestion-item" wx:for="{{productSuggestions}}" wx:key="productName"
           data-row="{{suggestionRow}}" data-name="{{item.productName}}" bindtap="selectInventoryProduct">
           <text class="suggestion-name">{{item.productName}}</text>
-          <text class="suggestion-spec">{{item.specification || '无规格'}}</text>
+          <text class="suggestion-spec">{{item.model || '无型号'}} · {{item.specification || '无规格'}}</text>
         </view>
       </view>
       <view class="inventory-suggestions" wx:if="{{specificationSuggestions.length > 0}}">
-        <view class="suggestion-title">选择对应规格型号</view>
+        <view class="suggestion-title">选择对应型号及规格</view>
         <view class="suggestion-item" wx:for="{{specificationSuggestions}}" wx:key="id"
           data-row="{{suggestionRow}}" data-id="{{item.id}}" bindtap="selectInventorySpecification">
-          <text class="suggestion-name">{{item.specification || '无规格'}}</text>
+          <text class="suggestion-name">{{item.model || '无型号'}} · {{item.specification || '无规格'}}</text>
           <text class="suggestion-spec">单位：{{item.baseUnit || '件'}}</text>
         </view>
       </view>

@@ -9,6 +9,17 @@ const DESKTOP_SIGN_WIDTH = 1280;
 const WEB_VIEW_LOAD_TIMEOUT = 30000;
 const SHORT_TICKET_LIFETIME = 10 * 60 * 1000;
 
+function contractSigningReturned(result) {
+  if (!result) return false;
+  const status = String(result.status || '').toLowerCase();
+  if (['sign_completed', 'task_finished', 'task_terminated', 'expired', 'task_expired',
+    'revoked', 'voided_local'].includes(status)) return true;
+  // A completed provider sub-step or the other party's signature is insufficient.
+  // The server disables signing once this enterprise's own actor has signed.
+  return result.canSign === false && [result.initiatorSignStatus, result.counterpartySignStatus]
+    .some(value => ['signed', 'sign_completed', 'completed'].includes(String(value || '').toLowerCase()));
+}
+
 const SCENES = {
   personal: { title: '个人认证', loading: '正在打开个人认证', endpoint: '/fadada/users/me/auth-url', withCompany: false },
   company: { title: '企业认证', loading: '正在打开企业认证', withCompany: false },
@@ -675,7 +686,7 @@ Page({
   startStatusPolling() {
     const { scene } = this.data;
     // Resource editors stay open; an existing resource does not mean editing is complete.
-    if (!['personal', 'company', 'legal'].includes(scene) || this.pollTimer
+    if (!['personal', 'company', 'legal', 'contract'].includes(scene) || this.pollTimer
         || this._visible === false || this._unloaded) return;
     this.pollAttempts = 0;
     const generation = this._pollGeneration = (this._pollGeneration || 0) + 1;
@@ -698,16 +709,20 @@ Page({
   },
 
   async pollStatus(generation = this._pollGeneration || 0) {
-    if (!this.isPollingCurrent(generation) || !['personal', 'company', 'legal'].includes(this.data.scene)) return;
+    if (!this.isPollingCurrent(generation) || !this.isPageContextCurrent()
+        || !['personal', 'company', 'legal', 'contract'].includes(this.data.scene)) return;
     this.pollTimer = null;
     const token = getApp().globalData.token;
     const context = captureCompanyContext(getApp());
     try {
-      const result = await this.readAuthStatus();
+      const result = this.data.scene === 'contract'
+        ? await request({ url: `/contracts/${this.data.options.contractId}/signing/sync`, method: 'POST', token, timeout: 15000 })
+        : await this.readAuthStatus();
       if (!this.isPollingCurrent(generation) || !isCompanyContextCurrent(getApp(), context) || !this.isPageContextCurrent()) return;
       // Missing authorization is expected before the user finishes this form.
       // failureReason can also contain cached query errors; it is not completion.
-      const completed = this.supplementaryOrganizationScene()
+      const completed = this.data.scene === 'contract' ? contractSigningReturned(result)
+        : this.supplementaryOrganizationScene()
         ? !!result && result.organizationAuthorized === true
         : !!(result && (['VERIFIED', 'FAILED'].includes(result.status)
           || (this.data.scene === 'legal' && result.status === 'REVIEW_REQUIRED')));

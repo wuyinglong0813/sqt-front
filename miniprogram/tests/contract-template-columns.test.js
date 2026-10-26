@@ -152,3 +152,73 @@ test('contract creation allows manual amount when quantity or unit price was rem
   assert.equal(write.data.amount, 25.5);
   assert.deepEqual(JSON.parse(write.data.terms).sections[0].rows[0], ['定制服务', '25.5', '2026-10-24']);
 });
+
+test('inventory selection distinguishes models with the same specification and saves both columns', async () => {
+  const h = harness('sign-contract');
+  const content = template(['产品名称', '型号', '规格', '单位', '数量', '单价', '金额'], [['闸阀', '旧型号', '旧规格', '件', '2', '3', '6']]);
+  h.page.data.templates = [{ id: '1', name: '分列模板', content: JSON.stringify(content) }];
+  h.page.selectTemplate(0);
+  h.page.data.inventoryProducts = [
+    { id: '11', productName: '闸阀', model: 'Z41H', specification: 'DN100', baseUnit: '台' },
+    { id: '12', productName: '闸阀', model: 'Z42H', specification: 'DN100', baseUnit: '台' }
+  ];
+  h.page.selectInventoryProduct(event({ row: 0, name: '闸阀' }));
+  assert.deepEqual(plain(h.page.data.tableRows[0]), ['闸阀', '', '', '', '2', '3', '6']);
+  assert.equal(h.page.data.specificationSuggestions.length, 2);
+  h.page.onTableCellChange(event({ row: 0, col: 1 }, 'z42'));
+  assert.deepEqual(plain(h.page.data.specificationSuggestions).map(item => item.id), ['12']);
+  h.page.selectInventorySpecification(event({ row: 0, id: '12' }));
+  assert.deepEqual(plain(h.page.data.tableRows[0]), ['闸阀', 'Z42H', 'DN100', '台', '2', '3', '6']);
+  assert.equal(h.page.data.quantityColumnIndex, 4);
+  await h.page.onSubmit();
+  const saved = JSON.parse(h.calls.find(call => call.url === '/contracts').data.terms).sections[0];
+  assert.deepEqual(saved.columns, content.sections[0].columns);
+  assert.deepEqual(saved.rows[0], ['闸阀', 'Z42H', 'DN100', '台', '2', '3', '6']);
+});
+
+test('selecting inventory with a model adds a separate column without reinterpreting legacy combined specifications', () => {
+  const h = harness('sign-contract');
+  const content = template(['产品名称', '规格型号', '单位', '数量', '单价', '金额'], [
+    ['', '', '', '2', '3', '6'], ['原商品', '原合并规格', '件', '1', '5', '5']
+  ]);
+  h.page.data.templates = [{ id: '1', name: '历史模板', content: JSON.stringify(content) }];
+  h.page.selectTemplate(0);
+  h.page.data.inventoryProducts = [{ id: '11', productName: '电缆', model: 'YJV', specification: '3×2.5mm²', baseUnit: '米' }];
+  h.page.selectInventoryProduct(event({ row: 0, name: '电缆' }));
+  assert.deepEqual(plain(h.page.data.tableSection.columns), ['产品名称', '型号', '规格型号', '单位', '数量', '单价', '金额']);
+  assert.deepEqual(plain(h.page.data.tableRows[0]), ['电缆', 'YJV', '3×2.5mm²', '米', '2', '3', '6']);
+  assert.deepEqual(plain(h.page.data.tableRows[1]), ['原商品', '', '原合并规格', '件', '1', '5', '5']);
+  h.page.onTableCellChange(event({ row: 0, col: 4 }, '4'));
+  assert.equal(h.page.data.totalAmount, '17');
+  h.page.selectInventorySpecification(event({ row: 0, id: '11' }));
+  assert.equal(h.page.data.tableSection.columns.length, 7);
+});
+
+test('legacy inventory without a model keeps the existing combined specification column', () => {
+  const h = harness('sign-contract');
+  const content = template(['产品名称', '规格型号', '单位', '数量', '单价', '金额'], [['', '', '', '2', '3', '6']]);
+  h.page.data.templates = [{ id: '1', name: '历史模板', content: JSON.stringify(content) }];
+  h.page.selectTemplate(0);
+  h.page.data.inventoryProducts = [{ id: '11', productName: '电缆', specification: 'RVS 2×1.5', baseUnit: '米' }];
+  h.page.selectInventoryProduct(event({ row: 0, name: '电缆' }));
+  assert.equal(h.page.tableColumnIndex('model'), -1);
+  assert.deepEqual(plain(h.page.data.tableSection.columns), content.sections[0].columns);
+  assert.deepEqual(plain(h.page.data.tableRows[0]), ['电缆', 'RVS 2×1.5', '米', '2', '3', '6']);
+});
+
+test('inventory selection finds the real product name after product-prefixed model and specification columns', async () => {
+  const h = harness('sign-contract');
+  const columns = ['产品型号', '产品规格', '产品名称', '单位', '数量', '单价', '金额'];
+  h.page.data.templates = [{ id: '1', name: '乱序产品列', content: JSON.stringify(template(columns, [['', '', '', '', '2', '30', '60']])) }];
+  h.page.selectTemplate(0);
+  h.page.data.inventoryProducts = [{ id: '11', productName: '闸阀', model: 'Z41H', specification: 'DN100', baseUnit: '台' }];
+  assert.equal(h.page.data.productColumnIndex, 2);
+  assert.equal(h.page.tableColumnIndex('product'), 2);
+  assert.equal(h.page.tableColumnIndex('model'), 0);
+  assert.equal(h.page.tableColumnIndex('specification'), 1);
+  h.page.selectInventoryProduct(event({ row: 0, name: '闸阀' }));
+  assert.deepEqual(plain(h.page.data.tableRows[0]), ['Z41H', 'DN100', '闸阀', '台', '2', '30', '60']);
+  await h.page.onSubmit();
+  assert.deepEqual(JSON.parse(h.calls.find(call => call.url === '/contracts').data.terms).sections[0].rows[0],
+    ['Z41H', 'DN100', '闸阀', '台', '2', '30', '60']);
+});

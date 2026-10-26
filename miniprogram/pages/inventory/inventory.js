@@ -58,7 +58,7 @@ Page({
     const warehouse = state.warehouses.find(item => String(item.id) === state.filterWarehouseId);
     const visibleBalances = state.overview.balances.filter(item => {
       if (state.filterWarehouseId && String(item.warehouseId) !== state.filterWarehouseId) return false;
-      return !keyword || [item.productName, item.specification, item.warehouseName]
+      return !keyword || [item.productName, item.model, item.specification, item.warehouseName]
         .some(value => String(value || '').toLowerCase().includes(keyword));
     });
     this.setData({ ...patch, visibleBalances, filterWarehouseAddress: warehouse && warehouse.address || '' });
@@ -84,7 +84,7 @@ Page({
     const item = this.data.visibleBalances[Number(e.currentTarget.dataset.index)];
     if (!item) return;
     wx.showModal({ title: '库存明细', showCancel: false, confirmText: '知道了',
-      content: `商品：${item.productName}\n规格：${item.specification || '无规格'}\n仓库：${item.warehouseName}\n库存数量：${item.quantity} ${item.baseUnit}\n库存单价：¥${item.unitPriceText} / ${item.baseUnit}\n库存金额：¥${item.inventoryAmountText}` });
+      content: `商品：${item.productName}\n型号：${item.model || '无型号'}\n规格：${item.specification || '无规格'}\n仓库：${item.warehouseName}\n库存数量：${item.quantity} ${item.baseUnit}\n库存单价：¥${item.unitPriceText} / ${item.baseUnit}\n库存金额：¥${item.inventoryAmountText}` });
   },
 
   openInbound() {
@@ -95,18 +95,21 @@ Page({
     const selectedIndex = this.data.warehouses.findIndex(item => String(item.id) === this.data.filterWarehouseId);
     this.setData({ showInbound: true, warehouseIndex: Math.max(0, selectedIndex),
       inbound: { requestId: `manual-${Date.now()}-${Math.random().toString(36).slice(2)}`,
-        productName: '', specification: '', baseUnit: '', quantity: '', unitPrice: '', remark: '' } });
+        productName: '', model: '', specification: '', baseUnit: '', quantity: '', unitPrice: '', remark: '' } });
   },
   closeInbound() { if (!this.data.savingInbound) this.setData({ showInbound: false }); },
   selectInboundWarehouse(e) { this.setData({ warehouseIndex: Number(e.detail.value) }); },
   onInboundInput(e) {
     const field = e.currentTarget.dataset.field;
-    if (['productName', 'specification', 'baseUnit', 'quantity', 'unitPrice', 'remark'].includes(field))
+    if (['productName', 'model', 'specification', 'baseUnit', 'quantity', 'unitPrice', 'remark'].includes(field))
       this.setData({ [`inbound.${field}`]: e.detail.value });
   },
   async saveInbound() {
     if (this.data.savingInbound) return;
-    const form = this.data.inbound;
+    const form = { ...this.data.inbound };
+    ['productName', 'model', 'specification', 'baseUnit', 'remark'].forEach(field => {
+      form[field] = String(form[field] || '').trim();
+    });
     const warehouse = this.data.warehouses[this.data.warehouseIndex];
     if (!warehouse || !form.productName.trim() || !form.baseUnit.trim()
         || !/^\d+(\.\d{1,4})?$/.test(form.quantity) || Number(form.quantity) <= 0

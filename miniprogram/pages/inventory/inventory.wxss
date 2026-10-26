@@ -28,7 +28,7 @@ button::after { border: 0; }
 .inventory-table-shell { background: #fff; border: 1rpx solid #d8e5f2; border-radius: 14rpx; display: flex; overflow: hidden; }
 .product-column { box-shadow: 6rpx 0 12rpx rgba(31,73,118,.07); flex: 0 0 208rpx; position: relative; z-index: 1; }
 .inventory-table-scroll { flex: 1; min-width: 0; width: 0; }
-.inventory-table { width: 1000rpx; }
+.inventory-table { width: 1180rpx; }
 .table-row { display: flex; }
 .table-cell { align-items: center; border-bottom: 1rpx solid #e6edf5; border-right: 1rpx solid #e6edf5; box-sizing: border-box; color: #344b62; display: flex; flex-shrink: 0; font-size: 23rpx; height: 86rpx; justify-content: center; overflow: hidden; padding: 10rpx 14rpx; text-align: center; }
 .table-header { background: #eaf4ff; color: #3976af; font-size: 21rpx; font-weight: 600; height: 68rpx; }
@@ -57,5 +57,39 @@ button::after { border: 0; }
 .sheet input { background: #f5f8fc; border: 1rpx solid #e0e8f2; border-radius: 12rpx; box-sizing: border-box; font-size: 25rpx; height: 76rpx; padding: 0 18rpx; width: 100%; }
 .sheet button { background: #3498ff; border: 0; border-radius: 14rpx; color: #fff; font-size: 25rpx; height: 74rpx; line-height: 74rpx; margin: 25rpx 0 0; }
 
-.inbound-sheet { max-height: 85vh; }
-.warehouse-picker { padding: 20rpx; background: #f5f8fc; border-radius: 12rpx; font-size: 26rpx; }
+.inbound-sheet { display: flex; flex-direction: column; height: 88vh; max-height: 1320rpx; overflow: hidden; padding: 0; }
+.inbound-header { align-items: center; display: flex; flex-shrink: 0; justify-content: space-between; padding: 30rpx 32rpx 26rpx; }
+.inbound-header .sheet-title { font-size: 34rpx; margin: 0; }
+.inbound-subtitle { color: #8a98a9; font-size: 22rpx; margin-top: 9rpx; }
+.inbound-header .inbound-close { align-items: center; background: #f0f4f9; border-radius: 50%; color: #7e8c9e; display: flex; font-size: 38rpx; font-weight: 400; height: 56rpx; justify-content: center; line-height: 1; margin: 0; padding: 0 0 4rpx; width: 56rpx; }
+.inbound-body { background: #f4f7fb; flex: 1; height: 0; min-height: 0; }
+.inbound-content { padding: 24rpx; }
+.warehouse-picker { align-items: center; background: #edf5ff; border: 1rpx solid #d7e7fb; border-radius: 20rpx; display: flex; gap: 18rpx; padding: 22rpx; }
+.warehouse-picker-icon { align-items: center; background: #fff; border-radius: 14rpx; display: flex; flex-shrink: 0; height: 68rpx; justify-content: center; width: 68rpx; }
+.warehouse-picker-icon image { height: 40rpx; width: 40rpx; }
+.warehouse-picker-copy { flex: 1; min-width: 0; }
+.warehouse-picker-label { color: #7e95b0; font-size: 20rpx; }
+.warehouse-picker-name { color: #235b97; font-size: 27rpx; font-weight: 600; margin-top: 5rpx; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.warehouse-picker-change { color: #4c86c3; flex-shrink: 0; font-size: 22rpx; }
+.warehouse-picker-change text { font-size: 32rpx; margin-left: 4rpx; }
+.inbound-section { background: #fff; border: 1rpx solid #e7edf5; border-radius: 20rpx; margin-top: 20rpx; padding: 26rpx; }
+.inbound-section-title { align-items: center; color: #293e56; display: flex; font-size: 26rpx; font-weight: 600; justify-content: space-between; margin-bottom: 20rpx; }
+.inbound-section-title > text { color: #a2adba; font-size: 20rpx; font-weight: 400; }
+.inbound-field { flex: 1; min-width: 0; }
+.inbound-field + .inbound-field, .inbound-field-row + .inbound-field { margin-top: 22rpx; }
+.inbound-field-row { display: flex; gap: 20rpx; margin-top: 22rpx; }
+.inbound-field-row > .inbound-field { margin-top: 0; }
+.inbound-section .field-label { align-items: center; color: #5c6d80; display: flex; font-size: 23rpx; margin: 0 0 12rpx; }
+.field-required { color: #e87b72; font-size: 22rpx; margin-left: 7rpx; }
+.field-optional { color: #a5afbc; font-size: 20rpx; margin-left: 10rpx; }
+.inbound-sheet input { background: #f8fafd; border-color: #e4ebf4; border-radius: 13rpx; color: #243e59; font-size: 25rpx; height: 76rpx; padding: 0 18rpx; }
+.inbound-placeholder { color: #a5b0be; font-size: 24rpx; }
+.inbound-unit-field { flex: .85; }
+.inbound-price-input { align-items: center; background: #f8fafd; border: 1rpx solid #e4ebf4; border-radius: 13rpx; display: flex; padding-left: 20rpx; }
+.inbound-price-input > text { color: #607c9b; font-size: 29rpx; }
+.inbound-price-input input { background: transparent; border: 0; flex: 1; min-width: 0; padding-left: 12rpx; width: 0; }
+.inbound-field-hint { color: #9ca9b8; font-size: 20rpx; margin: 10rpx 0 22rpx; }
+.inbound-footer { background: #fff; border-top: 1rpx solid #e7edf5; flex-shrink: 0; padding: 20rpx 32rpx calc(16rpx + env(safe-area-inset-bottom)); }
+.inbound-footer button { background: linear-gradient(115deg, #369dff, #257be9); border-radius: 16rpx; box-shadow: 0 8rpx 20rpx rgba(44,134,237,.16); font-size: 28rpx; font-weight: 600; height: 82rpx; line-height: 82rpx; margin: 0; width: 100%; }
+.inbound-footer button[disabled] { background: #9dc9f4; color: #fff; }
+.inbound-footer > view { color: #a2adba; font-size: 20rpx; margin-top: 13rpx; text-align: center; }

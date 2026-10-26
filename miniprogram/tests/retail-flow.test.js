@@ -53,6 +53,17 @@ test('saving a draft does not call confirmation', async () => {
   await saleForm(env).save({ currentTarget: { dataset: {} } });
   assert.equal(env.calls.length, 1);
   assert.equal(env.calls[0].data.requestId, 'retail-test-stable-request');
+  assert.equal(env.calls[0].data.items[0].model, '');
+});
+test('retail editing and submission keep model separate from specification', async () => {
+  const env = harness(async () => ({ id: '42' }));
+  const page = saleForm(env);
+  page.onItemInput({ currentTarget: { dataset: { index: 0, field: 'model' } }, detail: { value: ' YJV ' } });
+  page.onItemInput({ currentTarget: { dataset: { index: 0, field: 'specification' } }, detail: { value: '3×2.5mm²' } });
+  await page.save({ currentTarget: { dataset: {} } });
+  const item = env.calls[0].data.items[0];
+  assert.equal(item.model, 'YJV');
+  assert.equal(item.specification, '3×2.5mm²');
 });
 test('a failed confirmation retains the draft and retries the same document', async () => {
   let attempts = 0;
@@ -70,11 +81,13 @@ test('a failed confirmation retains the draft and retries the same document', as
 test('return quantities are bounded and preserve the original item ID and price', async () => {
   const originalItem = '2098123456789012347';
   const env = harness(async o => o.method ? { id: '43' } : { documentNo: '原销售单', items: [{ id: originalItem,
-    productName: '电缆', baseUnit: '米', unitPrice: '2.50', returnableQuantity: '5', lineType: 'PRODUCT' }] });
+    productName: '电缆', model: 'YJV', specification: '3×2.5mm²', baseUnit: '米', unitPrice: '2.50', returnableQuantity: '5', lineType: 'PRODUCT' }] });
   const page = saleForm(env); Object.assign(page.data, { isReturn: true, documentType: 'RETURN_ORDER', remark: '多余材料退回' });
   await page.loadOriginal('42');
   page.onItemInput({ currentTarget: { dataset: { index: 0, field: 'unitPrice' } }, detail: { value: '999' } });
+  page.onItemInput({ currentTarget: { dataset: { index: 0, field: 'model' } }, detail: { value: '其他型号' } });
   assert.equal(page.data.items[0].unitPrice, '2.50');
+  assert.equal(page.data.items[0].model, 'YJV');
   page.onItemInput({ currentTarget: { dataset: { index: 0, field: 'quantity' } }, detail: { value: '6' } });
   await page.save({ currentTarget: { dataset: {} } });
   assert.equal(env.calls.some(o => o.method === 'POST'), false);
@@ -84,6 +97,8 @@ test('return quantities are bounded and preserve the original item ID and price'
   const body = env.calls.find(o => o.method === 'POST').data;
   assert.equal(body.originalDocumentId, '42'); assert.equal(body.items[0].originalItemId, originalItem);
   assert.equal(body.items[0].unitPrice, '2.50'); assert.equal(page.data.totalText, '5.00');
+  assert.equal(body.items[0].model, 'YJV');
+  assert.equal(body.items[0].specification, '3×2.5mm²');
 });
 test('a company switch discards an in-flight customer read and prevents submission', async () => {
   let finish; const pending = new Promise(resolve => { finish = resolve; });

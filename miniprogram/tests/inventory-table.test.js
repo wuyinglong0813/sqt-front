@@ -13,7 +13,7 @@ function harness() {
     warehouses: [{ id: '101', name: '电线电缆', address: '一号库区' }, { id: 102, name: '阀门', address: '二号库区' }],
     overview: { warehouseCount: 2, productCount: 3, canManualInbound: true, balances: [
       { id: '1', warehouseId: 101, warehouseName: '电线电缆', productName: '电线', specification: 'RVS 2×1.5', baseUnit: '米', quantity: '1000.0001', unitPrice: '1', inventoryAmount: '1000.00' },
-      { id: '2', warehouseId: '102', warehouseName: '阀门', productName: '闸阀', specification: 'DN100', baseUnit: '台', quantity: '100', unitPrice: '100', inventoryAmount: '10000' },
+      { id: '2', warehouseId: '102', warehouseName: '阀门', productName: '闸阀', model: 'Z41H', specification: 'DN100', baseUnit: '台', quantity: '100', unitPrice: '100', inventoryAmount: '10000' },
       { id: '3', warehouseId: '102', warehouseName: '阀门', productName: '电线', specification: 'RVS 2×1.5', baseUnit: '米', quantity: '200', unitPrice: '1.5', inventoryAmount: '300' }
     ] }
   };
@@ -26,7 +26,14 @@ function harness() {
       return options.url === '/warehouses' ? records.warehouses : records.overview;
     } })
   });
-  page.setData = values => Object.assign(page.data, values);
+  page.setData = values => {
+    Object.entries(values).forEach(([key, value]) => {
+      const segments = key.split('.');
+      const last = segments.pop();
+      const target = segments.reduce((current, segment) => current[segment], page.data);
+      target[last] = value;
+    });
+  };
   return { page, records, calls, modals };
 }
 
@@ -43,6 +50,10 @@ test('inventory search combines with warehouse filtering without losing decimal 
   assert.equal(h.page.data.visibleBalances.length, 1);
   assert.equal(h.page.data.visibleBalances[0].id, '3');
   assert.equal(h.page.data.filterWarehouseAddress, '二号库区');
+
+  h.page.onSearchInput({ detail: { value: ' z41h ' } });
+  assert.equal(h.page.data.visibleBalances.length, 1);
+  assert.equal(h.page.data.visibleBalances[0].specification, 'DN100');
 
   h.page.clearSearch();
   assert.equal(h.page.data.visibleBalances.length, 2);
@@ -78,6 +89,7 @@ test('stock row details use the displayed filtered row and keep every column ava
   h.page.showBalanceDetail({ currentTarget: { dataset: { index: 0 } } });
   const modal = h.modals[0];
   assert.match(modal.content, /商品：闸阀/);
+  assert.match(modal.content, /型号：Z41H/);
   assert.match(modal.content, /规格：DN100/);
   assert.match(modal.content, /仓库：阀门/);
   assert.match(modal.content, /库存数量：100 台/);
@@ -91,13 +103,31 @@ test('manual inbound starts in the filtered warehouse and refreshes the table af
   h.page.selectFilterWarehouse({ currentTarget: { dataset: { id: '102' } } });
   h.page.openInbound();
   assert.equal(h.page.data.warehouseIndex, 1);
-  h.page.data.inbound = { ...h.page.data.inbound, productName: '闸阀', specification: 'DN100', baseUnit: '台', quantity: '2', unitPrice: '100' };
+  assert.equal(h.page.data.inbound.model, '');
+  h.page.onInboundInput({ currentTarget: { dataset: { field: 'model' } }, detail: { value: ' Z41H ' } });
+  h.page.data.inbound = { ...h.page.data.inbound, productName: ' 闸阀 ', specification: ' DN100 ', baseUnit: '台', quantity: '2', unitPrice: '100' };
   await h.page.saveInbound();
   const inbound = h.calls.find(options => options.method === 'POST');
   assert.equal(inbound.url, '/inventory/manual-inbound');
   assert.equal(inbound.data.warehouseId, 102);
+  assert.equal(inbound.data.productName, '闸阀');
+  assert.equal(inbound.data.model, 'Z41H');
+  assert.equal(inbound.data.specification, 'DN100');
   assert.equal(inbound.data.quantity, '2');
   assert.equal(h.page.data.showInbound, false);
   assert.equal(h.page.data.filterWarehouseId, '102');
   assert.equal(h.calls.filter(options => options.url === '/inventory/overview').length, 2);
+});
+
+test('manual inbound accepts optional model and specification while keeping decimal quantity and zero price', async () => {
+  const h = harness();
+  await h.page.loadData();
+  h.page.openInbound();
+  h.page.data.inbound = { ...h.page.data.inbound, productName: '包装箱', baseUnit: '件', quantity: '0.0001', unitPrice: '0' };
+  await h.page.saveInbound();
+  const inbound = h.calls.find(options => options.method === 'POST');
+  assert.equal(inbound.data.model, '');
+  assert.equal(inbound.data.specification, '');
+  assert.equal(inbound.data.quantity, '0.0001');
+  assert.equal(inbound.data.unitPrice, '0');
 });

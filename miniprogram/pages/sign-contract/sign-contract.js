@@ -9,6 +9,11 @@ const {
 
 const FEE_TYPE_OPTIONS = ['运费', '装卸费', '包装费', '服务费', '其他费用'];
 
+function isProductNameColumn(column) {
+  const text = String(column || '');
+  return !/型号|规格/.test(text) && /品名|名称|产品/.test(text);
+}
+
 function newClientRequestId() {
   return `contract-${Date.now()}-${Math.random().toString(16).slice(2, 14)}`;
 }
@@ -252,7 +257,7 @@ Page({
     const amountColumnIndex = findContractColumn(columns, ['金额']);
     const amountAutoCalculated = quantityColumnIndex >= 0 && priceColumnIndex >= 0;
     return {
-      productColumnIndex: findContractColumn(columns, ['品名', '名称', '产品']),
+      productColumnIndex: columns.findIndex(isProductNameColumn),
       quantityColumnIndex, priceColumnIndex, amountColumnIndex, amountAutoCalculated,
       tableTotalHint: amountAutoCalculated
         ? '商品合计按数量 × 单价计算'
@@ -292,15 +297,33 @@ Page({
 
   tableColumnIndex(kind) {
     const columns = (this.data.tableSection && this.data.tableSection.columns) || [];
+    if (kind === 'product') return columns.findIndex(isProductNameColumn);
     const aliases = {
       product: ['品名', '名称', '产品'],
-      specification: ['规格', '型号'],
+      model: ['型号'],
+      specification: ['规格'],
       unit: ['单位'],
       quantity: ['数量'],
       price: ['单价'],
       amount: ['金额']
     }[kind] || [];
-    return columns.findIndex(column => aliases.some(alias => String(column || '').includes(alias)));
+    return columns.findIndex(column => (kind !== 'model' || !String(column || '').includes('规格'))
+      && aliases.some(alias => String(column || '').includes(alias)));
+  },
+
+  ensureInventoryModelColumn(products) {
+    if (this.tableColumnIndex('model') >= 0 || !products.some(item => String(item.model || '').trim())) return;
+    const columns = this.data.tableSection.columns.slice();
+    const specificationIndex = this.tableColumnIndex('specification');
+    const insertIndex = specificationIndex >= 0 ? specificationIndex : this.tableColumnIndex('product') + 1;
+    columns.splice(insertIndex, 0, '型号');
+    const rows = this.data.tableRows.map(row => {
+      const next = row.slice();
+      next.splice(insertIndex, 0, '');
+      return next;
+    });
+    this.setData({ tableSection: { ...this.data.tableSection, columns }, tableRows: rows,
+      ...this.tableColumnMetadata(columns) }, () => this.measureTableScrollbar());
   },
 
   // ======= 产品表格编辑 =======
@@ -312,6 +335,7 @@ Page({
     const priceIndex = this.tableColumnIndex('price');
     const amountIndex = this.tableColumnIndex('amount');
     const productIndex = this.tableColumnIndex('product');
+    const modelIndex = this.tableColumnIndex('model');
     const specificationIndex = this.tableColumnIndex('specification');
     const value = [quantityIndex, priceIndex, amountIndex].includes(columnIndex)
       ? normalizeNumericText(e.detail.value)
@@ -342,14 +366,14 @@ Page({
         return true;
       }).slice(0, 8) : [];
       changes.specificationSuggestions = [];
-    } else if (columnIndex === specificationIndex) {
+    } else if (columnIndex === modelIndex || columnIndex === specificationIndex) {
       const productName = String(targetRow[productIndex] || '').trim();
       const keyword = String(value || '').trim().toLowerCase();
       changes.suggestionRow = rowIndex;
       changes.productSuggestions = [];
       changes.specificationSuggestions = (this.data.inventoryProducts || [])
         .filter(item => item.productName === productName
-          && (!keyword || String(item.specification || '').toLowerCase().includes(keyword)))
+          && (!keyword || String(item[columnIndex === modelIndex ? 'model' : 'specification'] || '').toLowerCase().includes(keyword)))
         .slice(0, 8);
     }
     this.setData(changes);
@@ -361,8 +385,10 @@ Page({
     const productName = String(e.currentTarget.dataset.name || '');
     const products = (this.data.inventoryProducts || []).filter(item => item.productName === productName);
     if (!this.data.tableRows[rowIndex] || products.length === 0) return;
+    this.ensureInventoryModelColumn(products);
     const productIndex = this.tableColumnIndex('product');
     if (productIndex < 0) return;
+    const modelIndex = this.tableColumnIndex('model');
     const specificationIndex = this.tableColumnIndex('specification');
     const unitIndex = this.tableColumnIndex('unit');
     const changes = {
@@ -374,6 +400,10 @@ Page({
     this.data.tableRows[rowIndex][productIndex] = productName;
     if (products.length === 1) {
       const selected = products[0];
+      if (modelIndex >= 0) {
+        this.data.tableRows[rowIndex][modelIndex] = selected.model || '';
+        changes[`tableRows[${rowIndex}][${modelIndex}]`] = selected.model || '';
+      }
       if (specificationIndex >= 0) {
         this.data.tableRows[rowIndex][specificationIndex] = selected.specification || '';
         changes[`tableRows[${rowIndex}][${specificationIndex}]`] = selected.specification || '';
@@ -383,9 +413,12 @@ Page({
         changes[`tableRows[${rowIndex}][${unitIndex}]`] = selected.baseUnit || '';
       }
       changes.specificationSuggestions = [];
-    } else if (specificationIndex >= 0) {
-      this.data.tableRows[rowIndex][specificationIndex] = '';
-      changes[`tableRows[${rowIndex}][${specificationIndex}]`] = '';
+    } else {
+      [modelIndex, specificationIndex, unitIndex].forEach(index => {
+        if (index < 0) return;
+        this.data.tableRows[rowIndex][index] = '';
+        changes[`tableRows[${rowIndex}][${index}]`] = '';
+      });
     }
     this.setData(changes);
   },
@@ -396,12 +429,15 @@ Page({
     const selected = (this.data.inventoryProducts || [])
       .find(item => String(item.id) === productId);
     if (!selected || !this.data.tableRows[rowIndex]) return;
+    this.ensureInventoryModelColumn([selected]);
     const productIndex = this.tableColumnIndex('product');
+    const modelIndex = this.tableColumnIndex('model');
     const specificationIndex = this.tableColumnIndex('specification');
     const unitIndex = this.tableColumnIndex('unit');
     const changes = { productSuggestions: [], specificationSuggestions: [], suggestionRow: -1 };
     [
       [productIndex, selected.productName || ''],
+      [modelIndex, selected.model || ''],
       [specificationIndex, selected.specification || ''],
       [unitIndex, selected.baseUnit || '']
     ].forEach(([index, value]) => {

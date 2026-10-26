@@ -682,6 +682,54 @@ test('desktop signing opens the provider page directly', async () => {
   assert.equal(p.data.serviceHost, '80005620.uat-e.fadada.com');
 });
 
+test('contract polling returns after our confirmed signature while the counterparty is still pending', async () => {
+  let result = { status: 'sign_progress', initiatorSignStatus: 'wait_sign', counterpartySignStatus: 'wait_sign', canSign: true };
+  const h = harness(() => result), p = h.page(authFile);
+  p.data.scene = 'contract'; p.data.options = { contractId: '9007199254740993' };
+  p.startStatusPolling();
+  await h.tick();
+  assert.equal(h.navigation.length, 0);
+  assert.equal(h.calls[0].url, '/contracts/9007199254740993/signing/sync');
+  assert.equal(h.calls[0].method, 'POST');
+  result = { status: 'sign_progress', initiatorSignStatus: 'signed', counterpartySignStatus: 'wait_sign',
+    canSign: false, statusText: '我方已签署，等待对方签署' };
+  await h.tick();
+  assert.deepEqual(h.navigation, ['/pages/service-return/service-return?scene=contract&contractId=9007199254740993']);
+  assert.equal(h.timers.size, 0);
+});
+
+test('the counterparty signature does not close our unfinished official signing page', async () => {
+  const h = harness(() => ({ status: 'sign_progress', initiatorSignStatus: 'signed',
+    counterpartySignStatus: 'wait_sign', canSign: true, statusText: '待我方签署' }));
+  const p = h.page(authFile); p.data.scene = 'contract'; p.data.options = { contractId: '12' };
+  p.startStatusPolling(); await h.tick();
+  assert.equal(h.navigation.length, 0);
+  assert.equal(h.timers.size, 1);
+  p.onHide();
+  assert.equal(h.timers.size, 0);
+});
+
+test('a contract query failure keeps the provider page open and retries without creating a signing URL', async () => {
+  const h = harness(() => { throw Error('暂不可用'); }), p = h.page(authFile);
+  p.data.scene = 'contract'; p.data.options = { contractId: '12' }; p.data.serviceUrl = 'https://sign.fadada.com/one';
+  p.startStatusPolling(); await h.tick();
+  assert.equal(h.navigation.length, 0);
+  assert.equal(p.data.serviceUrl, 'https://sign.fadada.com/one');
+  assert.equal(h.timers.size, 1);
+  assert.deepEqual(h.calls.map(o => o.url), ['/contracts/12/signing/sync']);
+});
+
+test('switching enterprise during a contract poll prevents navigation from the old result', async () => {
+  let complete;
+  const h = harness(() => new Promise(resolve => { complete = resolve; })), p = h.page(authFile);
+  h.app.globalData.currentCompanyId = '3';
+  p.data.scene = 'contract'; p.data.options = { contractId: '12' }; p.startStatusPolling();
+  const pending = h.tick();
+  h.app.globalData.currentCompanyId = '4';
+  complete({ status: 'task_finished', canSign: false }); await pending;
+  assert.equal(h.navigation.length, 0);
+});
+
 test('desktop signing widens a narrow window and restores it on leave', () => {
   const h = harness();
   h.app.globalData.isDesktopWechat = true;

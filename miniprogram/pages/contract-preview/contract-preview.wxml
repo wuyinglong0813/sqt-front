@@ -172,7 +172,7 @@
             <text class="pdf-party-role">供方</text>
             <text class="pdf-party-name">{{pdfSupplier || '—'}}</text>
             <view class="pdf-seal-state">
-              <text>待签署</text>
+              <text>{{pdfSupplierSignText}}</text>
               <text>—</text>
             </view>
           </view>
@@ -180,7 +180,7 @@
             <text class="pdf-party-role">需方</text>
             <text class="pdf-party-name">{{pdfBuyer || '—'}}</text>
             <view class="pdf-seal-state">
-              <text>待签署</text>
+              <text>{{pdfBuyerSignText}}</text>
               <text>—</text>
             </view>
           </view>

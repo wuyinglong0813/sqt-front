@@ -10,6 +10,11 @@ const { money } = require('../../utils/retail');
 const { runPrivacyAction } = require('../../utils/privacy');
 const { serviceRecovery, serviceRecoveryUrl } = require('../../utils/signingContinuation');
 
+function isProductNameColumn(column) {
+  const text = String(column || '');
+  return !/型号|规格/.test(text) && /品名|名称|产品/.test(text);
+}
+
 function today() {
   const now = new Date();
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
@@ -67,6 +72,8 @@ Page({
     pdfTitle: '购销合同',
     pdfSupplier: '',
     pdfBuyer: '',
+    pdfSupplierSignText: '待签署',
+    pdfBuyerSignText: '待签署',
     pdfDate: '',
     // 结构化合同
     hasStructured: false,
@@ -297,6 +304,11 @@ Page({
       const canCreateReturnOrder = canCreateDocument && !contractReadOnly
         && (contract.status === 'PENDING' || contract.status === 'ACTIVE');
       const outgoing = contract.perspective === 'OUTGOING';
+      const initiatorIsSupplier = String(contract.direction || '').toUpperCase() === 'SALE';
+      const partySignText = value => ['signed', 'sign_completed', 'completed']
+        .includes(String(value || '').toLowerCase()) ? '已签署' : '待签署';
+      const initiatorSignText = partySignText(signing && signing.initiatorSignStatus);
+      const counterpartySignText = partySignText(signing && signing.counterpartySignStatus);
       const createAsDraft = true;
       const recovery = serviceRecovery(getApp());
 
@@ -308,7 +320,8 @@ Page({
               ? (activeContractAction.actionType === 'END' ? '结束待确认' : '作废待确认')
               : `${activeContractAction.targetText || '履约资料'}作废待确认`)
             : (['COMPLETED', 'VOIDED'].includes(contract.status) ? statusMap[contract.status]
-              : (pendingSigningText || contract.statusText || statusMap[contract.status] || contract.status)),
+              : (pendingSigningText || (contract.status === 'PENDING' && signing && signing.statusText)
+                || contract.statusText || statusMap[contract.status] || contract.status)),
           amount: contract.amount || 0,
           contractAmountText: money(contract.amount),
           salesAmountText: money(contract.salesAmount),
@@ -359,6 +372,8 @@ Page({
         pdfTitle,
         pdfSupplier: pdfSupplier || '—',
         pdfBuyer: pdfBuyer || '—',
+        pdfSupplierSignText: initiatorIsSupplier ? initiatorSignText : counterpartySignText,
+        pdfBuyerSignText: initiatorIsSupplier ? counterpartySignText : initiatorSignText,
         pdfDate: pdfDate || '—'
       }, () => {
         if (this.data.signedContractArchived) {
@@ -2077,6 +2092,16 @@ Page({
         return text && text !== '0' && text !== '0.00';
       })
     );
+    const isModelColumn = column => String(column || '').includes('型号') && !String(column || '').includes('规格');
+    const modelIndex = sourceColumns.findIndex(isModelColumn);
+    if (modelIndex >= 0 && !columns.some(isModelColumn)
+        && sourceRows.some(row => String(row[modelIndex] == null ? '' : row[modelIndex]).trim())) {
+      // Extend the editor's own column list together with its rows, preserving
+      // the independent model even when an older document template omits it.
+      const specificationIndex = columns.findIndex(column => String(column || '').includes('规格'));
+      const productIndex = columns.findIndex(isProductNameColumn);
+      columns.splice(specificationIndex >= 0 ? specificationIndex : productIndex >= 0 ? productIndex + 1 : 0, 0, '型号');
+    }
     const rows = sourceRows.map((row, rowIndex) => columns.map(column =>
       this.valueForDocumentColumn(column, rowIndex, sourceColumns, row)
     ));
@@ -2098,7 +2123,7 @@ Page({
   valueForDocumentFeeColumn(targetColumn, rowIndex, item) {
     const target = String(targetColumn || '').trim();
     if (target.includes('序号')) return String(rowIndex + 1);
-    if (target.includes('品名') || target === '名称' || target.includes('产品')) {
+    if (isProductNameColumn(target)) {
       return String(item.feeType || item.name || '其他费用');
     }
     if (target.includes('单位')) return '项';
@@ -2112,10 +2137,17 @@ Page({
     const target = String(targetColumn || '').trim();
     if (target.includes('序号')) return String(rowIndex + 1);
     let aliases = [target];
-    if (target.includes('品名') || target === '名称' || target.includes('产品')) {
-      aliases = ['品名', '名称', '产品'];
-    } else if (target.includes('规格')) {
-      aliases = ['规格', '型号'];
+    if (target.includes('规格')) {
+      aliases = ['规格'];
+    } else if (target.includes('型号')) {
+      const modelIndex = sourceColumns.findIndex(column => String(column || '').includes('型号')
+        && !String(column || '').includes('规格'));
+      return modelIndex >= 0 && modelIndex < sourceRow.length
+        ? String(sourceRow[modelIndex] == null ? '' : sourceRow[modelIndex]) : '';
+    } else if (isProductNameColumn(target)) {
+      const productIndex = sourceColumns.findIndex(isProductNameColumn);
+      return productIndex >= 0 && productIndex < sourceRow.length
+        ? String(sourceRow[productIndex] == null ? '' : sourceRow[productIndex]) : '';
     } else if (target.includes('单位')) {
       aliases = ['单位'];
     } else if (target.includes('数量')) {
