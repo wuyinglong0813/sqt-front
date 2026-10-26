@@ -111,7 +111,7 @@
       <view class="provider-line"><text>接入方式：</text>认证及签署服务页面、认证小程序和服务端接口</view>
       <view class="provider-line"><text>处理目的：</text>个人及企业身份核验、电子印章和合同签署</view>
       <view class="provider-line"><text>信息范围：</text>本次服务所需的手机号、企业资料、电子签用户标识、合同及签署相关信息；证件和人脸信息由服务商页面或认证小程序处理。商签通接收认证姓名、认证状态等结果。</view>
-      <view class="provider-line"><text>触发场景：</text>你主动发起认证、开通电子签或签署合同，并同意本次服务的信息处理提示时</view>
+      <view class="provider-line"><text>触发场景：</text>你主动使用认证、电子印章或合同签署功能，并完成微信及服务页面要求的授权时</view>
       <view class="provider-line"><text>隐私规则：</text>办理前可在认证或签署页面查看相应隐私政策并完成授权</view>
     </view>
     <view class="provider-card">

@@ -21,6 +21,7 @@ function createSigningContinuation(app, scene, options = {}) {
       if (!options.userId) return '';
       target.userId = String(options.userId);
       if (options.contractId) target.contractId = String(options.contractId);
+      if (options.returnToMembers === '1') target.returnToMembers = '1';
     }
   }
   else {
@@ -59,7 +60,7 @@ function resumeSigningContinuation(app, id, pages = []) {
         && page._sessionToken === pending.context.token && page._signingContext
         && isCompanyContextCurrent(app, page._signingContext)
         && waiting && waiting.id === id && isCompanyContextCurrent(app, waiting.context)
-        && ['companyId', 'contractId', 'userId', 'reason', 'renewOrganization'].every(key =>
+        && ['companyId', 'contractId', 'userId', 'reason', 'renewOrganization', 'returnToMembers'].every(key =>
           String((page.data.options || {})[key] || '') === String(target[key] || ''))) {
       index = i;
       break;
@@ -77,7 +78,7 @@ function clearSigningContinuation(app, id) {
 function rememberServiceRecovery(app, scene, options) {
   if (!RECOVERY_SCENES.includes(scene)) return;
   const target = { scene };
-  for (const key of ['companyId', 'contractId', 'userId', 'reason', 'continuationId']) {
+  for (const key of ['companyId', 'contractId', 'userId', 'reason', 'continuationId', 'returnToMembers']) {
     if (options[key]) target[key] = String(options[key]);
   }
   app._fadadaServiceRecovery = { context: captureCompanyContext(app), target };

@@ -188,11 +188,11 @@ Page({
         preparationActionText: '下一步', preparationCanProceed: true };
     } else if (code === 46104) {
       const canProceed = this.canManageContractSeal() && !!(getApp().globalData.userInfo || {}).id;
-      view = { preparationAction: 'sealGrant', preparationTitle: '完成用印授权',
+      view = { preparationAction: 'sealGrant', preparationTitle: '用印权限待交付',
         preparationMessage: canProceed
-          ? '确认本合同印章的使用权限。'
-          : '请企业印章管理员为你授权用印。',
-        preparationActionText: canProceed ? '下一步' : '重新检查', preparationCanProceed: canProceed };
+          ? '请企业授权人在商签通“组织成员”中完成你的用印确认，生效后可继续原合同。商签通管理员与电子签平台用印管理员是不同权限；办理确认的人需具备实际用印管理权限。'
+          : '请企业授权人在商签通“组织成员”中完成你的用印确认，生效后重新检查并继续原合同。',
+        preparationActionText: canProceed ? '我有用印管理权限，去办理' : '重新检查', preparationCanProceed: canProceed };
     } else if (code === 46107) {
       const permissions = (getApp().globalData.memberInfo || {}).permissions || [];
       const canProceed = permissions.includes('all') || permissions.includes('seal_manage');
@@ -273,6 +273,28 @@ Page({
     return true;
   },
 
+  finishMemberAssignment() {
+    const options = this.data.options;
+    if (this.data.scene !== 'sealGrant' || options.returnToMembers !== '1') return false;
+    if (this._returning) return true;
+    this._returning = true;
+    this.stopStatusPolling();
+    const contract = options.contractId ? `?contractId=${encodeURIComponent(options.contractId)}` : '';
+    const fail = () => {
+      this._returning = false;
+      this.showServiceError(new Error('返回组织成员暂未完成，请重试'));
+    };
+    const redirect = () => wx.redirectTo({ url: `/pages/auth-manage/auth-manage${contract}`, fail });
+    const pages = typeof getCurrentPages === 'function' ? getCurrentPages() : [];
+    const previous = pages[pages.length - 2];
+    if (previous && previous.route === 'pages/auth-manage/auth-manage'
+        && previous._signingManagementContext && isCompanyContextCurrent(getApp(), previous._signingManagementContext)
+        && String(previous.data.contractId || '') === String(options.contractId || '')) {
+      wx.navigateBack({ delta: 1, fail: redirect });
+    } else redirect();
+    return true;
+  },
+
   readWindowSize() {
     try {
       if (typeof wx.getWindowInfo === 'function') return wx.getWindowInfo();
@@ -333,9 +355,8 @@ Page({
       }
       this.setData({ needsPersonalIdentity: false });
       if (this.data.scene === 'contract') {
-        const acceptedPrivacy = await this.confirmServicePrivacy(context);
+        await requirePrivacyAuthorization();
         if (this._unloaded || !isCompanyContextCurrent(getApp(), context)) return;
-        if (!acceptedPrivacy) { this.setData({ loading: false, serviceCancelled: true }); return; }
         await request({ url: `/contracts/${this.data.options.contractId}/signing/prerequisites`, method: 'POST',
           token: context.token, companyId: context.companyId, timeout: 30000 });
         if (this._unloaded || !isCompanyContextCurrent(getApp(), context)) return;
@@ -485,26 +506,6 @@ Page({
     this.startStatusPolling();
   },
 
-  async confirmServicePrivacy(context) {
-    const consentKey = [context.token, context.companyId || '', this.data.scene].join(':');
-    if (this._servicePrivacyConsent === consentKey) return true;
-    await requirePrivacyAuthorization();
-    const result = await new Promise((resolve, reject) => wx.showModal({
-      title: '认证与签署信息处理提示',
-      content: '为办理认证、电子印章或合同签署，我们将向电子签服务商提供本次服务所需的手机号、企业资料或合同及签署信息，并接收认证姓名、状态等结果；企业入驻时还需核对本人的企业成员身份和管理权限。证件及人脸核验由服务页面或认证小程序处理。你可在“我的 → 第三方信息共享清单”和服务页面查看具体规则。是否继续？',
-      confirmText: '同意继续',
-      cancelText: '暂不使用',
-      success: resolve,
-      fail: () => reject(new Error('信息处理提示未能打开，请重试'))
-    }));
-    if (!result.confirm) return false;
-    if (this._unloaded || !isCompanyContextCurrent(getApp(), context)) {
-      throw new Error('登录或企业已变化，请返回后重新发起');
-    }
-    this._servicePrivacyConsent = consentKey;
-    return true;
-  },
-
   async loadServiceUrl() {
     if (this.data.scene === 'abolish') return this.showLocalVoidNotice();
     if (this._loadingServiceUrl || this._unloaded) return;
@@ -525,12 +526,10 @@ Page({
       if (scene === 'organization' && !getApp().globalData.isDesktopWechat) {
         throw new Error('电子签成员管理仅支持电脑端。请企业电子签超管在电脑端审批加入企业申请并分配用印权限，完成后返回合同重试。');
       }
-      const accepted = await this.confirmServicePrivacy(context);
+      // WeChat owns privacy authorization; the provider owns its identity and
+      // signing confirmations. A local acknowledgement cannot replace either.
+      await requirePrivacyAuthorization();
       if (this._unloaded || !isCompanyContextCurrent(getApp(), context)) return;
-      if (!accepted) {
-        this.setData({ serviceCancelled: true });
-        return;
-      }
       let endpoint = config.endpoint;
       if (scene === 'company') endpoint = `/fadada/companies/${options.companyId}/auth-url`;
       if (scene === 'legal') endpoint = `/fadada/companies/${options.companyId}/legal-representative/auth-url`;
@@ -565,10 +564,11 @@ Page({
           ? '成员激活尚未完成，请稍后重新同步' : '签署授权尚未完成，请返回成员列表重新办理');
         clearServiceRecovery(getApp(), scene, options);
         if (this.finishSigningPrerequisite()) return;
+        if (this.finishMemberAssignment()) return;
         this.setData({ serviceResultReady: true,
           serviceResultTitle: scene === 'member' ? '电子签成员已同步' : '签署授权已就绪',
           serviceResultMessage: scene === 'member'
-            ? '本人已加入当前电子签企业。签署合同仍需有效用印授权，可请有印章管理权限的管理员在“组织成员 → 授权签署”办理。'
+            ? '本人已加入当前电子签企业。系统将继续核验用印权限；如需确认，请企业授权人在“组织成员 → 完成用印授权”中办理，生效后可继续原合同。'
             : options.contractId ? '该成员已具备这份合同所用印章的有效授权，可返回原合同继续签署。授权有效期内可复用。'
               : '该成员已有有效用印授权，可在授权有效期内重复签署。每次签署仍会核验当前权限。' });
         clearServiceRecovery(getApp(), scene, options);
@@ -684,6 +684,11 @@ Page({
   },
 
   startStatusPolling() {
+    if (this.data.scene === 'sealGrant' && this.data.options.returnToMembers === '1'
+        && !this.data.options.contractId) {
+      this.startMemberGrantPolling();
+      return;
+    }
     const { scene } = this.data;
     // Resource editors stay open; an existing resource does not mean editing is complete.
     if (!['personal', 'company', 'legal', 'contract'].includes(scene) || this.pollTimer
@@ -696,6 +701,51 @@ Page({
   isPollingCurrent(generation) {
     return !this._unloaded && this._visible !== false
       && generation === (this._pollGeneration || 0);
+  },
+
+  startMemberGrantPolling() {
+    if (this.grantStatusTimer || this._visible === false || this._unloaded || this._returning) return;
+    this._grantPollingContext = captureCompanyContext(getApp());
+    this._grantPollAttempts = 0;
+    const generation = this._grantPollGeneration = (this._grantPollGeneration || 0) + 1;
+    this.scheduleMemberGrantPoll(generation);
+  },
+
+  memberGrantPollingCurrent(generation) {
+    return !this._unloaded && this._visible !== false && !this._returning
+      && generation === this._grantPollGeneration && this._grantPollingContext
+      && isCompanyContextCurrent(getApp(), this._grantPollingContext) && this.isPageContextCurrent()
+      && this.data.scene === 'sealGrant' && this.data.options.returnToMembers === '1'
+      && !this.data.options.contractId;
+  },
+
+  scheduleMemberGrantPoll(generation) {
+    if (!this.memberGrantPollingCurrent(generation) || (this._grantPollAttempts || 0) >= 120) return;
+    this.grantStatusTimer = setTimeout(() => this.pollMemberGrantStatus(generation), 2500);
+  },
+
+  async pollMemberGrantStatus(generation = this._grantPollGeneration) {
+    if (!this.memberGrantPollingCurrent(generation)) return;
+    this.grantStatusTimer = null;
+    const context = this._grantPollingContext;
+    const { companyId, userId } = this.data.options;
+    try {
+      // This endpoint only reads the exact member's grant. It never creates a
+      // new official link or treats returning from the editor as authorization.
+      const result = await request({ url: `/fadada/companies/${companyId}/members/${userId}/seal-grant-status`,
+        method: 'POST', withCompany: false, token: context.token, timeout: 15000 });
+      if (!this.memberGrantPollingCurrent(generation)) return;
+      if (result && result.status === 'READY') {
+        clearServiceRecovery(getApp(), 'sealGrant', this.data.options);
+        this.finishMemberAssignment();
+        return;
+      }
+    } catch (error) {
+      // Keep the official page open while a confirmation or status query is pending.
+    }
+    if (!this.memberGrantPollingCurrent(generation)) return;
+    this._grantPollAttempts = (this._grantPollAttempts || 0) + 1;
+    this.scheduleMemberGrantPoll(generation);
   },
 
   scheduleStatusPoll(generation = this._pollGeneration || 0) {
@@ -762,8 +812,11 @@ Page({
 
   stopStatusPolling() {
     this._pollGeneration = (this._pollGeneration || 0) + 1;
+    this._grantPollGeneration = (this._grantPollGeneration || 0) + 1;
     if (this.pollTimer) clearTimeout(this.pollTimer);
     this.pollTimer = null;
+    if (this.grantStatusTimer) clearTimeout(this.grantStatusTimer);
+    this.grantStatusTimer = null;
   },
 
   extractHost(value) {

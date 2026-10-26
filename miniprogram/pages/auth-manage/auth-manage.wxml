@@ -69,7 +69,8 @@
       </view>
       <view class="manage-roles" bindtap="manageRoles">角色与权限 ›</view>
     </view>
-    <view class="member-signing-note" wx:if="{{canGrantSigning}}">{{contractId ? '本次将核验并授权这份合同实际使用的印章。' : ''}}用印授权在有效期内可复用。完成授权页操作后返回，再点“授权签署”核验结果。</view>
+    <view class="member-signing-note" wx:if="{{canGrantSigning}}">{{contractId ? '本次使用这份合同实际使用的印章。' : ''}}分配签署角色后，系统会同步成员并核验用印权限；需要确认时，由本次授权人在商签通内完成服务页面的用印确认。办理人需具备电子签平台的实际用印管理权限，生效后成员无需重复授权。</view>
+    <view class="manage-roles" wx:if="{{hasPendingSigning}}" bindtap="refreshSigningStatus">刷新签署权限状态 ›</view>
     <view class="manage-roles" wx:if="{{contractId}}" bindtap="returnToContract">返回原合同 ›</view>
     <view class="member-signing-note" wx:if="{{serviceRecoveryAvailable && canGrantSigning}}">服务页提示链接已失效时，可返回这里办理。<text class="member-role-action" bindtap="renewServiceLink">重新获取链接 ›</text></view>
 
@@ -104,11 +105,16 @@
         <view class="identity-chip {{item.realNameVerified ? 'identity-verified' : 'identity-unverified'}}">{{item.realNameVerified ? '已实名' : '未实名'}}</view>
       </view>
 
+      <view class="member-signing-note" wx:if="{{item.canAuthorizeSigning}}">
+        <view>{{item.signingStatusText}}</view>
+        <view wx:if="{{!item.signingReady && item.signingMessage}}">{{item.signingMessage}}</view>
+      </view>
+
       <view class="member-footer" wx:if="{{item.status === 'ACTIVE'}}">
         <view class="member-permissions">
           <view class="member-role-action" wx:if="{{item.status === 'ACTIVE' && item.roleCode !== 'LEGAL'}}" data-id="{{item.id}}" data-name="{{item.memberName}}" bindtap="showApproveModal">调整角色与权限 ›</view>
-          <view class="member-role-action" wx:if="{{item.canAuthorizeSigning && canGrantSigning}}" data-user-id="{{item.userId}}" bindtap="grantSigning">授权签署 ›</view>
-          <view class="signing-permission-hint" wx:elif="{{item.canAuthorizeSigning}}">请印章管理员授权</view>
+          <view class="member-role-action" wx:if="{{item.canAuthorizeSigning && !item.signingReady && canGrantSigning}}" data-user-id="{{item.userId}}" bindtap="grantSigning">完成用印授权 ›</view>
+          <view class="signing-permission-hint" wx:elif="{{item.canAuthorizeSigning && !item.signingReady}}">待授权人完成用印确认</view>
         </view>
         <view
           wx:if="{{item.canRemove}}"

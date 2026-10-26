@@ -46,6 +46,28 @@ function maskPhone(phone) {
   return `${value.slice(0, 3)}****${value.slice(-4)}`;
 }
 
+function signingStatusView(member) {
+  const status = String(member.signingStatus || 'PENDING');
+  const titles = {
+    READY: '签署权限已就绪',
+    WAITING_SEAL_AUTHORIZATION: '待完成用印授权',
+    WAITING_PERSONAL_IDENTITY: '待本人实名认证',
+    ACTIVATION_REQUIRED: '待本人确认加入电子签企业',
+    WAITING_COMPANY_AUTHORIZATION: '待完成企业签署授权',
+    ADMIN_REVIEW_REQUIRED: '签署权限待核验',
+    SYNCING: '签署权限同步中',
+    PENDING: '签署权限同步中'
+  };
+  return {
+    signingStatus: status,
+    signingReady: status === 'READY',
+    signingStatusText: titles[status] || '签署权限待交付',
+    signingMessage: member.signingMessage || (status === 'WAITING_SEAL_AUTHORIZATION'
+      ? '角色已保存，待授权人完成用印确认后自动核验生效。'
+      : status === 'READY' ? '' : '系统将继续核验，角色已保存不代表用印授权已生效。')
+  };
+}
+
 function decorateMembers(list) {
   return (list || []).map((member, index) => {
     const meta = roleMeta(member.roleCode, member.roleText);
@@ -55,6 +77,7 @@ function decorateMembers(list) {
     const pending = member.status === 'PENDING';
     return {
       ...member,
+      ...signingStatusView(member),
       avatarText: memberInitial(member.memberName),
       avatarTone: `tone-${index % 5}`,
       maskedPhone: maskPhone(member.phone),
@@ -93,6 +116,7 @@ Page({
     editingMember: false,
     savingRole: false,
     canGrantSigning: false,
+    hasPendingSigning: false,
     contractId: '',
     serviceRecoveryAvailable: false,
     inviteCode: '',
@@ -108,6 +132,7 @@ Page({
 
   onLoad(options = {}) {
     this._contractContext = captureCompanyContext(app);
+    this._signingManagementContext = captureCompanyContext(app);
     this.setData({ contractId: String(options.contractId || '') });
   },
 
@@ -132,7 +157,15 @@ Page({
   },
 
   async onShow() {
+    this._visible = true;
+    this._openingSealGrant = false;
+    this._signingPollAttempts = 0;
     await app.ensureSessionReady();
+    if (this._unloaded || !this._visible) return;
+    if (this._signingManagementContext && !isCompanyContextCurrent(app, this._signingManagementContext)) {
+      this.refreshMemberView([], this.data.keyword, this.data.activeStatusFilter);
+    }
+    this._signingManagementContext = captureCompanyContext(app);
     const cid = app.getCurrentCompanyId();
     if (String(cid) !== this.data.inviteCompanyId) this.setData({ inviteCode: '', inviteCompanyId: '' });
     const companies = app.globalData.companies || [];
@@ -184,13 +217,20 @@ Page({
     } catch (e) {}
   },
 
-  async loadMembers(reset = true) {
+  async loadMembers(reset = true, force = false) {
     const cid = currentCompanyId();
-    if (!cid || this.data.loading) return;
+    if (!cid || this._unloaded) return;
+    const context = captureCompanyContext(app);
+    if (!force && this._membersLoad && isCompanyContextCurrent(app, this._membersLoad.context)) {
+      return this._membersLoad.promise.then(() => undefined, () => undefined);
+    }
+    const load = this._membersLoad = { context };
     this.setData({ loading: true });
     try {
       const page = reset ? 1 : this.data.page + 1;
-      const payload = await request({ url: `/authorizations?companyId=${cid}&page=${page}&size=${this.data.size}` });
+      load.promise = request({ url: `/authorizations?companyId=${cid}&page=${page}&size=${this.data.size}` });
+      const payload = await load.promise;
+      if (this._unloaded || this._membersLoad !== load || !isCompanyContextCurrent(app, context)) return;
       const list = Array.isArray(payload) ? payload : (payload.items || []);
       const rawMembers = reset ? list : this.data.authorizations.concat(list);
       const authorizations = decorateMembers(rawMembers);
@@ -200,11 +240,45 @@ Page({
         hasMore: !!payload.hasMore
       });
       this.refreshMemberView(authorizations, this.data.keyword, this.data.activeStatusFilter);
+      this.scheduleSigningPoll();
     } catch (e) {
-      wx.showToast({ title: e.message || '成员加载失败', icon: 'none' });
+      if (!this._unloaded && this._membersLoad === load && isCompanyContextCurrent(app, context)) {
+        wx.showToast({ title: e.message || '成员加载失败', icon: 'none' });
+        this.scheduleSigningPoll();
+      }
     } finally {
-      this.setData({ loading: false });
+      if (this._membersLoad === load) {
+        this._membersLoad = null;
+        if (!this._unloaded) this.setData({ loading: false });
+      }
     }
+  },
+
+  onHide() { this._visible = false; this.stopSigningPoll(); },
+
+  onUnload() { this._unloaded = true; this._visible = false; this.stopSigningPoll(); },
+
+  refreshSigningStatus() {
+    this._signingPollAttempts = 0;
+    return this.loadMembers(true, true);
+  },
+
+  stopSigningPoll() {
+    if (this.signingPollTimer) clearTimeout(this.signingPollTimer);
+    this.signingPollTimer = null;
+  },
+
+  scheduleSigningPoll() {
+    this.stopSigningPoll();
+    if (this._visible !== true || this._unloaded || (this._signingPollAttempts || 0) >= 8
+        || !this.data.authorizations.some(member => member.canAuthorizeSigning && !member.signingReady)) return;
+    const context = captureCompanyContext(app);
+    this.signingPollTimer = setTimeout(() => {
+      this.signingPollTimer = null;
+      if (this._visible !== true || this._unloaded || !isCompanyContextCurrent(app, context)) return;
+      this._signingPollAttempts = (this._signingPollAttempts || 0) + 1;
+      return this.loadMembers(true);
+    }, 5000);
   },
 
   refreshMemberView(authorizations, keyword = '', status = 'ALL') {
@@ -224,6 +298,7 @@ Page({
     this.setData({
       authorizations,
       filtered,
+      hasPendingSigning: authorizations.some(member => member.canAuthorizeSigning && !member.signingReady),
       memberStats: { total: authorizations.length, active, pending, managers },
       statusFilters: [
         { key: 'ALL', label: '全部成员', count: authorizations.length },
@@ -317,16 +392,29 @@ Page({
       wx.showToast({ title: '成员信息已变化，请刷新后重试', icon: 'none' });
       return;
     }
-    this.openSealGrant(cid, userId);
+    if (member.signingReady || member.signingStatus === 'READY') return;
+    this.openSealGrant(cid, userId, true);
   },
 
-  openSealGrant(companyId, userId) {
+  openSealGrant(companyId, userId, returnToMembers = false) {
+    if (this._openingSealGrant || !canManageSigning() || !userId
+        || String(companyId) !== String(app.getCurrentCompanyId())) return;
+    if (this._signingManagementContext && !isCompanyContextCurrent(app, this._signingManagementContext)) {
+      wx.showToast({ title: '登录或企业已变化，请刷新成员后重试', icon: 'none' });
+      return;
+    }
     if (this.data.contractId && !isCompanyContextCurrent(app, this._contractContext)) {
       wx.showToast({ title: '企业已变化，请重新打开合同', icon: 'none' });
       return;
     }
     const contract = this.data.contractId ? `&contractId=${encodeURIComponent(this.data.contractId)}` : '';
-    wx.navigateTo({ url: `/pages/fadada-auth/fadada-auth?scene=sealGrant&companyId=${encodeURIComponent(companyId)}&userId=${encodeURIComponent(userId)}${contract}` });
+    const continuation = returnToMembers ? '&returnToMembers=1' : '';
+    this._openingSealGrant = true;
+    wx.navigateTo({ url: `/pages/fadada-auth/fadada-auth?scene=sealGrant&companyId=${encodeURIComponent(companyId)}&userId=${encodeURIComponent(userId)}${contract}${continuation}`,
+      fail: () => {
+        this._openingSealGrant = false;
+        wx.showToast({ title: '用印授权页面未打开，请重试', icon: 'none' });
+      } });
   },
   renewServiceLink() {
     const recovery = serviceRecovery(app);
@@ -351,21 +439,17 @@ Page({
     this.setData({ savingRole: true });
     try {
       await request({ url: `/authorizations/${memberId}/${editing ? 'role' : 'approve'}?companyId=${cid}`, method: editing ? 'PUT' : 'POST', data: { roleCode: roleCodes[0], roleCodes, customPermissions: [] } });
-      if (!isCompanyContextCurrent(app, context)) return;
-      wx.showToast({ title: editing ? '权限已更新' : '已通过', icon: 'success' });
+      if (this._unloaded || !isCompanyContextCurrent(app, context)) return;
+      wx.showToast({ title: editing ? '角色已保存' : '已通过', icon: 'success' });
       this.setData({ showApproveModal: false, approveTargetId: '', approveTargetName: '' });
       await app.refreshSession();
-      if (!isCompanyContextCurrent(app, context)) return;
-      await this.loadMembers(true);
-      if (canOfferSigning && canManageSigning() && isCompanyContextCurrent(app, context)) {
-        wx.showModal({ title: '继续授权签署',
-          content: `已保存${target.memberName || '该成员'}的本地签署权限。还需完成电子印章授权，有效期内可复用。是否现在办理？`,
-          confirmText: '继续授权', cancelText: '稍后办理',
-          success: result => {
-            if (result.confirm && canManageSigning() && isCompanyContextCurrent(app, context)) this.openSealGrant(cid, target.userId);
-          } });
+      if (this._unloaded || !isCompanyContextCurrent(app, context)) return;
+      await this.loadMembers(true, true);
+      if (!this._unloaded && canOfferSigning && canManageSigning() && isCompanyContextCurrent(app, context)) {
+        this.openSealGrant(cid, target.userId, true);
       }
     } catch (e) {
+      if (this._unloaded || !isCompanyContextCurrent(app, context)) return;
       wx.showModal({
         title: editing ? '角色权限操作未完成' : '成员审批操作未完成',
         content: (e && e.message) || '暂时无法完成操作，请稍后重试。',
@@ -373,7 +457,7 @@ Page({
         confirmText: '我知道了'
       });
     }
-    finally { this.setData({ savingRole: false }); }
+    finally { if (!this._unloaded) this.setData({ savingRole: false }); }
   },
 
   async rejectMember(e) {

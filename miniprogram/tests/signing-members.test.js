@@ -75,7 +75,7 @@ test('ready membership is confirmed by the backend without claiming seal authori
   assert.equal(h.requests[1].withCompany, false);
   assert.equal(p.data.serviceResultReady, true);
   assert.equal(p.data.serviceUrl, '');
-  assert.match(p.data.serviceResultMessage, /仍需有效用印授权.*组织成员 → 授权签署/);
+  assert.match(p.data.serviceResultMessage, /继续核验用印权限.*组织成员 → 完成用印授权/);
   assert.equal(h.navigation.length, 0);
   await p.checkResult();
   assert.equal(h.requests.length, 3);
@@ -158,7 +158,7 @@ test('seal authorization uses user IDs and rejects pending members or stale ente
   assert.equal(p.data.filtered[0].canAuthorizeSigning, true);
   assert.equal(p.data.filtered[1].canAuthorizeSigning, false);
   p.grantSigning({ currentTarget: { dataset: { userId: '9007199254740993' } } });
-  assert.deepEqual(h.navigation, ['/pages/fadada-auth/fadada-auth?scene=sealGrant&companyId=3&userId=9007199254740993']);
+  assert.deepEqual(h.navigation, ['/pages/fadada-auth/fadada-auth?scene=sealGrant&companyId=3&userId=9007199254740993&returnToMembers=1']);
   p.grantSigning({ currentTarget: { dataset: { userId: '8' } } });
   p.grantSigning({ currentTarget: { dataset: { userId: '9' } } });
   p.grantSigning({ currentTarget: { dataset: { userId: '100' } } });
@@ -175,8 +175,9 @@ test('a member manager without seal management cannot initiate another member se
   assert.match(h.toasts[0].title, /印章管理员/);
 });
 
-test('saving a signing role offers the exact member authorization without confusing membership and user IDs', async () => {
+test('saving a signing role directly continues the exact member authorization without another consent dialog', async () => {
   const h = harness(async () => null);
+  h.app.globalData.userInfo = { id: '99' };
   const p = h.page('pages/auth-manage/auth-manage.js');
   p.data.authorizations = [{ id: '100', companyId: '3', userId: '9007199254740993', status: 'ACTIVE', roleCode: 'SALES' }];
   p.data.approveRoles = [{ code: 'SALES', permissions: [{ code: 'contract_sign' }] }];
@@ -184,9 +185,214 @@ test('saving a signing role offers the exact member authorization without confus
   p.showApproveModal({ currentTarget: { dataset: { id: '100', name: '成员' } } });
   await p.confirmApprove();
   assert.equal(h.requests[0].url, '/authorizations/100/role?companyId=3');
-  assert.equal(h.modals[0].title, '继续授权签署');
-  assert.match(h.modals[0].content, /有效期内可复用/);
-  assert.deepEqual(h.navigation, ['/pages/fadada-auth/fadada-auth?scene=sealGrant&companyId=3&userId=9007199254740993']);
+  assert.equal(h.modals.length, 0);
+  assert.equal(h.app.globalData.userInfo.id, '99');
+  assert.equal(h.requests[0].data.userId, undefined);
+  assert.deepEqual(h.navigation, ['/pages/fadada-auth/fadada-auth?scene=sealGrant&companyId=3&userId=9007199254740993&returnToMembers=1']);
+});
+
+test('member signing status only becomes ready after the server confirms the actual seal grant', async () => {
+  const h = harness(async () => ({ items: [
+    { id: '1', companyId: '3', userId: '7', status: 'ACTIVE', permissions: ['contract_sign'], signingStatus: 'READY' },
+    { id: '2', companyId: '3', userId: '8', status: 'ACTIVE', permissions: ['all'], signingStatus: 'WAITING_SEAL_AUTHORIZATION', signingMessage: '待法人完成用印确认' },
+    { id: '3', companyId: '3', userId: '9', status: 'ACTIVE', permissions: ['contract_sign'] },
+    { id: '4', companyId: '3', userId: '10', status: 'ACTIVE', permissions: ['supplier_view'], signingStatus: 'NOT_REQUIRED' },
+    { id: '5', companyId: '3', userId: '11', status: 'ACTIVE', permissions: ['contract_sign'], signingStatus: 'WAITING_PERSONAL_IDENTITY' }
+  ] }));
+  const p = h.page('pages/auth-manage/auth-manage.js');
+  await p.loadMembers();
+  assert.equal(p.data.filtered[0].signingReady, true);
+  assert.equal(p.data.filtered[0].signingStatusText, '签署权限已就绪');
+  assert.equal(p.data.filtered[1].signingReady, false);
+  assert.equal(p.data.filtered[1].signingStatusText, '待完成用印授权');
+  assert.equal(p.data.filtered[1].signingMessage, '待法人完成用印确认');
+  assert.equal(p.data.filtered[2].signingReady, false);
+  assert.equal(p.data.filtered[2].signingStatus, 'PENDING');
+  assert.equal(p.data.filtered[3].canAuthorizeSigning, false);
+  assert.equal(p.data.filtered[4].signingStatusText, '待本人实名认证');
+  assert.equal(p.data.hasPendingSigning, true);
+  p.grantSigning({ currentTarget: { dataset: { userId: '7' } } });
+  assert.equal(h.navigation.length, 0);
+  const template = fs.readFileSync(path.join(__dirname, '../pages/auth-manage/auth-manage.wxml'), 'utf8');
+  assert.match(template, /!item.signingReady && canGrantSigning/);
+  assert.match(template, /完成用印授权/);
+  assert.match(template, /实际用印管理权限/);
+  assert.match(template, /bindtap="refreshSigningStatus"/);
+});
+
+test('signing status refresh waits for delivery and stops as soon as the confirmed grant is ready', async () => {
+  let status = 'WAITING_SEAL_AUTHORIZATION';
+  const h = harness(async () => ({ items: [
+    { id: '1', companyId: '3', userId: '7', status: 'ACTIVE', permissions: ['contract_sign'], signingStatus: status }
+  ] }));
+  const p = h.page('pages/auth-manage/auth-manage.js'); p._visible = true;
+  await p.loadMembers();
+  assert.equal(h.timers.size, 1);
+  status = 'READY';
+  const [id, tick] = [...h.timers][0]; h.timers.delete(id); await tick();
+  assert.equal(h.requests.length, 2);
+  assert.ok(h.requests.every(item => item.url.startsWith('/authorizations?')));
+  assert.equal(p.data.filtered[0].signingReady, true);
+  assert.equal(h.timers.size, 0);
+  assert.equal(h.navigation.length, 0);
+});
+
+test('pending signing status polling is bounded, pauses when hidden and can be explicitly retried', async () => {
+  const h = harness(async () => ({ items: [
+    { id: '1', companyId: '3', userId: '7', status: 'ACTIVE', permissions: ['contract_sign'], signingStatus: 'WAITING_SEAL_AUTHORIZATION' }
+  ] }));
+  const p = h.page('pages/auth-manage/auth-manage.js'); p._visible = true;
+  await p.loadMembers();
+  p.onHide(); assert.equal(h.timers.size, 0);
+  p._visible = true; await p.refreshSigningStatus();
+  for (let count = 0; count < 8; count++) {
+    const [id, tick] = [...h.timers][0]; h.timers.delete(id); await tick();
+  }
+  assert.equal(h.timers.size, 0);
+  await p.refreshSigningStatus(); assert.equal(h.timers.size, 1);
+  p.onUnload(); assert.equal(h.timers.size, 0);
+});
+
+test('an old member response cannot replace the current company generation or its signing state', async () => {
+  const completions = [];
+  const h = harness(() => new Promise(resolve => completions.push(resolve)));
+  const p = h.page('pages/auth-manage/auth-manage.js');
+  const old = p.loadMembers();
+  h.app._companyAccessGeneration = 2;
+  const current = p.loadMembers();
+  completions[1]({ items: [{ id: '2', userId: '8', companyId: '3', status: 'ACTIVE', permissions: ['contract_sign'], signingStatus: 'WAITING_SEAL_AUTHORIZATION' }] });
+  await current;
+  completions[0]({ items: [{ id: '1', userId: '7', companyId: '3', status: 'ACTIVE', permissions: ['all'], signingStatus: 'READY' }] });
+  await old;
+  assert.equal(p.data.filtered[0].userId, '8');
+  assert.equal(p.data.filtered[0].signingReady, false);
+  assert.equal(p.data.loading, false);
+});
+
+test('a failed official-page navigation can be retried for the same user without resaving their role', () => {
+  const h = harness(); const p = h.page('pages/auth-manage/auth-manage.js');
+  let attempts = 0;
+  h.wx.navigateTo = options => { attempts++; if (attempts === 1) options.fail(); else h.navigation.push(options.url); };
+  p.openSealGrant('3', '9007199254740993', true);
+  assert.equal(p._openingSealGrant, false);
+  p.openSealGrant('3', '9007199254740993', true);
+  p.openSealGrant('3', '9007199254740993', true);
+  assert.equal(attempts, 2);
+  assert.equal(h.navigation.length, 1);
+  assert.equal(h.requests.length, 0);
+  assert.match(h.toasts[0].title, /未打开.*重试/);
+});
+
+test('lost management permission after saving a signing role cannot open a grant page under another identity', async () => {
+  const h = harness(async () => null); const p = h.page('pages/auth-manage/auth-manage.js');
+  p.data.authorizations = [{ id: '100', companyId: '3', userId: '9007199254740993', status: 'ACTIVE', roleCode: 'SALES' }];
+  p.data.approveRoles = [{ code: 'SALES', permissions: [{ code: 'contract_sign' }] }];
+  p.loadMembers = async () => {};
+  h.app.refreshSession = async () => { h.app.globalData.memberInfo.permissions = ['contract_sign']; };
+  p.showApproveModal({ currentTarget: { dataset: { id: '100' } } });
+  await p.confirmApprove();
+  assert.equal(h.requests.length, 1);
+  assert.equal(h.navigation.length, 0);
+  assert.equal(h.modals.length, 0);
+});
+
+test('an assignment official page automatically returns only after its exact default-seal grant is confirmed', async () => {
+  let granted = false;
+  const h = harness(async options => options.url.endsWith('/seal-grant-status')
+    ? { status: granted ? 'READY' : 'AUTHORIZATION_REQUIRED' }
+    : { url: 'https://example.test/grant', status: 'AUTHORIZATION_REQUIRED' });
+  const p = h.page('pages/fadada-auth/fadada-auth.js'); p._visible = true;
+  p.data.scene = 'sealGrant'; p.data.options = { companyId: '3', userId: '9007199254740993', returnToMembers: '1' };
+  await p.loadServiceUrl();
+  await p.pollMemberGrantStatus();
+  assert.equal(h.navigation.length, 0);
+  assert.equal(p.data.serviceUrl, 'https://example.test/grant');
+  granted = true; await p.pollMemberGrantStatus();
+  assert.equal(h.navigation[0], '/pages/auth-manage/auth-manage');
+  assert.equal(h.requests.filter(options => options.url.endsWith('/seal-grant-url')).length, 1);
+  const checks = h.requests.filter(options => options.url.endsWith('/seal-grant-status'));
+  assert.equal(checks.length, 2);
+  assert.equal(checks[0].url, '/fadada/companies/3/members/9007199254740993/seal-grant-status');
+  assert.equal(checks[0].method, 'POST');
+  assert.equal(checks[0].token, 'session');
+  assert.equal(p.grantStatusTimer, null);
+});
+
+test('a grant-status failure keeps the official page and retries without issuing another grant URL', async () => {
+  const h = harness(async options => {
+    if (options.url.endsWith('/seal-grant-status')) throw Error('查询暂时不可用');
+    return { url: 'https://example.test/grant', status: 'AUTHORIZATION_REQUIRED' };
+  });
+  const p = h.page('pages/fadada-auth/fadada-auth.js'); p._visible = true;
+  p.data.scene = 'sealGrant'; p.data.options = { companyId: '3', userId: '7', returnToMembers: '1' };
+  await p.loadServiceUrl(); await p.pollMemberGrantStatus();
+  assert.equal(p.data.serviceUrl, 'https://example.test/grant');
+  assert.equal(p.data.errorMessage, '');
+  assert.equal(h.navigation.length, 0);
+  assert.equal(h.requests.filter(options => options.url.endsWith('/seal-grant-url')).length, 1);
+  assert.ok(p.grantStatusTimer);
+  p.onHide(); assert.equal(p.grantStatusTimer, null);
+  const count = h.requests.length; await p.pollMemberGrantStatus();
+  assert.equal(h.requests.length, count);
+});
+
+test('a grant check completing after a company change cannot return an old member assignment', async () => {
+  let complete;
+  const h = harness(async options => options.url.endsWith('/seal-grant-status')
+    ? new Promise(resolve => { complete = resolve; })
+    : { url: 'https://example.test/grant', status: 'AUTHORIZATION_REQUIRED' });
+  const p = h.page('pages/fadada-auth/fadada-auth.js'); p._visible = true;
+  p.data.scene = 'sealGrant'; p.data.options = { companyId: '3', userId: '7', returnToMembers: '1' };
+  await p.loadServiceUrl();
+  const check = p.pollMemberGrantStatus();
+  h.app._companyAccessGeneration = 2; complete({ status: 'READY' }); await check;
+  assert.equal(h.navigation.length, 0);
+  assert.equal(p.data.serviceResultReady, false);
+});
+
+test('an official grant confirmed while its page is hidden waits for a fresh visible verification', async () => {
+  let complete, first = true;
+  const h = harness(async options => {
+    if (!options.url.endsWith('/seal-grant-status')) return { url: 'https://example.test/grant', status: 'AUTHORIZATION_REQUIRED' };
+    if (first) { first = false; return new Promise(resolve => { complete = resolve; }); }
+    return { status: 'READY' };
+  });
+  const p = h.page('pages/fadada-auth/fadada-auth.js'); p._visible = true;
+  p.data.scene = 'sealGrant'; p.data.options = { companyId: '3', userId: '7', returnToMembers: '1' };
+  await p.loadServiceUrl();
+  const check = p.pollMemberGrantStatus(); p.onHide();
+  complete({ status: 'READY' }); await check;
+  assert.equal(h.navigation.length, 0);
+  p.onShow(); await p.pollMemberGrantStatus();
+  assert.equal(h.navigation[0], '/pages/auth-manage/auth-manage');
+  assert.equal(h.requests.filter(options => options.url.endsWith('/seal-grant-url')).length, 1);
+});
+
+test('official-page grant polling stops after a bounded wait without recreating the authorization link', async () => {
+  const h = harness(async () => ({ status: 'AUTHORIZATION_REQUIRED' }));
+  const p = h.page('pages/fadada-auth/fadada-auth.js'); p._visible = true;
+  p.data.scene = 'sealGrant'; p.data.options = { companyId: '3', userId: '7', returnToMembers: '1' };
+  p.startMemberGrantPolling();
+  let checks = 0;
+  while (p.grantStatusTimer) {
+    const id = p.grantStatusTimer, tick = h.timers.get(id); h.timers.delete(id); await tick();
+    assert.ok(++checks <= 120, 'grant verification must have a finite wait');
+  }
+  assert.equal(checks, 120);
+  assert.equal(h.requests.length, 120);
+  assert.ok(h.requests.every(options => options.url.endsWith('/seal-grant-status')));
+  assert.equal(h.navigation.length, 0);
+});
+
+test('an old-contract seal assignment never uses the default-seal polling endpoint', async () => {
+  const h = harness(async () => ({ url: 'https://example.test/grant', status: 'AUTHORIZATION_REQUIRED' }));
+  const p = h.page('pages/fadada-auth/fadada-auth.js'); p._visible = true;
+  p.data.scene = 'sealGrant';
+  p.data.options = { companyId: '3', userId: '7', contractId: '9007199254740993', returnToMembers: '1' };
+  await p.loadServiceUrl(); await p.pollMemberGrantStatus();
+  assert.equal(h.requests.length, 1);
+  assert.equal(p.grantStatusTimer, undefined);
+  assert.equal(h.navigation.length, 0);
 });
 
 test('a company switch during role saving cannot offer seal authorization for the old target', async () => {

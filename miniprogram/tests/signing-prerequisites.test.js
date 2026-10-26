@@ -7,12 +7,13 @@ const vm = require('node:vm');
 const continuation = require('../utils/signingContinuation');
 
 function harness(handler) {
-  const requests = [], navigation = [], modals = [], timers = new Map();
+  const requests = [], navigation = [], modals = [], privacyChecks = [], timers = new Map();
   let now = 100000, timerId = 0, stack = [];
   const app = { globalData: { token: 'session', currentCompanyId: '3', userInfo: { id: '7', phone: '13800000000' },
     memberInfo: { permissions: ['all'] } }, getCurrentCompanyId: () => app.globalData.currentCompanyId,
     ensureSessionReady: async () => {} };
   const wx = { setNavigationBarTitle() {}, showToast() {},
+    requirePrivacyAuthorize: o => { privacyChecks.push(o); o.success(); },
     showModal: o => { modals.push(o); o.success({ confirm: true }); },
     navigateTo: o => { navigation.push(o.url); if (o.success) o.success(); },
     redirectTo: o => { navigation.push(o.url); if (o.success) o.success(); },
@@ -27,7 +28,7 @@ function harness(handler) {
         if (id.endsWith('/request')) return { request: async o => { requests.push(o); return handler(o); } };
         if (id.endsWith('/companyContext')) return require('../utils/companyContext');
         if (id.endsWith('/signingContinuation')) return continuation;
-        if (id.endsWith('/privacy')) return { requirePrivacyAuthorization: async () => {} };
+        if (id.endsWith('/privacy')) return require('./privacy-fixture')(wx, () => app);
         if (id.endsWith('/companyOnboarding')) return { returnToCompany() {} };
         if (id.endsWith('/tabBar')) return { syncTabBar() {} };
         if (id.endsWith('/dict')) return {};
@@ -38,7 +39,8 @@ function harness(handler) {
     value.route = `pages/${name}/${name}`; value._visible = true; value._sessionToken = app.globalData.token;
     return value;
   }
-  return { page, app, wx, requests, navigation, modals, timers, advance: ms => { now += ms; }, stack: values => { stack = values; } };
+  return { page, app, wx, requests, navigation, modals, privacyChecks, timers,
+    advance: ms => { now += ms; }, stack: values => { stack = values; } };
 }
 
 function preparationHarness(code) {
@@ -53,6 +55,62 @@ function preparationHarness(code) {
     throw Error('Unexpected endpoint: ' + o.url);
   });
 }
+
+test('ready contract preparation runs through to signing without an additional local consent dialog', async () => {
+  const h = preparationHarness();
+  const p = h.page('fadada-auth'); p.data.scene = 'contract'; p.data.options = { contractId: '12' };
+  await p.prepareService();
+  assert.deepEqual(h.requests.map(o => o.url), ['/fadada/users/me/identity',
+    '/contracts/12/signing/prerequisites', '/contracts/12/signing/quote', '/contracts/12/sign-url']);
+  assert.equal(p.data.serviceUrl, 'https://provider.test/sign');
+  assert.equal(h.modals.length, 0);
+  assert.ok(h.privacyChecks.length > 0);
+  assert.equal(p._servicePrivacyConsent, undefined);
+});
+
+test('refused WeChat privacy authorization stops contract prerequisites and provider creation', async () => {
+  const h = preparationHarness();
+  h.wx.requirePrivacyAuthorize = o => o.fail();
+  const p = h.page('fadada-auth'); p.data.scene = 'contract'; p.data.options = { contractId: '12' };
+  await p.prepareService();
+  assert.deepEqual(h.requests.map(o => o.url), ['/fadada/users/me/identity']);
+  assert.match(p.data.errorMessage, /未完成隐私授权/);
+  assert.equal(p.data.serviceUrl, '');
+  assert.equal(h.modals.length, 0);
+});
+
+test('a company switch during native privacy authorization cannot start the old signing operation', async () => {
+  const h = preparationHarness();
+  h.wx.requirePrivacyAuthorize = o => { h.app.globalData.currentCompanyId = '4'; o.success(); };
+  const p = h.page('fadada-auth'); p.data.scene = 'contract'; p.data.options = { contractId: '12' };
+  await p.prepareService();
+  assert.deepEqual(h.requests.map(o => o.url), ['/fadada/users/me/identity']);
+  assert.equal(p.data.serviceUrl, '');
+  assert.equal(h.navigation.length, 0);
+});
+
+test('seal authorization opens the official confirmation page without a local consent dialog or implied grant', async () => {
+  const h = harness(async () => ({ url: 'https://provider.test/grant', status: 'AUTHORIZATION_REQUIRED' }));
+  const p = h.page('fadada-auth'); p.data.scene = 'sealGrant'; p.data.options = { companyId: '3', userId: '7' };
+  await p.loadServiceUrl();
+  assert.equal(p.data.serviceUrl, 'https://provider.test/grant');
+  assert.equal(p.data.serviceResultReady, false);
+  assert.equal(h.navigation.length, 0);
+  assert.equal(h.privacyChecks.length, 1);
+  assert.equal(h.modals.length, 0);
+  assert.equal(p._servicePrivacyConsent, undefined);
+});
+
+test('seal authorization rechecks native privacy state when reopening an official page', async () => {
+  const h = harness(async () => ({ url: 'https://provider.test/grant', status: 'AUTHORIZATION_REQUIRED' }));
+  const p = h.page('fadada-auth'); p.data.scene = 'sealGrant'; p.data.options = { companyId: '3', userId: '7' };
+  await p.loadServiceUrl();
+  h.wx.requirePrivacyAuthorize = o => o.fail();
+  await p.loadServiceUrl();
+  assert.equal(h.requests.length, 1);
+  assert.equal(p.data.serviceUrl, '');
+  assert.match(p.data.errorMessage, /未完成隐私授权/);
+});
 
 test('an existing enterprise missing organization consent gets one relevant action before any debit confirmation', async () => {
   const h = preparationHarness(46101);
@@ -138,12 +196,30 @@ test('a switch away and back invalidates the parent before it can resume a prere
 test('a signing manager authorizes their own user against the original contract seal', () => {
   const h = preparationHarness();
   const p = h.page('fadada-auth'); p.data.scene = 'contract'; p.data.options = { contractId: '9007199254740993' };
-  p.showServiceError({ code: 46104 }); p.continueSigningPreparation();
+  p.showServiceError({ code: 46104 });
+  assert.equal(h.navigation.length, 0);
+  assert.equal(p.data.preparationTitle, '用印权限待交付');
+  assert.match(p.data.preparationMessage, /商签通“组织成员”.*商签通管理员与电子签平台用印管理员是不同权限/);
+  assert.equal(p.data.preparationActionText, '我有用印管理权限，去办理');
+  p.continueSigningPreparation();
   const query = new URL('https://app.test' + h.navigation[0]).searchParams;
   assert.equal(query.get('scene'), 'sealGrant');
   assert.equal(query.get('userId'), '7');
   assert.equal(query.get('contractId'), '9007199254740993');
   assert.equal(query.has('sealId'), false);
+});
+
+test('a signer without local seal management can only recheck the original contract after provider authorization', async () => {
+  const h = preparationHarness(); h.app.globalData.memberInfo.permissions = ['contract_sign'];
+  const p = h.page('fadada-auth'); p.data.scene = 'contract'; p.data.options = { contractId: '12' };
+  p.showServiceError({ code: 46104 });
+  assert.equal(p.data.preparationCanProceed, false);
+  assert.equal(p.data.preparationActionText, '重新检查');
+  assert.match(p.data.preparationMessage, /企业授权人在商签通“组织成员”.*用印确认.*原合同/);
+  await p.continueSigningPreparation();
+  assert.equal(p.data.serviceUrl, 'https://provider.test/sign');
+  assert.equal(h.requests.some(o => o.url.endsWith('/seal-grant-url')), false);
+  assert.equal(h.navigation.length, 0);
 });
 
 test('the activation child restores its original operation as soon as activated membership is proven', async () => {
@@ -153,6 +229,26 @@ test('the activation child restores its original operation as soon as activated 
   await p.loadServiceUrl();
   assert.equal(p.data.serviceResultReady, false);
   assert.match(h.navigation[0], /scene=contract&contractId=12/);
+});
+
+test('a saved member assignment returns to its trusted member list when an effective grant is confirmed', async () => {
+  const h = harness(async () => ({ status: 'READY' }));
+  const manager = h.page('auth-manage'); manager.onLoad({});
+  const p = h.page('fadada-auth'); p.data.scene = 'sealGrant';
+  p.data.options = { companyId: '3', userId: '9007199254740993', returnToMembers: '1' };
+  h.stack([manager, p]);
+  await p.loadServiceUrl();
+  assert.equal(h.requests[0].url, '/fadada/companies/3/members/9007199254740993/seal-grant-url');
+  assert.equal(p.data.serviceResultReady, false);
+  assert.deepEqual(h.navigation, ['back']);
+});
+
+test('a member assignment with no original member page recreates only the native member route', async () => {
+  const h = harness(async () => ({ status: 'READY' }));
+  const p = h.page('fadada-auth'); p.data.scene = 'sealGrant';
+  p.data.options = { companyId: '3', userId: '7', contractId: '9007199254740993', returnToMembers: '1' };
+  await p.loadServiceUrl();
+  assert.equal(h.navigation[0], '/pages/auth-manage/auth-manage?contractId=9007199254740993');
 });
 
 test('nested personal certification keeps the original contract nonce on native return to the activation child', async () => {
@@ -409,8 +505,8 @@ test('contract authorization carries the original contract and exact target user
   assert.equal(h.requests[0].withCompany, true);
   assert.equal(h.requests[0].companyId, '3');
   assert.equal(h.requests[0].data.sealId, undefined);
-  assert.equal(grant.data.serviceResultReady, true);
-  assert.match(grant.data.serviceResultMessage, /这份合同所用印章.*返回原合同/);
+  assert.equal(grant.data.serviceResultReady, false);
+  assert.equal(h.navigation.at(-1), '/pages/auth-manage/auth-manage?contractId=9007199254740993');
   members.returnToContract();
   assert.equal(h.navigation.at(-1), '/pages/contract-preview/contract-preview?contractId=9007199254740993');
   h.app.globalData.currentCompanyId = '4';

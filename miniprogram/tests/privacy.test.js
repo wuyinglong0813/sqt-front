@@ -125,18 +125,14 @@ test('refusing a notice releases the public homepage without recording consent',
   assert.equal(h.storage.privacy_agreed, undefined);
 });
 
-test('service disclosure fits native modal limits and consent opens authentication', async () => {
+test('platform authorization opens authentication without a supplementary consent dialog', async () => {
   const h = harness();
   const p = h.page('pages/fadada-auth/fadada-auth.js');
-  h.wx.showModal = options => {
-    if (options.confirmText.length > 4 || options.cancelText.length > 4) {
-      options.fail({ errMsg: 'showModal:fail confirmText length should not larger than 4' });
-      return;
-    }
-    assert.doesNotMatch(options.title + options.content, /法大大|fadada/i);
-    options.success({ confirm: true });
-  };
+  let authorizations = 0;
+  h.wx.requirePrivacyAuthorize = options => { authorizations++; options.success(); };
+  h.wx.showModal = () => assert.fail('authentication must not ask for supplementary consent');
   await p.loadServiceUrl();
+  assert.equal(authorizations, 1);
   assert.equal(h.calls.length, 1);
   assert.equal(h.calls[0].url, '/fadada/users/me/auth-url');
   assert.equal(p.data.serviceUrl, 'https://provider.test');
@@ -144,27 +140,27 @@ test('service disclosure fits native modal limits and consent opens authenticati
   p.onUnload();
 });
 
-test('modal invocation failure is not presented as user cancellation', async () => {
+test('authentication has no dependency on the removed native disclosure modal', async () => {
   const h = harness();
   const p = h.page('pages/fadada-auth/fadada-auth.js');
-  h.wx.showModal = options => options.fail({ errMsg: 'showModal:fail native error' });
+  delete h.wx.showModal;
   await p.loadServiceUrl();
-  assert.deepEqual(h.calls, []);
+  assert.equal(h.calls.length, 1);
   assert.equal(p.data.serviceCancelled, false);
-  assert.match(p.data.errorMessage, /提示未能打开/);
-  assert.doesNotMatch(p.data.errorMessage, /取消|法大大|fadada/i);
+  assert.equal(p.data.errorMessage, '');
+  assert.equal(p.data.serviceUrl, 'https://provider.test');
+  p.onUnload();
 });
 
-test('refusing service disclosure blocks the request and allows explicit retry', async () => {
+test('refusing native privacy authorization blocks authentication and allows an explicit retry', async () => {
   const h = harness();
   const p = h.page('pages/fadada-auth/fadada-auth.js');
-  h.wx.showModal = o => o.success({ confirm: false });
+  h.wx.requirePrivacyAuthorize = o => o.fail({});
   await p.loadServiceUrl();
   assert.deepEqual(h.calls, []);
   assert.equal(p.data.serviceUrl, '');
-  assert.equal(p.data.errorMessage, '');
-  assert.equal(p.data.serviceCancelled, true);
-  h.wx.showModal = o => o.success({ confirm: true });
+  assert.match(p.data.errorMessage, /未完成隐私授权/);
+  h.wx.requirePrivacyAuthorize = o => o.success();
   await p.loadServiceUrl();
   assert.equal(h.calls.length, 1);
   assert.equal(p.data.serviceCancelled, false);
@@ -172,11 +168,11 @@ test('refusing service disclosure blocks the request and allows explicit retry',
   p.onUnload();
 });
 
-test('changing enterprise while disclosure is pending cannot transmit another enterprise data', async () => {
+test('changing enterprise while native privacy authorization is pending cannot transmit another enterprise data', async () => {
   const h = harness();
   const p = h.page('pages/fadada-auth/fadada-auth.js');
   let confirm;
-  h.wx.showModal = o => { confirm = o.success; };
+  h.wx.requirePrivacyAuthorize = o => { confirm = o.success; };
   const pending = p.loadServiceUrl();
   await new Promise(resolve => setImmediate(resolve));
   h.app.globalData.currentCompanyId = 'B';
