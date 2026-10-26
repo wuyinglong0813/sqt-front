@@ -1,8 +1,7 @@
 <view class="page">
   <!-- 合同信息头 -->
   <view class="contract-header">
-    <view class="ch-status-row">
-      <view class="ch-status">{{contract ? contract.statusText : '加载中'}}</view>
+    <view class="ch-number-row">
       <view class="ch-number" wx:if="{{contract}}">{{contract.contractNo || contract.id}}</view>
     </view>
     <view class="ch-name">{{contractName}}</view>
@@ -25,7 +24,7 @@
 
   <view class="contract-manage-actions" wx:if="{{canSignContract || canCancelContract || canEditContract || canDeleteContract || canRequestEnd || canRequestVoid || (activeContractAction && activeContractAction.bizType === 'CONTRACT')}}">
     <button class="contract-manage-button primary" wx:if="{{canSignContract}}" disabled="{{contractActionLoading}}" bindtap="signContract">{{signButtonText}}</button>
-    <button class="contract-manage-button ghost" wx:if="{{canCancelContract}}" loading="{{contractActionLoading}}" disabled="{{contractActionLoading}}" bindtap="cancelContract">撤回审批</button>
+    <button class="contract-manage-button withdraw" wx:if="{{canCancelContract}}" loading="{{contractActionLoading}}" disabled="{{contractActionLoading}}" bindtap="cancelContract">撤回审批</button>
     <button class="contract-manage-button primary" wx:if="{{canEditContract}}" disabled="{{contractActionLoading}}" bindtap="editContract">修改并重新发起</button>
     <button class="contract-manage-button danger" wx:if="{{canDeleteContract}}" loading="{{contractActionLoading}}" disabled="{{contractActionLoading}}" bindtap="deleteContract">删除合同</button>
     <button class="contract-manage-button ghost" wx:if="{{canRequestEnd}}" loading="{{contractActionLoading}}" disabled="{{contractActionLoading}}" bindtap="requestContractEnd">申请结束</button>
@@ -38,11 +37,6 @@
   <view class="contract-lock-notice" wx:if="{{serviceRecoveryAvailable}}">
     <view>签署服务页提示链接失效时，请返回这里重新获取链接；正在刷脸时可先完成当前核验。</view>
     <button class="contract-manage-button ghost" bindtap="renewServiceLink">重新获取链接</button>
-  </view>
-
-  <view class="contract-lock-notice" wx:if="{{signing && contract && contract.status === 'PENDING'}}">
-    <view class="contract-lock-title">电子签署状态：{{signing.statusText}}</view>
-    <view>{{signingActionHint}}</view>
   </view>
 
   <view class="contract-lock-notice" wx:if="{{activeContractAction}}">

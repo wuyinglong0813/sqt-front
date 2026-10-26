@@ -40,7 +40,7 @@
         <view class="company-group-copy"><view class="company-group-name">{{group.companyName}}</view><view class="company-group-count">{{group.items.length}} 份合同</view></view>
       </view>
       <view class="contract-item" wx:for="{{group.items}}" wx:key="id" wx:for-item="contract" data-item="{{contract}}" bindtap="openContract">
-        <view class="item-top"><view class="contract-name">{{contract.name}}</view><view class="status status-{{contract.status}}">{{contract.statusText}}</view></view>
+        <view class="item-top"><view class="contract-name">{{contract.name}}</view><view class="status status-{{contract.status}} signing-{{contract.signingStage}}">{{contract.statusText}}</view></view>
         <view class="counterparty">{{contract.contractNo}}</view>
         <view class="item-bottom">
           <view><view class="meta-label">销售单累计金额</view><view class="amount">¥{{contract.salesAmountText}}</view></view>

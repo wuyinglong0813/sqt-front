@@ -1,4 +1,5 @@
 const app = getApp();
+const { contractStatus } = require('../../utils/contractStatus');
 
 function hasPerm(perm) {
   const member = app.globalData.memberInfo;
@@ -133,7 +134,6 @@ Page({
       });
       const list = Array.isArray(payload) ? payload : (payload.items || []);
       if (requestSeq !== this.contractRequestSeq) return;
-      const statusMap = { ACTIVE: '履行中', PENDING: '待签署', REJECTED: '已拒绝', CANCELLED: '已撤回', COMPLETED: '已结束', VOIDED: '已作废' };
       const total = list.length;
       const contracts = (list || []).map((c, index) => ({
         id: String(c.id),
@@ -151,12 +151,7 @@ Page({
         sequenceText: `合同 ${String(index + 1).padStart(2, '0')} / ${String(total).padStart(2, '0')}`,
         periodText: contractPeriod(c.startDate, c.endDate),
         status: c.status,
-        statusText: ['COMPLETED', 'VOIDED'].includes(c.status) ? statusMap[c.status]
-          : (c.statusText || (c.status === 'PENDING' ? {
-            task_terminated: '签署已终止', expired: '签署已过期', task_expired: '签署已过期',
-            task_finished: '签署结果确认中', sign_completed: '双方已签署，正在归档',
-            sign_progress: '签署中', finish_creation: '签署中'
-          }[String(c.signingStatus || '').toLowerCase()] : '') || statusMap[c.status] || c.status)
+        ...contractStatus(c)
       }));
       const pending = contracts.filter(item => item.status === 'PENDING').length;
       const active = contracts.filter(item => item.status === 'ACTIVE').length;

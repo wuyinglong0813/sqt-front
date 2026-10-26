@@ -46,6 +46,29 @@ function harness({ signing, action = {}, permissions = ['all'], syncResult = nul
   return { page, app, modals, requests, navigations, toasts };
 }
 
+function listHarness(file, records) {
+  let page;
+  const requests = [], toasts = [];
+  vm.runInNewContext(fs.readFileSync(path.join(__dirname, `../pages/${file}/${file}.js`), 'utf8'), {
+    Page: value => { page = value; }, getApp: () => ({ globalData: {} }),
+    wx: { showToast: options => toasts.push(options) },
+    require: id => {
+      if (id.endsWith('/contractStatus')) return require('../utils/contractStatus');
+      if (id.endsWith('/datetime')) return require('../utils/datetime');
+      if (id.endsWith('/request')) return { request: async options => {
+        requests.push(options);
+        if (options.url.endsWith('/summary')) return null;
+        if (options.url.startsWith('/approvals/')) return [];
+        return options.url === '/contracts/pending' ? records : { items: records };
+      } };
+      return {};
+    }
+  });
+  page.setData = value => Object.assign(page.data, value);
+  return { page, requests, toasts, load: () => file === 'contract-approval'
+    ? page.loadPending() : page.loadContracts(file === 'order-detail' ? '往来公司' : true) };
+}
+
 test('an active contract can request local void even if electronic signing status is unavailable', async () => {
   const env = harness({ signingError: '电子签状态不可用' });
   await env.page.loadContractDetail();
@@ -95,15 +118,10 @@ test('local void takes precedence over stale provider metadata and pending actio
 });
 
 test('the contract list displays local void state independently of the original signed task', async () => {
-  let page;
-  vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../pages/contract-center/contract-center.js'), 'utf8'), {
-    Page: value => { page = value; }, getApp: () => ({ globalData: {} }), wx: { showToast() {} },
-    require: id => id.endsWith('/request') ? { request: async options => options.url === '/contracts/summary'
-      ? {} : { items: [{ id: '12', status: 'VOIDED', signingStatus: 'task_finished', statusText: '待签署作废协议' }] } }
-      : { formatDateTime: () => '' }
-  });
-  page.setData = value => Object.assign(page.data, value);
-  await page.loadContracts(true);
+  const { page, load } = listHarness('contract-center', [
+    { id: '12', status: 'VOIDED', signingStatus: 'task_finished', statusText: '待签署作废协议' }
+  ]);
+  await load();
   assert.equal(page.data.contracts[0].status, 'VOIDED');
   assert.equal(page.data.contracts[0].statusText, '已作废');
 });
@@ -120,7 +138,6 @@ for (const [status, text] of [['task_terminated', '签署已终止'], ['expired'
     assert.equal(env.page.data.canSignContract, false);
     assert.equal(env.page.data.canEditContract, true);
     assert.equal(env.page.data.canCancelContract, true);
-    assert.match(env.page.data.signingActionHint, /已停止/);
   });
 }
 
@@ -130,7 +147,7 @@ test('a finished provider task awaiting archive is not displayed as an ordinary 
   await env.page.loadContractDetail();
   assert.equal(env.page.data.contract.statusText, '签署结果确认中');
   assert.equal(env.page.data.canSignContract, false);
-  assert.match(env.page.data.signingActionHint, /归档结果/);
+  assert.equal(env.page.data.contract.status, 'PENDING');
 });
 
 test('native contract recovery keeps the original contract and waits for an explicit tap', async () => {
@@ -146,68 +163,95 @@ test('native contract recovery keeps the original contract and waits for an expl
 });
 
 test('the list displays remote terminal states and a refused local contract consistently', async () => {
-  let page;
   const records = [
-    { id: '1', status: 'PENDING', signingStatus: 'task_terminated' },
-    { id: '2', status: 'PENDING', signingStatus: 'task_expired' },
-    { id: '3', status: 'PENDING', signingStatus: 'task_finished' },
-    { id: '4', status: 'REJECTED', signingStatus: 'task_terminated' }
+    { id: '1', status: 'PENDING', signingStatus: 'task_terminated', statusText: '待我方签署' },
+    { id: '2', status: 'PENDING', signingStatus: 'task_expired', statusText: '待对方签署' },
+    { id: '3', status: 'PENDING', signingStatus: 'task_finished', statusText: '待我方签署' },
+    { id: '4', status: 'REJECTED', signingStatus: 'task_terminated', statusText: '待对方签署' },
+    { id: '5', status: 'PENDING', signingStatus: 'CREATING', statusText: '待我方签署' },
+    { id: '6', status: 'PENDING', signingStatus: 'CREATE_FAILED', statusText: '待对方签署' },
+    { id: '7', status: 'PENDING', signingStatus: 'task_finished', statusText: '签署结果待同步' },
+    { id: '8', status: 'PENDING', signingStatus: 'sign_progress', statusText: '双方已签署，正在归档' }
   ];
-  vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../pages/contract-center/contract-center.js'), 'utf8'), {
-    Page: value => { page = value; }, getApp: () => ({ globalData: {} }), wx: { showToast() {} },
-    require: id => id.endsWith('/request') ? { request: async o => o.url.endsWith('/summary') ? {} : { items: records } }
-      : { formatDateTime: () => '' }
-  });
-  page.setData = value => Object.assign(page.data, value);
-  await page.loadContracts(true);
-  assert.deepEqual(Array.from(page.data.contracts, item => item.statusText), ['签署已终止', '签署已过期', '签署结果确认中', '已拒绝']);
+  const { page, load } = listHarness('contract-center', records);
+  await load();
+  assert.deepEqual(Array.from(page.data.contracts, item => item.statusText),
+    ['签署已终止', '签署已过期', '签署结果确认中', '已拒绝', '正在准备签署文件', '签署任务准备失败', '签署结果待同步', '双方已签署，正在归档']);
+  assert.deepEqual(Array.from(page.data.contracts, item => item.signingStage),
+    ['STOPPED', 'STOPPED', 'PROCESSING', '', 'PROCESSING', 'STOPPED', 'PROCESSING', 'PROCESSING']);
 });
 
 for (const file of ['order-detail', 'contract-center', 'contract-approval']) {
-  test(`${file} preserves server-confirmed signing progress for both enterprise perspectives`, async () => {
-    let page;
+  test(`${file} shows whose signature is needed using server-confirmed viewer progress`, async () => {
     const records = [
-      { id: '9007199254740993', status: 'PENDING', signingStatus: 'sign_progress', statusText: '我方已签署，等待对方签署' },
-      { id: '9007199254740995', status: 'PENDING', signingStatus: 'sign_progress', statusText: '待我方签署' },
-      { id: '3', status: 'PENDING', signingStatus: 'sign_completed', statusText: '双方已签署，正在归档' },
-      { id: '4', status: 'PENDING', signingStatus: 'sign_progress', statusText: '签署中' }
+      { id: '9007199254740993', status: 'PENDING', perspective: 'OUTGOING', signingStatus: 'sign_progress', statusText: '我方已签署，等待对方签署' },
+      { id: '9007199254740995', status: 'PENDING', perspective: 'INCOMING', signingStatus: 'sign_progress', statusText: '待我方签署' },
+      { id: '3', status: 'PENDING', perspective: 'OUTGOING', signingStatus: 'sign_progress', statusText: '待己方签署' },
+      { id: '4', status: 'PENDING', perspective: 'INCOMING', signingStatus: 'sign_progress', statusText: '待对方签署' },
+      { id: '5', status: 'PENDING', perspective: 'INCOMING', signingStatus: 'sign_completed', statusText: '待我方签署' },
+      { id: '6', status: 'PENDING', perspective: 'OUTGOING', signingStatus: 'sign_progress', statusText: '签署中' },
+      { id: '7', status: 'PENDING', perspective: 'INCOMING' },
+      { id: '8', status: 'PENDING', perspective: 'OUTGOING' }
     ];
-    vm.runInNewContext(fs.readFileSync(path.join(__dirname, `../pages/${file}/${file}.js`), 'utf8'), {
-      Page: value => { page = value; }, getApp: () => ({ globalData: {} }), wx: { showToast() {} },
-      require: id => id.endsWith('/request') ? { request: async options =>
-        options.url.endsWith('/summary') ? {}
-          : options.url.startsWith('/approvals/') ? []
-            : options.url === '/contracts/pending' ? records : { items: records } }
-        : { formatDateTime: () => '', submissionText: () => '' }
-    });
-    page.setData = value => Object.assign(page.data, value);
-    if (file === 'contract-approval') await page.loadPending();
-    else await page.loadContracts(file === 'order-detail' ? '往来公司' : true);
-    assert.deepEqual(Array.from(page.data.contracts, item => item.statusText), records.map(item => item.statusText));
+    const { page, load, toasts } = listHarness(file, records);
+    await load();
+    assert.deepEqual(toasts, []);
+    assert.deepEqual(Array.from(page.data.contracts, item => item.statusText),
+      ['待对方签署', '待我方签署', '待我方签署', '待对方签署', '双方已签署，正在归档', '签署中', '待签署', '待签署']);
+    assert.deepEqual(Array.from(page.data.contracts, item => item.signingStage),
+      ['OTHER', 'SELF', 'SELF', 'OTHER', 'PROCESSING', 'PENDING', 'PENDING', 'PENDING']);
     assert.equal(page.data.contracts[0].id, '9007199254740993');
-    assert.equal(page.data.contracts[0].status, 'PENDING');
+    assert.ok(page.data.contracts.every(item => item.status === 'PENDING'));
+  });
+}
+
+for (const file of ['order-detail', 'contract-center']) {
+  test(`${file} keeps both signing stages in the pending count and filter`, async () => {
+    const { page, load, requests } = listHarness(file, [
+      { id: '1', status: 'PENDING', statusText: '待我方签署' },
+      { id: '2', status: 'PENDING', statusText: '待对方签署' },
+      { id: '3', status: 'ACTIVE' },
+      { id: '4', status: 'VOIDED' }
+    ]);
+    await load();
     if (file === 'order-detail') {
+      assert.equal(page.data.contractStats.pending, 2);
+      assert.equal(page.data.contractStats.active, 1);
+      assert.equal(page.data.contractStats.closed, 1);
       page.applyContractFilter('PENDING');
-      assert.equal(page.data.filteredContracts.length, 4);
-      assert.equal(page.data.contractStats.active, 0);
+      assert.deepEqual(Array.from(page.data.filteredContracts, item => item.id), ['1', '2']);
+      assert.equal(page.data.contractFilters.find(item => item.key === 'PENDING').count, 2);
+    } else {
+      assert.equal(page.data.summary.pending, 2);
+      assert.equal(page.data.summary.active, 1);
+      page.setData({ activeTab: 'PENDING' });
+      page.applyFilter();
+      assert.deepEqual(Array.from(page.data.visibleContracts, item => item.id), ['1', '2']);
+      await page.loadContracts(true);
+      assert.ok(requests.some(item => item.url.includes('&status=PENDING')));
     }
   });
 }
 
+test('approval records without an explicit lifecycle still show the server-confirmed signer', async () => {
+  const { page, load } = listHarness('contract-approval', [
+    { id: '1', perspective: 'OUTGOING', statusText: '待我方签署' }
+  ]);
+  await load();
+  assert.equal(page.data.contracts[0].statusText, '待我方签署');
+  assert.equal(page.data.contracts[0].signingStage, 'SELF');
+  assert.equal(page.data.tabs.find(item => item.key === 'CONTRACT').count, 1);
+});
+
 test('counterparty cards keep local void and provider terminal progress distinct', async () => {
-  let page;
   const records = [
     { id: '1', status: 'PENDING', signingStatus: 'task_terminated' },
     { id: '2', status: 'PENDING', signingStatus: 'task_expired' },
     { id: '3', status: 'PENDING', signingStatus: 'task_finished' },
     { id: '4', status: 'VOIDED', statusText: '签署中', signingStatus: 'sign_progress' }
   ];
-  vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../pages/order-detail/order-detail.js'), 'utf8'), {
-    Page: value => { page = value; }, getApp: () => ({ globalData: {} }), wx: {},
-    require: () => ({ request: async () => ({ items: records }) })
-  });
-  page.setData = value => Object.assign(page.data, value);
-  await page.loadContracts('往来公司');
+  const { page, load } = listHarness('order-detail', records);
+  await load();
   assert.deepEqual(Array.from(page.data.contracts, item => item.statusText),
     ['签署已终止', '签署已过期', '签署结果确认中', '已作废']);
 });

@@ -4,6 +4,7 @@ page { background: #f4f8fd; }
 .contract-manage-button { border-radius: 16rpx; flex: 1; font-size: 24rpx; height: 72rpx; line-height: 72rpx; margin: 0; padding: 0 12rpx; }
 .contract-manage-button::after { border: 0; }
 .contract-manage-button.ghost { background: #eef4fa; color: #52677d; }
+.contract-manage-button.withdraw { background: #fff3df; border: 1rpx solid #f2d099; color: #a86410; }
 .contract-manage-button.primary { background: #2f86e6; color: #fff; }
 .contract-manage-button.danger { background: #fff0f0; color: #c64747; }
 
@@ -16,11 +17,7 @@ page { background: #f4f8fd; }
   background: linear-gradient(145deg, #45a8ff, #3498ff 52%, #2478df);
   padding: 32rpx 40rpx 36rpx;
 }
-.ch-status-row { align-items: center; display: flex; justify-content: space-between; margin-bottom: 12rpx; }
-.ch-status {
-  background: rgba(255,255,255,.2); border: 1rpx solid rgba(255,255,255,.28); border-radius: 18rpx;
-  color: #fff; font-size: 20rpx; padding: 5rpx 14rpx;
-}
+.ch-number-row { display: flex; justify-content: flex-end; margin-bottom: 12rpx; }
 .ch-number { color: rgba(255,255,255,.72); font-size: 20rpx; }
 
 .ch-name {

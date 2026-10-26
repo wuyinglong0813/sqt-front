@@ -1,5 +1,6 @@
 const { request } = require('../../utils/request');
 const { formatDateTime, submissionText } = require('../../utils/datetime');
+const { contractStatus } = require('../../utils/contractStatus');
 const {
   downloadChunkedApiFile,
   localFileReady,
@@ -79,7 +80,7 @@ Page({
         id: String(item.id),
         companyId: String(item.viewerCounterpartyCompanyId || item.companyId || ''),
         companyName: item.viewerCounterpartyName || item.counterpartyName || '往来公司',
-        statusText: item.statusText || '待签署',
+        ...contractStatus({ ...item, status: item.status || 'PENDING' }),
         amountText: money(item.amount),
         createdDate: formatDateTime(item.createdAt)
       }));

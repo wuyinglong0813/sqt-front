@@ -296,8 +296,6 @@ Page({
         task_terminated: '签署已终止', expired: '签署已过期', task_expired: '签署已过期',
         task_finished: '签署结果确认中', sign_completed: '签署结果确认中'
       }[signingStatus.toLowerCase()] : '';
-      const signingStopped = contract.status === 'PENDING'
-        && ['task_terminated', 'expired', 'task_expired'].includes(signingStatus.toLowerCase());
       const contractReadOnly = actionPending || ['COMPLETED', 'VOIDED'].includes(contract.status);
       const canCreateSalesOrder = canCreateDocument && isSupplier
         && !contractReadOnly && (contract.status === 'PENDING' || contract.status === 'ACTIVE');
@@ -351,9 +349,6 @@ Page({
         contractReadOnly,
         activeContractAction: actionPending ? activeContractAction : null,
         signing: pendingSigningText ? { ...(signing || {}), status: signingStatus, statusText: pendingSigningText } : signing,
-        signingActionHint: signingStopped ? '本次电子签署已停止，发起方可修改后重新发起或撤回合同。'
-          : pendingSigningText ? '正在核验双方签署及归档结果，请稍后刷新同步。'
-          : '合同将在双方依次完成签署并归档后生效。',
         serviceRecoveryAvailable: !!(canManageContract && recovery && recovery.target.contractId === this.data.contractId
           && recovery.target.scene === 'contract' && contract.status === 'PENDING' && !pendingSigningText),
         signedContractArchived: !!(signing && signing.signedFileArchived),

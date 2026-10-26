@@ -38,6 +38,9 @@ page { background: #f4f8fd; }
 .contract-name { color: #182739; flex: 1; font-size: 29rpx; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .status { border-radius: 15rpx; flex-shrink: 0; font-size: 21rpx; margin-left: 14rpx; padding: 5rpx 11rpx; }
 .status-PENDING { background: #fff3d6; color: #9a6511; }
+.status.signing-OTHER { background: #edf4fc; color: #4274a3; }
+.status.signing-PROCESSING { background: #edf2f8; color: #68788d; }
+.status.signing-STOPPED { background: #fdeaea; color: #b44343; }
 .status-ACTIVE { background: #e7f2ff; color: #3498ff; }
 .status-COMPLETED { background: #edf2f8; color: #687571; }
 .status-VOIDED { background: #f8ecec; color: #a04b4b; }

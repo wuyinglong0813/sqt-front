@@ -92,7 +92,7 @@
       bindtap="onContractTap">
       <view class="contract-card-head">
         <view class="contract-sequence">{{item.sequenceText}}</view>
-        <view class="contract-status status-{{item.status}}"><text class="status-dot"></text>{{item.statusText}}</view>
+        <view class="contract-status status-{{item.status}} signing-{{item.signingStage}}"><text class="status-dot"></text>{{item.statusText}}</view>
       </view>
       <view class="contract-name">{{item.name}}</view>
       <view class="contract-code">{{item.contractNo}} · {{item.templateText}}</view>

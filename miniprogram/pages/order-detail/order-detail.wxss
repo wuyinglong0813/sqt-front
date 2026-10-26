@@ -370,6 +370,9 @@ page {
   background: #fff3d6;
   color: #9a6511;
 }
+.contract-status.signing-OTHER { background: #edf4fc; color: #4274a3; }
+.contract-status.signing-PROCESSING { background: #edf2f8; color: #68788d; }
+.contract-status.signing-STOPPED { background: #fdeaea; color: #b44343; }
 
 .status-REJECTED {
   background: #fdeaea;
