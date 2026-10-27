@@ -123,18 +123,7 @@
           <view class="metric-item"><view class="metric-value">{{templateCount}}</view><view class="metric-label">合同模板</view></view>
         </view>
 
-        <view class="signing-readiness-card" wx:if="{{signingReadiness}}">
-          <view class="signing-readiness-eyebrow">我的签署待办</view>
-          <view class="signing-readiness-title">{{signingReadiness.title}}</view>
-          <view class="signing-readiness-message">{{signingReadiness.message}}</view>
-          <view class="signing-readiness-actions">
-            <button class="signing-readiness-button" bindtap="handleSigningReadiness" loading="{{signingReadinessLoading}}" disabled="{{signingReadinessLoading}}">{{signingReadiness.actionText}}</button>
-            <button class="signing-readiness-link" wx:if="{{signingReadiness.status === 'WAITING_SEAL_AUTHORIZATION' && signingReadiness.action === 'sealGrant' && signingReadiness.canManageSealAuthorization}}" bindtap="manageSigningReadiness">我有用印管理权限，去办理</button>
-            <button class="signing-readiness-link" wx:elif="{{signingReadiness.status === 'WAITING_COMPANY_AUTHORIZATION' && signingReadiness.action === 'company' && canCompanyManage}}" bindtap="manageSigningReadiness">我是电子签超管，去授权</button>
-          </view>
-        </view>
-
-        <view class="brand-list">
+        <view class="brand-list membership-entry">
           <view class="list-row" bindtap="goMembership">
             <view class="row-icon"><image src="/images/icons/company.svg" mode="aspectFit"/></view>
             <view class="row-copy"><view class="row-title">会员与签署额度</view><view class="row-desc">当前企业权益、份额和使用记录</view></view>
@@ -142,11 +131,16 @@
           </view>
         </view>
 
-        <block wx:if="{{todos.length > 0}}">
+        <block wx:if="{{todos.length > 0 || signingReadiness}}">
           <view class="section-head">
             <view><view class="section-title">企业待办</view><view class="section-sub">需要你处理的组织与合同事项</view></view>
           </view>
           <view class="brand-list">
+            <view class="list-row signing-readiness-row" wx:if="{{signingReadiness}}" bindtap="handleSigningReadiness">
+              <view class="row-icon"><image src="/images/icons/approval.svg" mode="aspectFit"/></view>
+              <view class="row-copy"><view class="row-title">{{signingReadiness.title}}</view><view class="row-desc">{{signingReadiness.description}}</view></view>
+              <button class="signing-readiness-action" catchtap="handleSigningReadiness" loading="{{signingReadinessLoading}}" disabled="{{signingReadinessLoading}}">{{signingReadiness.actionText}}</button>
+            </view>
             <view class="list-row" wx:for="{{todos}}" wx:key="type" data-target="{{item.target}}" bindtap="goTodo">
               <view class="row-icon"><image src="{{item.iconPath}}" mode="aspectFit"/></view>
               <view class="row-copy"><view class="row-title">{{item.title}}</view><view class="row-desc">{{item.desc}}</view></view>

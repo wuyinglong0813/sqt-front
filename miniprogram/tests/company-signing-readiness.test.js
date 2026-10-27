@@ -48,6 +48,24 @@ test('company readiness loads through GET and hides ready or non-signing members
   assert.equal(h.calls.length, 2, 'No invitation or synchronization is issued for non-signing members');
 });
 
+test('background preparation stays out of todos while failed preparation keeps a read-only retry', async () => {
+  let result;
+  const h = harness(async () => result);
+  const p = h.page();
+  for (result of [{ status: 'PENDING', action: 'none' }, { status: 'SYNCING', action: 'none' }]) {
+    await p.loadSigningReadiness();
+    assert.equal(p.data.signingReadiness, null);
+  }
+  result = { status: 'PENDING', action: 'recheck', message: '签署准备暂未完成，可重新检查' };
+  await p.loadSigningReadiness();
+  assert.equal(p.data.signingReadiness.title, '签署状态待确认');
+  assert.equal(p.data.signingReadiness.actionText, '重新检查');
+  await p.handleSigningReadiness();
+  assert.equal(h.calls.length, 4);
+  assert.ok(h.calls.every(call => !call.method || call.method === 'GET'));
+  assert.equal(h.navigation.length, 0);
+});
+
 test('company show reads readiness without creating links or invitations', async () => {
   const h = harness(async options => {
     if (options.url === '/me') return { user: { currentCompanyId: '3' }, company: { id: '3', certificationStatus: 'VERIFIED' },
@@ -88,18 +106,33 @@ test('authorized managers continue the existing official grant flow for their ow
   const p = h.page();
   p.data.member.permissions = ['all'];
   await p.loadSigningReadiness();
-  p.manageSigningReadiness();
+  assert.equal(p.data.signingReadiness.title, '完成用印授权');
+  assert.equal(p.data.signingReadiness.actionText, '去授权');
+  p.handleSigningReadiness();
   assert.deepEqual(h.navigation, ['/pages/fadada-auth/fadada-auth?scene=sealGrant&companyId=3&userId=7&returnToMembers=1']);
   p.data.member.permissions = ['contract_sign'];
-  p.manageSigningReadiness();
+  p.handleSigningReadiness();
   assert.equal(h.navigation.length, 1);
+});
+
+test('seal authorization remains a waiting item without current local management permissions', async () => {
+  const h = harness(async () => ({ status: 'WAITING_SEAL_AUTHORIZATION', action: 'sealGrant',
+    canManageSealAuthorization: true }));
+  const p = h.page();
+  await p.loadSigningReadiness();
+  assert.equal(p.data.signingReadiness.title, '待管理员用印授权');
+  assert.equal(p.data.signingReadiness.actionText, '重新检查');
+  await p.handleSigningReadiness();
+  assert.equal(h.navigation.length, 0);
+  assert.ok(h.calls.every(call => !call.method || call.method === 'GET'));
 });
 
 test('an administrator can explicitly continue enterprise consent without restarting legal onboarding', async () => {
   const h = harness(async () => ({ status: 'WAITING_COMPANY_AUTHORIZATION', action: 'company', message: '待超管补授权' }));
   const p = h.page(); p.data.canCompanyManage = true;
   await p.loadSigningReadiness();
-  p.manageSigningReadiness();
+  assert.equal(p.data.signingReadiness.actionText, '去授权');
+  p.handleSigningReadiness();
   assert.deepEqual(h.navigation, ['/pages/fadada-auth/fadada-auth?scene=company&companyId=3&renewOrganization=1']);
 });
 

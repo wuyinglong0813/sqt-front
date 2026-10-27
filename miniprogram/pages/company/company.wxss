@@ -63,14 +63,11 @@ page { background: #f4f8fd; }
 .metric-label { color: #8b97a5; font-size: 20rpx; margin-top: 4rpx; }
 .metric-divider { background: #e5eef8; height: 58rpx; margin: auto 0; }
 
-.signing-readiness-card { background: #fffaf0; border: 1rpx solid #f0dcb3; border-radius: 26rpx; margin-top: 20rpx; padding: 25rpx; }
-.signing-readiness-eyebrow { color: #9a712d; font-size: 20rpx; font-weight: 600; }
-.signing-readiness-title { color: #593e19; font-size: 29rpx; font-weight: 600; margin-top: 9rpx; }
-.signing-readiness-message { color: #89734f; font-size: 23rpx; line-height: 1.65; margin-top: 10rpx; overflow-wrap: break-word; }
-.signing-readiness-actions { align-items: flex-start; display: flex; flex-direction: column; gap: 14rpx; margin-top: 21rpx; }
-.signing-readiness-button { background: #fff; border: 1rpx solid #e7c887; border-radius: 16rpx; color: #82591b; font-size: 23rpx; line-height: 1.5; margin: 0; padding: 14rpx 22rpx; }
-.signing-readiness-button::after,.signing-readiness-link::after { border: none; }
-.signing-readiness-link { background: transparent; color: #826323; font-size: 22rpx; line-height: 1.5; margin: 0; padding: 0; text-align: left; white-space: normal; }
+.membership-entry { margin-top: 20rpx; }
+.signing-readiness-action { background: #edf5ff; border: none; border-radius: 15rpx; color: #2787e3; flex-shrink: 0; font-size: 21rpx; font-weight: 500; line-height: 1.5; margin: 0; min-width: 104rpx; padding: 13rpx 16rpx; }
+.signing-readiness-action::after { border: none; }
+.signing-readiness-action[disabled] { color: #819bb7; }
+.signing-readiness-row .row-desc { display: -webkit-box; line-height: 1.5; white-space: normal; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
 
 .section-head { justify-content: space-between; margin: 34rpx 4rpx 15rpx; }
 .section-title { color: #162336; font-size: 30rpx; font-weight: 700; }

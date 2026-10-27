@@ -26,23 +26,36 @@ function maskCreditCode(code) {
   return `${value.slice(0, 4)}••••${value.slice(-4)}`;
 }
 
-function signingReadinessView(result) {
+function signingReadinessView(result, capabilities = {}) {
   const status = String((result || {}).status || 'READ_ERROR');
-  if (['READY', 'NOT_REQUIRED'].includes(status)) return null;
+  if (['READY', 'NOT_REQUIRED', 'SYNCING'].includes(status)
+      || status === 'PENDING' && result.action === 'none') return null;
+  const canManageAuthorization = status === 'WAITING_SEAL_AUTHORIZATION' && result.action === 'sealGrant'
+    && result.canManageSealAuthorization === true && capabilities.canManageSeal
+    || status === 'WAITING_COMPANY_AUTHORIZATION' && result.action === 'company' && capabilities.canManageCompany;
   const titles = {
-    WAITING_PERSONAL_IDENTITY: '完成本人实名认证',
-    ACTIVATION_REQUIRED: '确认加入电子签企业',
-    WAITING_COMPANY_AUTHORIZATION: '企业签署授权待完善',
-    WAITING_SEAL_AUTHORIZATION: '待管理员完成用印授权',
-    ADMIN_REVIEW_REQUIRED: '签署身份需核对',
-    PENDING: '签署准备同步中',
-    SYNCING: '签署准备同步中'
+    WAITING_PERSONAL_IDENTITY: '完成实名认证',
+    ACTIVATION_REQUIRED: '确认加入电子签',
+    WAITING_COMPANY_AUTHORIZATION: canManageAuthorization ? '完成企业签署授权' : '待管理员补充授权',
+    WAITING_SEAL_AUTHORIZATION: canManageAuthorization ? '完成用印授权' : '待管理员用印授权',
+    ADMIN_REVIEW_REQUIRED: '签署信息待核对'
   };
-  return { status, title: titles[status] || '签署准备暂未确认',
+  const descriptions = {
+    WAITING_PERSONAL_IDENTITY: '完成本人实名后即可继续签署',
+    ACTIVATION_REQUIRED: '确认加入当前企业，开通签署身份',
+    WAITING_COMPANY_AUTHORIZATION: canManageAuthorization ? '补充企业电子签服务授权' : '请联系企业管理员补充授权',
+    WAITING_SEAL_AUTHORIZATION: canManageAuthorization ? '确认当前账号的印章使用权限' : '请联系企业授权人完成用印授权',
+    ADMIN_REVIEW_REQUIRED: '请联系企业管理员核对签署信息',
+    PENDING: '签署准备尚未完成，可重新检查'
+  };
+  return { status, title: titles[status] || '签署状态待确认',
+    description: descriptions[status] || '暂时无法确认签署状态，请重新检查',
     message: result && result.message || '状态暂时无法读取，请重新检查。',
     action: result && result.action || 'recheck',
     actionText: status === 'WAITING_PERSONAL_IDENTITY' && result.action === 'personal' ? '本人去实名'
-      : status === 'ACTIVATION_REQUIRED' && result.action === 'member' ? '本人确认加入' : '重新检查',
+      : status === 'ACTIVATION_REQUIRED' && result.action === 'member' ? '确认加入'
+        : canManageAuthorization ? '去授权' : '重新检查',
+    canManageAuthorization: !!canManageAuthorization,
     canManageSealAuthorization: !!(result && result.canManageSealAuthorization === true) };
 }
 
@@ -175,7 +188,11 @@ Page({
     try {
       const result = await request({ url: `/fadada/companies/${encodeURIComponent(companyId)}/signing-readiness`,
         withCompany: false, token: context.token });
-      if (current()) this.setData({ signingReadiness: signingReadinessView(result) });
+      if (current()) this.setData({ signingReadiness: signingReadinessView(result, {
+        canManageCompany: this.data.canCompanyManage,
+        canManageSeal: permissions.includes('all') || permissions.includes('seal_manage')
+          && (permissions.includes('member_manage') || permissions.includes('auth_manage'))
+      }) });
     } catch (error) {
       if (current()) this.setData({ signingReadiness: signingReadinessView({
         status: 'READ_ERROR', message: error.message || '状态暂时无法读取，请重新检查。', action: 'recheck'
@@ -195,6 +212,7 @@ Page({
       return;
     }
     if (pending.status === 'ACTIVATION_REQUIRED' && pending.action === 'member') return this.goSigningMembers();
+    if (pending.canManageAuthorization) return this.manageSigningReadiness();
     return this.loadSigningReadiness();
   },
 
