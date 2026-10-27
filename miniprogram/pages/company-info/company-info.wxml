@@ -1,0 +1,30 @@
+<view class="info-page">
+  <view class="info-state" wx:if="{{loading}}">正在读取企业资料…</view>
+  <view class="info-card" wx:elif="{{errorMessage}}">
+    <view class="info-title">企业资料暂未加载</view>
+    <view class="info-description">{{errorMessage}}</view>
+    <button class="info-button" bindtap="loadInfo">重新检查</button>
+  </view>
+  <block wx:else>
+    <view class="info-heading">企业主体</view>
+    <view class="info-card">
+      <view class="info-company-name">{{company.name || '当前企业'}}</view>
+      <view class="info-row"><text class="info-label">统一社会信用代码</text><text class="info-value">{{company.creditCode || '暂未录入'}}</text></view>
+      <view class="info-row"><text class="info-label">法定代表人</text><text class="info-value">{{company.legalPersonName || '暂未录入'}}</text></view>
+      <view class="info-row"><text class="info-label">企业认证状态</text><text class="info-value">{{certificationText}}</text></view>
+    </view>
+
+    <view class="info-heading">我的企业身份</view>
+    <view class="info-card">
+      <view class="info-row"><text class="info-label">当前角色</text><text class="info-value">{{member.roleText || '企业成员'}}</text></view>
+      <view class="info-description">企业角色与电子签平台的成员身份、用印权限分别核验。签署条件未齐时，可从企业首页的“我的签署待办”继续办理。</view>
+    </view>
+
+    <view class="info-heading" wx:if="{{canVerifyLegal}}">法人身份记录</view>
+    <view class="info-card" wx:if="{{canVerifyLegal}}">
+      <view class="info-title">本人是法人，核验已有记录</view>
+      <view class="info-description">适用于历史入驻、尚未确认法人身份的本人账号。只有可信法人身份关联核验通过后，才会开通法人权限；普通成员无需办理。</view>
+      <button class="info-button" bindtap="goLegalVerification">核验本人法人身份</button>
+    </view>
+  </block>
+</view>

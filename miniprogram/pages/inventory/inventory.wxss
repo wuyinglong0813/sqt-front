@@ -28,7 +28,7 @@ button::after { border: 0; }
 .inventory-table-shell { background: #fff; border: 1rpx solid #d8e5f2; border-radius: 14rpx; display: flex; overflow: hidden; }
 .product-column { box-shadow: 6rpx 0 12rpx rgba(31,73,118,.07); flex: 0 0 208rpx; position: relative; z-index: 1; }
 .inventory-table-scroll { flex: 1; min-width: 0; width: 0; }
-.inventory-table { width: 1180rpx; }
+.inventory-table { width: 1230rpx; }
 .table-row { display: flex; }
 .table-cell { align-items: center; border-bottom: 1rpx solid #e6edf5; border-right: 1rpx solid #e6edf5; box-sizing: border-box; color: #344b62; display: flex; flex-shrink: 0; font-size: 23rpx; height: 86rpx; justify-content: center; overflow: hidden; padding: 10rpx 14rpx; text-align: center; }
 .table-header { background: #eaf4ff; color: #3976af; font-size: 21rpx; font-weight: 600; height: 68rpx; }
@@ -41,8 +41,8 @@ button::after { border: 0; }
 .specification-cell { width: 180rpx; }
 .price-cell { width: 180rpx; word-break: break-all; }
 .amount-cell { width: 200rpx; word-break: break-all; }
-.warehouse-cell { width: 210rpx; }
-.specification-cell, .warehouse-cell { display: block; line-height: 66rpx; text-overflow: ellipsis; white-space: nowrap; }
+.remark-cell { width: 260rpx; }
+.specification-cell, .remark-cell { display: block; line-height: 66rpx; text-overflow: ellipsis; white-space: nowrap; }
 .table-footer { color: #8c9aac; font-size: 20rpx; padding-top: 16rpx; text-align: center; }
 .empty { align-items: center; color: #8290a0; display: flex; flex-direction: column; padding: 70rpx 20rpx; }
 .empty image { height: 86rpx; opacity: .65; width: 86rpx; }

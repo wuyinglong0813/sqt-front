@@ -3,6 +3,7 @@ const { request } = require('../../utils/request');
 Page({
   data: {
     mode: 'create',
+    legalOnlyOnboardingEnabled: false,
     companyName: '',
     creditCode: '',
     legalPersonName: '',
@@ -10,6 +11,21 @@ Page({
     results: [],
     searched: false,
     selectedCompany: null
+  },
+
+  onLoad() {
+    return this.loadOnboardingPolicy();
+  },
+
+  onUnload() { this._unloaded = true; },
+
+  async loadOnboardingPolicy() {
+    try {
+      const config = await request({ url: '/ca/config', withCompany: false });
+      if (!this._unloaded) this.setData({ legalOnlyOnboardingEnabled: !!config && config.legalOnlyOnboardingEnabled === true });
+    } catch (error) {
+      // The server enforces onboarding eligibility; this flag only selects guidance.
+    }
   },
 
   switchMode(e) {

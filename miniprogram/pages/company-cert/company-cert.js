@@ -8,6 +8,8 @@ Page({
     companyName: '',
     creditCode: '',
     legalPersonName: '',
+    legalOnlyOnboardingEnabled: false,
+    companyVerified: false,
     hasCompany: false,
     agreed: false,
     loading: false,
@@ -17,6 +19,7 @@ Page({
   },
 
   onLoad(options) {
+    this.loadOnboardingPolicy();
     if (options.resume === '1') {
       const draft = readDraft();
       if (!draft) {
@@ -70,6 +73,15 @@ Page({
   },
 
   onUnload() { this._unloaded = true; },
+
+  async loadOnboardingPolicy() {
+    try {
+      const config = await request({ url: '/ca/config', withCompany: false });
+      if (!this._unloaded) this.setData({ legalOnlyOnboardingEnabled: !!config && config.legalOnlyOnboardingEnabled === true });
+    } catch (error) {
+      // Eligibility remains enforced by the server when guidance cannot be loaded.
+    }
+  },
 
   async resumePendingCompany() {
     const token = app.globalData.token;
@@ -127,6 +139,7 @@ Page({
         companyName: company.name || '',
         creditCode: company.creditCode || '',
         legalPersonName: company.legalPersonName || '',
+        companyVerified: company.certificationStatus === 'VERIFIED' || companyDone === true,
         identity,
         actions: [
           {

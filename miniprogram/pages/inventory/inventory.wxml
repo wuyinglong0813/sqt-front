@@ -32,9 +32,9 @@
       </view>
       <scroll-view class="inventory-table-scroll" scroll-x enhanced show-scrollbar="{{true}}">
         <view class="inventory-table">
-          <view class="table-row table-header"><view class="table-cell quantity-cell">库存数量</view><view class="table-cell unit-cell">单位</view><view class="table-cell specification-cell">型号</view><view class="table-cell specification-cell">规格</view><view class="table-cell price-cell">库存单价（元）</view><view class="table-cell amount-cell">库存金额（元）</view><view class="table-cell warehouse-cell">仓库</view></view>
+          <view class="table-row table-header"><view class="table-cell quantity-cell">库存数量</view><view class="table-cell unit-cell">单位</view><view class="table-cell specification-cell">型号</view><view class="table-cell specification-cell">规格</view><view class="table-cell price-cell">库存单价（元）</view><view class="table-cell amount-cell">库存金额（元）</view><view class="table-cell remark-cell">备注</view></view>
           <view class="table-row" wx:for="{{visibleBalances}}" wx:key="id" data-index="{{index}}" bindtap="showBalanceDetail">
-            <view class="table-cell quantity-cell">{{item.quantity}}</view><view class="table-cell unit-cell">{{item.baseUnit}}</view><view class="table-cell specification-cell">{{item.model || '—'}}</view><view class="table-cell specification-cell">{{item.specification || '—'}}</view><view class="table-cell price-cell">{{item.unitPriceText}}</view><view class="table-cell amount-cell">{{item.inventoryAmountText}}</view><view class="table-cell warehouse-cell">{{item.warehouseName}}</view>
+            <view class="table-cell quantity-cell">{{item.quantity}}</view><view class="table-cell unit-cell">{{item.baseUnit}}</view><view class="table-cell specification-cell">{{item.model || '—'}}</view><view class="table-cell specification-cell">{{item.specification || '—'}}</view><view class="table-cell price-cell">{{item.unitPriceText}}</view><view class="table-cell amount-cell">{{item.inventoryAmountText}}</view><view class="table-cell remark-cell">{{item.remark || '—'}}</view>
           </view>
         </view>
       </scroll-view>

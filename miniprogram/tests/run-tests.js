@@ -323,7 +323,7 @@ test('new company onboarding validates input and reaches confirmation without a 
   assert.strictEqual(query.get('creditCode'), '91130100MA12345678');
   assert.strictEqual(query.get('legalPersonName'), '张三');
   const cert = loadPage('../pages/company-cert/company-cert');
-  const confirmation = { data: {}, setData(values) { Object.assign(this.data, values); } };
+  const confirmation = { data: {}, loadOnboardingPolicy() {}, setData(values) { Object.assign(this.data, values); } };
   cert.onLoad.call(confirmation, {
     name: encodeURIComponent(query.get('name')),
     creditCode: query.get('creditCode'),

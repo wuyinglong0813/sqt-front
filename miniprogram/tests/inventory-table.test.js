@@ -13,7 +13,7 @@ function harness() {
     warehouses: [{ id: '101', name: '电线电缆', address: '一号库区' }, { id: 102, name: '阀门', address: '二号库区' }],
     overview: { warehouseCount: 2, productCount: 3, canManualInbound: true, balances: [
       { id: '1', warehouseId: 101, warehouseName: '电线电缆', productName: '电线', specification: 'RVS 2×1.5', baseUnit: '米', quantity: '1000.0001', unitPrice: '1', inventoryAmount: '1000.00' },
-      { id: '2', warehouseId: '102', warehouseName: '阀门', productName: '闸阀', model: 'Z41H', specification: 'DN100', baseUnit: '台', quantity: '100', unitPrice: '100', inventoryAmount: '10000' },
+      { id: '2', warehouseId: '102', warehouseName: '阀门', productName: '闸阀', model: 'Z41H', specification: 'DN100', baseUnit: '台', quantity: '100', unitPrice: '100', inventoryAmount: '10000', remark: '客户预留批次，请保持原包装并在发货前联系仓管确认' },
       { id: '3', warehouseId: '102', warehouseName: '阀门', productName: '电线', specification: 'RVS 2×1.5', baseUnit: '米', quantity: '200', unitPrice: '1.5', inventoryAmount: '300' }
     ] }
   };
@@ -95,6 +95,10 @@ test('stock row details use the displayed filtered row and keep every column ava
   assert.match(modal.content, /库存数量：100 台/);
   assert.match(modal.content, /库存单价：¥100\.00 \/ 台/);
   assert.match(modal.content, /库存金额：¥10000\.00/);
+  assert.ok(modal.content.endsWith(`备注：${h.records.overview.balances[1].remark}`));
+  h.page.clearSearch();
+  h.page.showBalanceDetail({ currentTarget: { dataset: { index: 0 } } });
+  assert.ok(h.modals[1].content.endsWith('备注：—'));
 });
 
 test('manual inbound starts in the filtered warehouse and refreshes the table after saving', async () => {
@@ -105,7 +109,7 @@ test('manual inbound starts in the filtered warehouse and refreshes the table af
   assert.equal(h.page.data.warehouseIndex, 1);
   assert.equal(h.page.data.inbound.model, '');
   h.page.onInboundInput({ currentTarget: { dataset: { field: 'model' } }, detail: { value: ' Z41H ' } });
-  h.page.data.inbound = { ...h.page.data.inbound, productName: ' 闸阀 ', specification: ' DN100 ', baseUnit: '台', quantity: '2', unitPrice: '100' };
+  h.page.data.inbound = { ...h.page.data.inbound, productName: ' 闸阀 ', specification: ' DN100 ', baseUnit: '台', quantity: '2', unitPrice: '100', remark: ' 客户预留批次 ' };
   await h.page.saveInbound();
   const inbound = h.calls.find(options => options.method === 'POST');
   assert.equal(inbound.url, '/inventory/manual-inbound');
@@ -114,6 +118,7 @@ test('manual inbound starts in the filtered warehouse and refreshes the table af
   assert.equal(inbound.data.model, 'Z41H');
   assert.equal(inbound.data.specification, 'DN100');
   assert.equal(inbound.data.quantity, '2');
+  assert.equal(inbound.data.remark, '客户预留批次');
   assert.equal(h.page.data.showInbound, false);
   assert.equal(h.page.data.filterWarehouseId, '102');
   assert.equal(h.calls.filter(options => options.url === '/inventory/overview').length, 2);

@@ -82,7 +82,7 @@
       <view class="no-company-hero">
         <image src="/images/logo.png" mode="aspectFit"/>
         <view class="nc-title">{{onboardingCompanies.length || companyDraft ? '继续完成企业入驻' : '建立你的企业工作空间'}}</view>
-        <view class="nc-desc">{{onboardingCompanies.length || companyDraft ? '请从待完成企业认证中继续，认证通过后进入企业' : '由法人或授权经办人创建企业，或通过邀请码加入'}}</view>
+        <view class="nc-desc">{{onboardingCompanies.length || companyDraft ? '请从待完成企业认证中继续，认证通过后进入企业' : '创建企业工作空间，或通过邀请码加入已有企业'}}</view>
       </view>
       <view class="nc-actions">
         <button class="primary-button" bindtap="goCreateCompany">创建企业</button>
@@ -121,6 +121,17 @@
           <view class="metric-item"><view class="metric-value">{{roleCount}}</view><view class="metric-label">角色权限</view></view>
           <view class="metric-divider"></view>
           <view class="metric-item"><view class="metric-value">{{templateCount}}</view><view class="metric-label">合同模板</view></view>
+        </view>
+
+        <view class="signing-readiness-card" wx:if="{{signingReadiness}}">
+          <view class="signing-readiness-eyebrow">我的签署待办</view>
+          <view class="signing-readiness-title">{{signingReadiness.title}}</view>
+          <view class="signing-readiness-message">{{signingReadiness.message}}</view>
+          <view class="signing-readiness-actions">
+            <button class="signing-readiness-button" bindtap="handleSigningReadiness" loading="{{signingReadinessLoading}}" disabled="{{signingReadinessLoading}}">{{signingReadiness.actionText}}</button>
+            <button class="signing-readiness-link" wx:if="{{signingReadiness.status === 'WAITING_SEAL_AUTHORIZATION' && signingReadiness.action === 'sealGrant' && signingReadiness.canManageSealAuthorization}}" bindtap="manageSigningReadiness">我有用印管理权限，去办理</button>
+            <button class="signing-readiness-link" wx:elif="{{signingReadiness.status === 'WAITING_COMPANY_AUTHORIZATION' && signingReadiness.action === 'company' && canCompanyManage}}" bindtap="manageSigningReadiness">我是电子签超管，去授权</button>
+          </view>
         </view>
 
         <view class="brand-list">
@@ -166,24 +177,14 @@
               <view class="row-copy"><view class="row-title">组织成员</view><view class="row-desc">成员审批、部门与邀请管理</view></view>
               <view class="state-pill muted">{{memberCount}}</view><view class="row-arrow">›</view>
             </view>
-            <view class="list-row" bindtap="goSigningMembers">
-              <view class="row-icon"><image src="/images/icons/team.svg" mode="aspectFit"/></view>
-              <view class="row-copy"><view class="row-title">电子签成员</view><view class="row-desc">同步本人企业成员身份，继续办理激活</view></view>
-              <view class="row-arrow">›</view>
-            </view>
-            <view class="list-row" wx:if="{{serviceRecoveryAvailable}}" bindtap="renewServiceLink">
-              <view class="row-icon"><image src="/images/icons/team.svg" mode="aspectFit"/></view>
-              <view class="row-copy"><view class="row-title">重新获取链接</view><view class="row-desc">成员激活页提示链接失效时，返回这里重新办理</view></view>
-              <view class="row-arrow">›</view>
-            </view>
             <view class="list-row" wx:if="{{canManage && isDesktopWechat}}" bindtap="goSigningOrganization">
               <view class="row-icon"><image src="/images/icons/team.svg" mode="aspectFit"/></view>
               <view class="row-copy"><view class="row-title">电子签组织管理</view><view class="row-desc">在电脑端管理电子签企业组织</view></view>
               <view class="row-arrow">›</view>
             </view>
-            <view class="list-row" wx:if="{{canVerifyLegal}}" bindtap="goLegalVerification">
-              <view class="row-icon"><image src="/images/icons/role.svg" mode="aspectFit"/></view>
-              <view class="row-copy"><view class="row-title">法人身份核验</view><view class="row-desc">核对已有法人身份记录，未确认时联系平台支持人工核验</view></view>
+            <view class="list-row" bindtap="goCompanyInfo">
+              <view class="row-icon"><image src="/images/icons/company.svg" mode="aspectFit"/></view>
+              <view class="row-copy"><view class="row-title">企业资料与身份信息</view><view class="row-desc">查看企业主体、当前角色与身份记录</view></view>
               <view class="row-arrow">›</view>
             </view>
             <view class="list-row" wx:if="{{canManage}}" bindtap="goRoleManage">

@@ -4,7 +4,7 @@
     <view class="bind-banner-circle bind-circle-lg"></view>
     <view class="bind-banner-circle bind-circle-md"></view>
     <view class="bind-banner-title">企业入驻</view>
-    <view class="bind-banner-sub">填写营业执照信息，完成企业身份认证</view>
+    <view class="bind-banner-sub">{{legalOnlyOnboardingEnabled ? '由法人本人办理首次入驻，核验通过后开通' : '填写营业执照信息，完成企业身份认证'}}</view>
   </view>
 
   <view class="mode-tabs">
@@ -14,7 +14,9 @@
   <view class="create-card" wx:if="{{mode === 'create'}}">
     <view class="form-title">填写企业资料</view>
     <view class="form-hint">请按营业执照填写，下一步确认信息后进行企业认证。提交资料不代表认证通过。</view>
-    <view class="form-hint">已在电子签平台实名的企业也从这里入驻。系统先核对可复用的企业授权，再核验申请人本人的法人或经办权限。</view>
+    <view class="form-hint" wx:if="{{legalOnlyOnboardingEnabled}}">首次入驻请由法人本人使用自己的账号办理。完成个人实名并确认本人与企业的法人身份关联后，才会正式开通。</view>
+    <view class="form-hint" wx:if="{{legalOnlyOnboardingEnabled}}">已由经办人在电子签平台完成企业认证的，也需核验法人本人。现有记录无法确认时，将保留企业资料并等待补充核验。</view>
+    <view class="form-hint" wx:else>已在电子签平台实名的企业也从这里入驻。系统先核对可复用的企业授权，再核验申请人本人的法人或经办权限。</view>
     <view class="field-label">企业 / 个体工商户全称</view>
     <input class="company-input" placeholder="与营业执照上的名称一致" maxlength="128" value="{{companyName}}" data-field="companyName" bindinput="onCompanyInput" />
     <view class="field-label">统一社会信用代码 / 工商注册号</view>

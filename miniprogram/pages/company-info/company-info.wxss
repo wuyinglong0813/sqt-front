@@ -1,0 +1,14 @@
+page { background: #f4f8fd; }
+.info-page { padding: 28rpx 24rpx 60rpx; }
+.info-heading { color: #697b91; font-size: 23rpx; margin: 10rpx 8rpx 16rpx; }
+.info-card { background: #fff; border: 1rpx solid #dfeaf6; border-radius: 26rpx; box-shadow: 0 10rpx 28rpx rgba(22,49,85,.04); margin-bottom: 28rpx; padding: 28rpx; }
+.info-company-name { color: #162336; font-size: 33rpx; font-weight: 600; line-height: 1.5; margin-bottom: 22rpx; overflow-wrap: break-word; }
+.info-row { align-items: flex-start; border-top: 1rpx solid #edf2f8; display: flex; gap: 22rpx; justify-content: space-between; padding: 23rpx 0; }
+.info-row:last-child { padding-bottom: 0; }
+.info-label { color: #8a98aa; flex-shrink: 0; font-size: 23rpx; line-height: 1.6; }
+.info-value { color: #25364b; font-size: 24rpx; line-height: 1.6; min-width: 0; overflow-wrap: anywhere; text-align: right; }
+.info-title { color: #24354a; font-size: 28rpx; font-weight: 600; line-height: 1.5; }
+.info-description { color: #8492a4; font-size: 24rpx; line-height: 1.8; margin-top: 14rpx; }
+.info-button { background: #eef6ff; border: none; border-radius: 17rpx; color: #2478df; font-size: 25rpx; line-height: 1.5; margin: 25rpx 0 0; padding: 20rpx 18rpx; }
+.info-button::after { border: none; }
+.info-state { color: #8a98aa; font-size: 25rpx; padding: 80rpx 0; text-align: center; }

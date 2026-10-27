@@ -7,6 +7,7 @@
     "pages/phone-login/phone-login",
     "pages/privacy/privacy",
     "pages/company/company",
+    "pages/company-info/company-info",
     "pages/me/me",
     "pages/membership/membership",
     "pages/membership-purchase/membership-purchase",

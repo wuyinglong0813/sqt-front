@@ -26,6 +26,26 @@ function maskCreditCode(code) {
   return `${value.slice(0, 4)}••••${value.slice(-4)}`;
 }
 
+function signingReadinessView(result) {
+  const status = String((result || {}).status || 'READ_ERROR');
+  if (['READY', 'NOT_REQUIRED'].includes(status)) return null;
+  const titles = {
+    WAITING_PERSONAL_IDENTITY: '完成本人实名认证',
+    ACTIVATION_REQUIRED: '确认加入电子签企业',
+    WAITING_COMPANY_AUTHORIZATION: '企业签署授权待完善',
+    WAITING_SEAL_AUTHORIZATION: '待管理员完成用印授权',
+    ADMIN_REVIEW_REQUIRED: '签署身份需核对',
+    PENDING: '签署准备同步中',
+    SYNCING: '签署准备同步中'
+  };
+  return { status, title: titles[status] || '签署准备暂未确认',
+    message: result && result.message || '状态暂时无法读取，请重新检查。',
+    action: result && result.action || 'recheck',
+    actionText: status === 'WAITING_PERSONAL_IDENTITY' && result.action === 'personal' ? '本人去实名'
+      : status === 'ACTIVATION_REQUIRED' && result.action === 'member' ? '本人确认加入' : '重新检查',
+    canManageSealAuthorization: !!(result && result.canManageSealAuthorization === true) };
+}
+
 Page({
   data: {
     isLoggedIn: false,
@@ -40,7 +60,8 @@ Page({
     member: {},
     canManage: false,
     canCompanyManage: false,
-    canVerifyLegal: false,
+    signingReadiness: null,
+    signingReadinessLoading: false,
     canContractTemplate: false,
     canInventory: false,
     memberCount: 0,
@@ -66,7 +87,7 @@ Page({
     this.setData({ isLoggedIn: loggedIn, isDesktopWechat: !!app.globalData.isDesktopWechat });
     const recovery = serviceRecovery(app);
     this.setData({ serviceRecoveryAvailable: !!(recovery && recovery.target.scene === 'member') });
-    if (!loggedIn) return;
+    if (!loggedIn) { this.setData({ signingReadiness: null }); return; }
     this.loadData();
   },
 
@@ -78,10 +99,12 @@ Page({
     this.loadData().finally(() => wx.stopPullDownRefresh());
   },
 
+  onUnload() { this._unloaded = true; },
+
   async loadData() {
     const sequence = this._loadSequence = (this._loadSequence || 0) + 1;
     let context = captureCompanyContext(app);
-    const current = () => sequence === this._loadSequence && isCompanyContextCurrent(app, context);
+    const current = () => !this._unloaded && sequence === this._loadSequence && isCompanyContextCurrent(app, context);
     this.setData({ companyDraft: readDraft() });
     try {
       const payload = await request({ url: '/me', token: context.token, companyId: context.companyId });
@@ -118,7 +141,7 @@ Page({
         member,
         canManage,
         canCompanyManage,
-        canVerifyLegal: member.memberStatus === 'ACTIVE' && member.roleCode !== 'LEGAL',
+        signingReadiness: null,
         companies: companyItems,
         certificationApplications: (certificationApplications || []).filter(item => item.status !== 'CANCELLED').map(item => ({
           ...item,
@@ -128,9 +151,69 @@ Page({
       });
       await Promise.all([
         this.loadTodos(),
-        this.loadEnterpriseMetrics(currentCompanyId || company.id, canManage, canContractTemplate)
+        this.loadEnterpriseMetrics(currentCompanyId || company.id, canManage, canContractTemplate),
+        this.loadSigningReadiness()
       ]);
     } catch (e) {}
+  },
+
+  async loadSigningReadiness() {
+    const sequence = this._readinessSequence = (this._readinessSequence || 0) + 1;
+    const companyId = this.data.currentCompanyId;
+    const permissions = (this.data.member || {}).permissions || [];
+    const signingRequired = permissions.includes('all') || permissions.includes('contract_sign');
+    if (!companyId || !signingRequired || this._unloaded) {
+      this._readinessContext = null;
+      if (!this._unloaded) this.setData({ signingReadiness: null, signingReadinessLoading: false });
+      return;
+    }
+    const context = captureCompanyContext(app);
+    const current = () => !this._unloaded && sequence === this._readinessSequence
+      && String(this.data.currentCompanyId) === String(companyId) && isCompanyContextCurrent(app, context);
+    this._readinessContext = context;
+    this.setData({ signingReadinessLoading: true });
+    try {
+      const result = await request({ url: `/fadada/companies/${encodeURIComponent(companyId)}/signing-readiness`,
+        withCompany: false, token: context.token });
+      if (current()) this.setData({ signingReadiness: signingReadinessView(result) });
+    } catch (error) {
+      if (current()) this.setData({ signingReadiness: signingReadinessView({
+        status: 'READ_ERROR', message: error.message || '状态暂时无法读取，请重新检查。', action: 'recheck'
+      }) });
+    } finally {
+      if (current()) this.setData({ signingReadinessLoading: false });
+    }
+  },
+
+  handleSigningReadiness() {
+    if (this.data.signingReadinessLoading || !this._readinessContext
+        || !isCompanyContextCurrent(app, this._readinessContext)) return;
+    const pending = this.data.signingReadiness;
+    if (!pending) return;
+    if (pending.status === 'WAITING_PERSONAL_IDENTITY' && pending.action === 'personal') {
+      wx.navigateTo({ url: '/pages/personal-cert/personal-cert' });
+      return;
+    }
+    if (pending.status === 'ACTIVATION_REQUIRED' && pending.action === 'member') return this.goSigningMembers();
+    return this.loadSigningReadiness();
+  },
+
+  manageSigningReadiness() {
+    const pending = this.data.signingReadiness;
+    if (!pending || this.data.signingReadinessLoading || !this._readinessContext
+        || !isCompanyContextCurrent(app, this._readinessContext)) return;
+    const companyId = encodeURIComponent(this.data.currentCompanyId);
+    if (pending.status === 'WAITING_SEAL_AUTHORIZATION' && pending.action === 'sealGrant' && pending.canManageSealAuthorization) {
+      const permissions = (this.data.member || {}).permissions || [];
+      const canManageSeal = permissions.includes('all') || permissions.includes('seal_manage')
+        && (permissions.includes('member_manage') || permissions.includes('auth_manage'));
+      const userId = String((app.globalData.userInfo || {}).id || '');
+      if (canManageSeal && userId) wx.navigateTo({
+        url: `/pages/fadada-auth/fadada-auth?scene=sealGrant&companyId=${companyId}&userId=${encodeURIComponent(userId)}&returnToMembers=1`
+      });
+    } else if (pending.status === 'WAITING_COMPANY_AUTHORIZATION' && pending.action === 'company' && this.data.canCompanyManage) {
+      wx.navigateTo({ url: `/pages/fadada-auth/fadada-auth?scene=company&companyId=${companyId}&renewOrganization=1` });
+    }
   },
 
   async loadOnboarding() {
@@ -319,6 +402,7 @@ Page({
   },
   goPhoneLogin() { wx.navigateTo({ url: '/pages/login/login' }); },
   goCert() { wx.navigateTo({ url: '/pages/company-cert/company-cert' }); },
+  goCompanyInfo() { wx.navigateTo({ url: '/pages/company-info/company-info' }); },
   goSigningMembers() {
     if (!this.data.currentCompanyId) return;
     wx.navigateTo({ url: `/pages/fadada-auth/fadada-auth?scene=member&companyId=${encodeURIComponent(this.data.currentCompanyId)}` });
@@ -331,10 +415,6 @@ Page({
   goSigningOrganization() {
     if (!this.data.currentCompanyId || !this.data.canManage || !app.globalData.isDesktopWechat) return;
     wx.navigateTo({ url: `/pages/fadada-auth/fadada-auth?scene=organization&companyId=${encodeURIComponent(this.data.currentCompanyId)}` });
-  },
-  goLegalVerification() {
-    if (!this.data.canVerifyLegal || !this.data.currentCompanyId) return;
-    wx.navigateTo({ url: `/pages/legal-representative/legal-representative?companyId=${encodeURIComponent(this.data.currentCompanyId)}` });
   },
   goAuthManage() { wx.navigateTo({ url: '/pages/auth-manage/auth-manage' }); },
   goRoleManage() { wx.navigateTo({ url: '/pages/role-manage/role-manage' }); },
