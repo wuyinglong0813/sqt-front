@@ -21,7 +21,7 @@
     <view class="back-link" wx:if="{{preparationCanProceed && !(scene === 'company' && options.renewOrganization === '1')}}" bindtap="continueSigningPreparation">我是电子签超管，去授权</view>
   </block>
   <button class="primary-button" wx:else bindtap="continueSigningPreparation">{{preparationActionText}}</button>
-  <view class="back-link" wx:if="{{preparationAction === 'identityReview'}}" bindtap="openIdentitySupport">联系平台支持补充核验</view>
+  <view class="back-link" wx:if="{{preparationAction === 'identityReview'}}" bindtap="openIdentitySupport">联系平台支持</view>
   <view class="back-link" bindtap="goBack">返回</view>
 </view>
 

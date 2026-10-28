@@ -10,8 +10,8 @@
 
     <view class="cert-card">
       <view class="section-title">认证与签章</view>
-      <view class="cert-step-desc" wx:if="{{legalOnlyOnboardingEnabled && !companyVerified}}">首次入驻规则：仅由法人本人办理，本人与企业的法人身份关联核验通过后才正式开通。已正式开通的企业可继续由有权管理员补充授权。</view>
-      <view class="cert-step-desc" wx:if="{{identity && identity.failureReason}}">{{identity.failureReason}}</view>
+      <view class="cert-step-desc" wx:if="{{legalOnlyOnboardingEnabled && !companyVerified && !(identity && identity.status !== 'VERIFIED' && identity.companyAuthorizationReady === true)}}">请由法人本人完成企业认证。</view>
+      <view class="cert-step-desc" wx:if="{{identity && identity.failureReason && !(identity.status !== 'VERIFIED' && identity.companyAuthorizationReady === true)}}">{{identity.failureReason}}</view>
       <view class="cert-step-desc" wx:if="{{identity && identity.sealSyncWarning}}">{{identity.sealSyncWarning}}</view>
       <view class="cert-row" wx:for="{{actions}}" wx:key="key" data-key="{{item.key}}" bindtap="handleAction">
         <view class="cert-row-left">
@@ -27,16 +27,15 @@
     </view>
 
     <view class="cert-card" wx:if="{{identity && identity.status !== 'VERIFIED' && identity.companyAuthorizationReady === true}}">
-      <view class="section-title">企业授权已确认，待核对本人身份</view>
-      <view class="auth-help-text" wx:if="{{legalOnlyOnboardingEnabled && !companyVerified}}">企业对商签通的已有有效授权可继续使用。首次入驻时，若原企业认证由经办人完成且缺少法人本人依据，资料会保留，补充核验通过后再正式开通；已正式开通的企业按本页结果补充授权。</view>
-      <view class="auth-help-text" wx:else>企业对商签通的已有有效授权可继续使用。尚需补充当前申请人本人的法人或经办依据，可联系平台支持核验。</view>
-      <button bindtap="openIdentitySupport">联系平台支持补充核验</button>
+      <view class="section-title">{{legalOnlyOnboardingEnabled && !companyVerified ? '待核验法人身份' : '待核验本人身份'}}</view>
+      <view class="auth-help-text" wx:if="{{legalOnlyOnboardingEnabled && !companyVerified}}">企业已授权，还需确认您是该企业法人。请联系平台支持继续核验。</view>
+      <view class="auth-help-text" wx:else>企业已授权，还需确认您的企业身份。请联系平台支持继续核验。</view>
+      <button bindtap="openIdentitySupport">联系平台支持</button>
     </view>
 
     <view class="cert-card" wx:if="{{identity && identity.status === 'VERIFIED' && identity.organizationAuthorized !== true}}">
       <view class="section-title">企业需完成一次签署授权</view>
-      <view class="auth-help-text">企业认证已保留。请电子签平台企业超管补充对商签通的授权，完成后同企业有签署权限的员工可复用，无需逐人重复办理企业授权或重新邀请。</view>
-      <view class="auth-help-text">商签通管理员与电子签平台企业超管是两个身份。本人不是电子签超管时，请超管办理后刷新状态。</view>
+      <view class="auth-help-text">请电子签平台企业超管完成签署授权，完成后刷新状态。</view>
       <button bindtap="renewOrganizationAuthorization">我是电子签超管，去授权</button>
     </view>
 
@@ -45,12 +44,8 @@
     </view>
 
     <view class="cert-card" wx:if="{{identity && identity.status !== 'VERIFIED'}}">
-      <view class="section-title">企业已有电子签实名？</view>
-      <view class="auth-help-text">系统先查询并复用企业对商签通的已有有效授权，再核对申请人本人的企业身份与权限。</view>
-      <view class="auth-help-text" wx:if="{{legalOnlyOnboardingEnabled && !companyVerified}}">首次入驻仍需确认法人本人。企业已由经办人认证而缺少法人本人依据时，会保留资料等待补充核验，请联系平台支持。已正式开通的企业继续按已有身份办理授权。</view>
-      <view class="auth-help-text" wx:else>已有授权满足本次入驻需要时，可继续使用。本人的企业身份依据不足时，可联系平台支持补充核验。</view>
-      <view class="auth-help-text">确实缺少企业授权时，按电子签服务页面提供的方式继续办理；官方页面要求管理员确认时，再处理对应申请。</view>
-      <view class="auth-help-text">退出后可从“企业 → 待完成企业认证”继续办理，企业资料已保存。</view>
+      <view class="section-title">资料已保存</view>
+      <view class="auth-help-text">退出后，可从“企业 → 待完成企业认证”继续办理。</view>
     </view>
 
   </block>
@@ -58,10 +53,7 @@
   <view class="agree-page" wx:else>
     <view class="agree-card">
       <view class="agree-title">企业信息确认</view>
-      <view class="cert-step-desc" wx:if="{{legalOnlyOnboardingEnabled}}">首次入驻请由法人本人使用自己的账号办理。系统确认个人实名及本人与企业的法人身份关联后，才会正式开通。</view>
-      <view class="cert-step-desc" wx:else>法人本人或授权经办人均可申请。系统分别核对已有企业授权及申请人本人的法人或经办依据，再根据核验结果开通相应身份。</view>
-      <view class="auth-help-text">已在电子签平台实名的企业，优先复用对商签通的已有有效授权；企业授权与申请人本人的身份分别核验。</view>
-      <view class="auth-help-text" wx:if="{{legalOnlyOnboardingEnabled}}">原企业认证由经办人完成且现有记录无法确认法人本人时，将保留资料等待补充核验，不会直接正式开通。</view>
+      <view class="cert-step-desc">{{legalOnlyOnboardingEnabled ? '请核对以下信息，由法人本人完成认证。' : '请核对以下信息后开始企业认证。'}}</view>
       <view class="agree-row">
         <view class="agree-key">企业/个体工商户名称</view>
         <view class="agree-val">{{companyName}}</view>
@@ -84,7 +76,7 @@
         <text class="agree-text">和</text>
         <text class="agree-link" catchtap="openAgreement" data-type="privacy">《隐私协议》</text>
       </view>
-      <button class="agree-btn" loading="{{submitting}}" disabled="{{submitting}}" bindtap="createAndAuthenticate">{{legalOnlyOnboardingEnabled ? '同意并由法人本人认证' : '同意并开始认证'}}</button>
+      <button class="agree-btn" loading="{{submitting}}" disabled="{{submitting}}" bindtap="createAndAuthenticate">同意并开始认证</button>
       <view class="agree-footer">
         <image class="agree-footer-icon" src="/images/logo.png" mode="aspectFit"/>
         <text class="agree-footer-text">商签通提供技术支持</text>

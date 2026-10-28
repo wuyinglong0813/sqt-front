@@ -4,7 +4,7 @@
     <view class="bind-banner-circle bind-circle-lg"></view>
     <view class="bind-banner-circle bind-circle-md"></view>
     <view class="bind-banner-title">企业入驻</view>
-    <view class="bind-banner-sub">{{legalOnlyOnboardingEnabled ? '由法人本人办理首次入驻，核验通过后开通' : '填写营业执照信息，完成企业身份认证'}}</view>
+    <view class="bind-banner-sub">{{legalOnlyOnboardingEnabled ? '请法人本人使用自己的账号办理' : '填写营业执照信息，完成企业认证'}}</view>
   </view>
 
   <view class="mode-tabs">
@@ -13,22 +13,19 @@
   </view>
   <view class="create-card" wx:if="{{mode === 'create'}}">
     <view class="form-title">填写企业资料</view>
-    <view class="form-hint">请按营业执照填写，下一步确认信息后进行企业认证。提交资料不代表认证通过。</view>
-    <view class="form-hint" wx:if="{{legalOnlyOnboardingEnabled}}">首次入驻请由法人本人使用自己的账号办理。完成个人实名并确认本人与企业的法人身份关联后，才会正式开通。</view>
-    <view class="form-hint" wx:if="{{legalOnlyOnboardingEnabled}}">已由经办人在电子签平台完成企业认证的，也需核验法人本人。现有记录无法确认时，将保留企业资料并等待补充核验。</view>
-    <view class="form-hint" wx:else>已在电子签平台实名的企业也从这里入驻。系统先核对可复用的企业授权，再核验申请人本人的法人或经办权限。</view>
+    <view class="form-hint">请按营业执照填写以下信息</view>
     <view class="field-label">企业 / 个体工商户全称</view>
     <input class="company-input" placeholder="与营业执照上的名称一致" maxlength="128" value="{{companyName}}" data-field="companyName" bindinput="onCompanyInput" />
     <view class="field-label">统一社会信用代码 / 工商注册号</view>
     <input class="company-input" placeholder="18 位信用代码或 15 位注册号" maxlength="18" value="{{creditCode}}" data-field="creditCode" bindinput="onCompanyInput" />
     <view class="field-label">法定代表人 / 负责人姓名</view>
     <input class="company-input" placeholder="与营业执照上的姓名一致" maxlength="64" value="{{legalPersonName}}" data-field="legalPersonName" bindinput="onCompanyInput" />
-    <button class="confirm-btn" bindtap="continueCreate">下一步，确认企业信息</button>
-    <view class="form-hint form-footer">企业已开通？法人本人可在“查找已入驻企业”核验认领；普通成员请联系管理员获取邀请。</view>
+    <button class="confirm-btn" bindtap="continueCreate">下一步，确认信息</button>
+    <view class="form-hint form-footer">员工加入企业，请联系管理员获取邀请。</view>
   </view>
 
   <block wx:if="{{mode === 'search'}}">
-  <view class="search-notice">法人本人可自主核验认领，无需先成为企业成员。普通成员通过管理员邀请加入。</view>
+  <view class="search-notice">法人可核验认领，员工请通过管理员邀请加入。</view>
 
   <!-- 搜索栏 -->
   <view class="search-bar-wrap">
@@ -75,7 +72,7 @@
       </view>
       <button class="confirm-btn" bindtap="startLegalClaim">我是法人，核验认领</button>
       <button class="secondary-btn" bindtap="confirmCompany">普通成员如何加入</button>
-      <view class="form-hint">核验通过后开通本人法人权限；选择企业或个人实名通过不代表认领成功。</view>
+      <view class="form-hint">法人身份核验通过后，即可认领企业。</view>
     </view>
   </view>
   </block>

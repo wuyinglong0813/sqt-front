@@ -7,6 +7,9 @@ const lifecycleText = {
 // perspective separate from the lifecycle used by counts and filters.
 function contractStatus(contract) {
   const status = contract.status;
+  if (status === 'CANCELLED' && String(contract.signingStatus || '').toUpperCase() === 'SIGNING_TIMEOUT') {
+    return { statusText: '超过默认签署时间已撤回', signingStage: 'STOPPED' };
+  }
   if (status !== 'PENDING') {
     const terminal = ['COMPLETED', 'VOIDED', 'REJECTED', 'CANCELLED'].includes(status);
     return {

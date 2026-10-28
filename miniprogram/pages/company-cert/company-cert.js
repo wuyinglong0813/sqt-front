@@ -143,7 +143,7 @@ Page({
         identity,
         actions: [
           {
-            key: 'company', title: '企业认证', desc: '核验企业主体和经办人身份',
+            key: 'company', title: '企业认证', desc: '核验企业与申请人身份',
             done: companyDone, statusText: identity.statusText || '待认证',
             statusColor: companyDone ? '#20a66a' : '#f59e0b'
           },

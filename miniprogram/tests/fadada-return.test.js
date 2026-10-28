@@ -387,8 +387,9 @@ test('reusable company authorization keeps missing applicant evidence in a nativ
   assert.equal(p.data.serviceResultReady, false);
   assert.equal(p.data.preparationAction, 'identityReview');
   assert.equal(p.data.preparationCanProceed, false);
-  assert.equal(p.data.preparationTitle, '企业已授权，待核对本人身份');
-  assert.equal(p.data.preparationMessage, message);
+  assert.equal(p.data.preparationTitle, '待核验本人身份');
+  assert.equal(p.data.preparationMessage, '企业已授权，还需确认您在该企业的身份。请联系平台支持继续核验，资料已保存。');
+  assert.equal(p.data.preparationActionText, '刷新核验结果');
   assert.equal(h.navigation.length, 0);
   assert.equal(h.app.company, undefined);
   assert.equal(h.timers.size, 0);
@@ -432,7 +433,7 @@ test('a company identity detail outage cannot turn the review state into a new a
   const p = h.page(authFile); p.data.scene = 'company'; p.data.options = { companyId: '9' };
   await p.loadServiceUrl();
   assert.equal(p.data.preparationAction, 'identityReview');
-  assert.match(p.data.preparationMessage, /已有有效授权已确认/);
+  assert.match(p.data.preparationMessage, /企业已授权/);
   assert.equal(p.data.errorMessage, '');
   assert.equal(p.data.serviceUrl, '');
   assert.equal(h.navigation.length, 0);

@@ -38,6 +38,13 @@ test('unlimited and blocked membership states are unambiguous', () => {
   assert.equal(presentation.presentMembership({ signingMode: 'BLOCKED', remaining: 20 }).quotaText, '暂停新发起');
   assert.match(presentation.presentMembership({ validUntil: '2026-11-08 23:59:59' }).validityText, /北京时间/);
 });
+test('refunded unsigned tasks keep their history and show that their quota was returned', () => {
+  const usage = presentation.presentUsage([{ id: '12', status: 'REFUNDED', source: 'PAID', versionNo: 2 }]);
+  assert.equal(usage[0].id, '12');
+  assert.equal(usage[0].status, 'REFUNDED');
+  assert.equal(usage[0].statusText, '已退回');
+  assert.equal(usage[0].sourceText, '已购额度');
+});
 test('membership response from an old company cannot replace the current company', async () => {
   let finish;
   const slow = new Promise(resolve => { finish = resolve; });

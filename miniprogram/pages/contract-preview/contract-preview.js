@@ -92,6 +92,7 @@ Page({
     canRequestEnd: false,
     canRequestVoid: false,
     contractReadOnly: false,
+    signingTimedOut: false,
     activeContractAction: null,
     contractActionLoading: false,
     signing: null,
@@ -292,6 +293,8 @@ Page({
       const isSupplier = viewerDirection === 'SALE';
       const actionPending = contract.status === 'ACTIVE' && !!(activeContractAction && activeContractAction.id);
       const signingStatus = String((signing && signing.status) || contract.signingStatus || '');
+      const signingTimedOut = contract.status === 'CANCELLED'
+        && String(contract.signingStatus || '').toUpperCase() === 'SIGNING_TIMEOUT';
       const pendingSigningText = contract.status === 'PENDING' ? {
         task_terminated: '签署已终止', expired: '签署已过期', task_expired: '签署已过期',
         task_finished: '签署结果确认中', sign_completed: '签署结果确认中'
@@ -317,7 +320,8 @@ Page({
             ? (activeContractAction.bizType === 'CONTRACT'
               ? (activeContractAction.actionType === 'END' ? '结束待确认' : '作废待确认')
               : `${activeContractAction.targetText || '履约资料'}作废待确认`)
-            : (['COMPLETED', 'VOIDED'].includes(contract.status) ? statusMap[contract.status]
+            : (signingTimedOut ? '超过默认签署时间已撤回'
+              : ['COMPLETED', 'VOIDED'].includes(contract.status) ? statusMap[contract.status]
               : (pendingSigningText || (contract.status === 'PENDING' && signing && signing.statusText)
                 || contract.statusText || statusMap[contract.status] || contract.status)),
           amount: contract.amount || 0,
@@ -341,6 +345,7 @@ Page({
         contractTotalAmountCn: contractTable.summary && contractTable.summary.totalAmountCn
           ? String(contractTable.summary.totalAmountCn) : '',
         canCancelContract: canManageContract && !contractReadOnly && outgoing && contract.status === 'PENDING',
+        signingTimedOut,
         canEditContract: canManageContract && !contractReadOnly && outgoing && ['PENDING', 'REJECTED', 'CANCELLED'].includes(contract.status),
         canDeleteContract: canManageContract && (contract.status === 'VOIDED'
           || (!contractReadOnly && outgoing && ['REJECTED', 'CANCELLED'].includes(contract.status))),
@@ -444,7 +449,7 @@ Page({
   cancelContract() {
     if (!this.data.canCancelContract || this.data.contractActionLoading) return;
     wx.showModal({
-      title: '撤回合同审批',
+      title: '撤回合同',
       content: '撤回后对方将不能继续签署，你可以修改合同后重新发起。',
       confirmText: '确认撤回',
       success: result => {
@@ -630,7 +635,7 @@ Page({
         setTimeout(() => wx.navigateBack({ delta: 1 }), 500);
         return;
       }
-      wx.showToast({ title: '合同审批已撤回', icon: 'success' });
+      wx.showToast({ title: '合同已撤回', icon: 'success' });
       await this.loadContractDetail();
     } catch (error) {
       wx.showToast({ title: error.message || '操作失败', icon: 'none' });

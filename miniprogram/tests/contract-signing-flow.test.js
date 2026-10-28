@@ -256,6 +256,61 @@ test('counterparty cards keep local void and provider terminal progress distinct
     ['签署已终止', '签署已过期', '签署结果确认中', '已作废']);
 });
 
+for (const file of ['order-detail', 'contract-center']) {
+  test(`${file} preserves timeout withdrawals and counts them as closed instead of pending`, async () => {
+    const records = [
+      { id: '1', status: 'CANCELLED', signingStatus: 'SIGNING_TIMEOUT', statusText: '超过默认签署时间已撤回' },
+      { id: '2', status: 'CANCELLED', signingStatus: 'task_terminated', statusText: '签署已终止' },
+      { id: '3', status: 'PENDING', signingStatus: 'sign_progress', statusText: '待我方签署' }
+    ];
+    const { page, load } = listHarness(file, records);
+    await load();
+    assert.deepEqual(Array.from(page.data.contracts, item => item.statusText),
+      ['超过默认签署时间已撤回', '已撤回', '待我方签署']);
+    assert.equal(page.data.contracts[0].status, 'CANCELLED');
+    if (file === 'order-detail') {
+      assert.equal(page.data.contractStats.closed, 2);
+      assert.equal(page.data.contractStats.pending, 1);
+      page.applyContractFilter('CLOSED');
+      assert.deepEqual(Array.from(page.data.filteredContracts, item => item.id), ['1', '2']);
+    } else {
+      assert.equal(page.data.summary.pending, 1);
+      page.setData({ activeTab: 'PENDING' });
+      page.applyFilter();
+      assert.deepEqual(Array.from(page.data.visibleContracts, item => item.id), ['3']);
+    }
+  });
+}
+
+test('a timeout withdrawal stays visible in detail and can be edited without signing the cancelled task', async () => {
+  const env = harness({ contractStatus: 'CANCELLED',
+    contractProgress: { signingStatus: 'SIGNING_TIMEOUT', statusText: '超过默认签署时间已撤回' },
+    signing: { status: 'task_terminated', statusText: '签署已终止', canSign: true } });
+  await env.page.loadContractDetail();
+  assert.equal(env.page.data.contract.statusText, '超过默认签署时间已撤回');
+  assert.equal(env.page.data.signingTimedOut, true);
+  assert.equal(env.page.data.canSignContract, false);
+  assert.equal(env.page.data.canCancelContract, false);
+  assert.equal(env.page.data.canEditContract, true);
+  assert.equal(env.page.data.canCreateSalesOrder, false);
+  assert.equal(env.page.data.canCreateReturnOrder, false);
+  env.page.editContract();
+  assert.equal(env.navigations[0], '/pages/sign-contract/sign-contract?mode=edit&contractId=12');
+});
+
+test('a withdrawal uses a clear contract label and keeps the confirmation free of billing explanations', async () => {
+  const env = harness({ contractStatus: 'PENDING', signing: { status: 'sign_progress' } });
+  await env.page.loadContractDetail();
+  env.page.cancelContract();
+  assert.equal(env.modals[0].title, '撤回合同');
+  assert.match(env.modals[0].content, /对方将不能继续签署/);
+  assert.doesNotMatch(env.modals[0].content, /预扣|扣费|退款|退回额度/);
+  env.modals[0].success({ confirm: true });
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(env.requests.filter(item => item.url === '/contracts/12/cancel').length, 1);
+  assert.equal(env.toasts[0].title, '合同已撤回');
+});
+
 test('contract detail uses fresh signing progress without activating a partially signed contract', async () => {
   const env = harness({ contractStatus: 'PENDING', contractProgress: { statusText: '签署中' },
     signing: { status: 'sign_progress', statusText: '我方已签署，等待对方签署',

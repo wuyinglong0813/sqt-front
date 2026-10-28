@@ -1,5 +1,5 @@
 const SOURCE_TEXT = { SPECIAL_UNLIMITED: '专属无限签', SPECIAL_QUOTA: '专属免费额度', TRIAL: '上线体验额度', PAID: '已购额度' };
-const STATUS_TEXT = { RESERVED: '处理中', UNCERTAIN: '结果待核实', CONSUMED: '已使用', RELEASED: '已释放' };
+const STATUS_TEXT = { RESERVED: '处理中', UNCERTAIN: '结果待核实', CONSUMED: '已使用', RELEASED: '已释放', REFUNDED: '已退回' };
 
 function presentMembership(value, platform = paymentPlatform()) {
   const status = value || {};
