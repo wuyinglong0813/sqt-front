@@ -121,6 +121,10 @@ Page({
     serviceRecoveryAvailable: false,
     inviteCode: '',
     inviteCompanyId: '',
+    showInviteModal: false,
+    targetPhone: '',
+    invitePhone: '',
+    invitePhoneMasked: '',
     preparingInvite: false,
     loading: false,
     page: 1,
@@ -167,7 +171,8 @@ Page({
     }
     this._signingManagementContext = captureCompanyContext(app);
     const cid = app.getCurrentCompanyId();
-    if (String(cid) !== this.data.inviteCompanyId) this.setData({ inviteCode: '', inviteCompanyId: '' });
+    if ((this._inviteContext && !isCompanyContextCurrent(app, this._inviteContext))
+        || (this.data.inviteCompanyId && String(cid) !== this.data.inviteCompanyId)) this.clearMemberInvite();
     const companies = app.globalData.companies || [];
     const current = companies.find(company => String(company.companyId) === String(cid));
     const companyName = (current && current.companyName) || '当前企业';
@@ -179,7 +184,6 @@ Page({
       companyName,
       companyAbbr: companyName.length > 4 ? companyName.slice(0, 2) : companyName
     });
-    this.shareInvite();
     this.loadMembers(true);
     this.loadRoles();
   },
@@ -308,25 +312,65 @@ Page({
     });
   },
 
+  clearMemberInvite() {
+    this._inviteLoad = null;
+    this._inviteContext = null;
+    this.setData({ showInviteModal: false, targetPhone: '', invitePhone: '', invitePhoneMasked: '',
+      inviteCode: '', inviteCompanyId: '', preparingInvite: false });
+  },
+
+  openMemberInvite() {
+    if (!currentCompanyId()) return;
+    this.clearMemberInvite();
+    this._inviteContext = captureCompanyContext(app);
+    this.setData({ showInviteModal: true });
+  },
+
+  closeMemberInvite() {
+    this.clearMemberInvite();
+  },
+
+  onInvitePhoneInput(e) {
+    this._inviteLoad = null;
+    this.setData({ targetPhone: String(e.detail.value || '').replace(/\D/g, '').slice(0, 11),
+      inviteCode: '', inviteCompanyId: '', invitePhone: '', invitePhoneMasked: '', preparingInvite: false });
+  },
+
   async shareInvite() {
     if (this.data.preparingInvite) return;
     const cid = currentCompanyId();
     if (!cid) return;
+    const phone = String(this.data.targetPhone || '').trim();
+    if (!/^1[3-9]\d{9}$/.test(phone)) {
+      wx.showToast({ title: '请输入受邀人的11位手机号', icon: 'none' });
+      return;
+    }
+    const load = this._inviteLoad = { context: captureCompanyContext(app), phone };
+    this._inviteContext = load.context;
     this.setData({ preparingInvite: true, inviteCode: '', inviteCompanyId: '' });
     try {
-      const result = await request({ url: '/companies/invite', method: 'POST', data: { companyId: cid } });
-      if (String(cid) !== String(app.getCurrentCompanyId())) return;
+      const result = await request({ url: '/companies/invite', method: 'POST', data: { companyId: cid, targetPhone: phone } });
+      if (this._unloaded || this._inviteLoad !== load || !isCompanyContextCurrent(app, load.context)
+          || String(cid) !== String(app.getCurrentCompanyId())) return;
       if (!result || !result.code) throw new Error('邀请生成失败，请重试');
-      this.setData({ inviteCode: result.code, inviteCompanyId: String(cid) });
-    } catch (e) { wx.showToast({ title: e.message || '邀请生成失败', icon: 'none' }); }
-    finally { this.setData({ preparingInvite: false }); }
+      this.setData({ inviteCode: result.code, inviteCompanyId: String(cid), invitePhone: phone,
+        invitePhoneMasked: maskPhone(phone) });
+    } catch (e) {
+      if (!this._unloaded && this._inviteLoad === load && isCompanyContextCurrent(app, load.context)) {
+        wx.showToast({ title: e.message || '邀请生成失败', icon: 'none' });
+      }
+    } finally {
+      if (!this._unloaded && this._inviteLoad === load) this.setData({ preparingInvite: false });
+    }
   },
 
   onShareAppMessage(event) {
     const code = this.data.inviteCode;
     if (!code || !event || event.from !== 'button'
         || !event.target || event.target.dataset.inviteType !== 'member'
-        || this.data.inviteCompanyId !== String(app.getCurrentCompanyId())) {
+        || this.data.inviteCompanyId !== String(app.getCurrentCompanyId())
+        || !this._inviteContext || !isCompanyContextCurrent(app, this._inviteContext)
+        || this.data.targetPhone !== this.data.invitePhone) {
       return { title: '商签通', imageUrl: '/images/member-invite-cover.png', path: '/pages/index/index' };
     }
     return {

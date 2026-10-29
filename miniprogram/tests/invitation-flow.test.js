@@ -8,7 +8,7 @@ const vm = require('node:vm');
 
 function harness(storage = {}) {
   let app, definition;
-  const modals = [], requests = [], toasts = [];
+  const modals = [], requests = [], toasts = [], navigations = [];
   let homeRefreshes = 0;
   const wx = {
     getSystemInfoSync: () => ({ platform: 'ios' }),
@@ -17,6 +17,8 @@ function harness(storage = {}) {
     removeStorageSync: key => { delete storage[key]; },
     showModal: options => modals.push(options),
     showToast: options => toasts.push(options),
+    navigateTo: options => navigations.push(options.url),
+    switchTab: options => navigations.push(options.url),
     request: options => {
       requests.push(options);
       options.success({ statusCode: 200, data: { code: 0, data: options.url.includes('/companies/invitations/') ? { companyId: 'inviter', companyName: '被邀请加入的企业全称', type: 'member' } : { message: '已建立客户关系' } } });
@@ -47,18 +49,22 @@ function harness(storage = {}) {
   app.refreshSession = async () => {};
   app.ensureSessionReady = async () => {};
   app.loadMe = async () => {};
-  function home() {
-    load('pages/index/index.js');
+  function page(name) {
+    load(`pages/${name}/${name}.js`);
     const page = { ...definition, data: JSON.parse(JSON.stringify(definition.data)) };
     page.setData = values => Object.assign(page.data, values);
-    page.startApprovalPolling = () => {};
-    page.restoreHomeSnapshot = () => {};
-    page.initRoleFromMember = () => {};
-    page.loadOnboardingSummary = () => {};
-    page.refreshHomeData = async () => { homeRefreshes++; };
     return page;
   }
-  return { app, wx, home, modals, requests, storage, toasts,
+  function home() {
+    const home = page('index');
+    home.startApprovalPolling = () => {};
+    home.restoreHomeSnapshot = () => {};
+    home.initRoleFromMember = () => {};
+    home.loadOnboardingSummary = () => {};
+    home.refreshHomeData = async () => { homeRefreshes++; };
+    return home;
+  }
+  return { app, wx, home, page, modals, requests, storage, toasts, navigations,
     refreshes: () => homeRefreshes, invitations: load('utils/invitation.js') };
 }
 
@@ -265,4 +271,174 @@ test('a stale member invitation preview cannot open a confirmation for a new inv
   await showing;
   assert.equal(env.modals.length, 0);
   assert.equal(env.app.globalData.pendingInvite.code, 'new-code');
+});
+
+test('an unverified member invitation goes to real-name certification before submitting membership', async () => {
+  const env = harness();
+  env.app.onShow({ scene: 1007, query: { inviteCode: 'member-code', type: 'member' } });
+  env.wx.request = options => options.success({ statusCode: 200, data: { code: 0, data: {
+    companyId: 'inviter', companyName: '邀请方企业', type: 'member', personalIdentityRequired: true
+  } } });
+  await env.home().onShow();
+  assert.equal(env.modals[0].confirmText, '去实名认证');
+  assert.match(env.modals[0].content, /邀请方企业.*实名认证/);
+  env.modals[0].success({ confirm: true });
+  env.modals[0].complete();
+  assert.deepEqual(env.navigations, ['/pages/personal-cert/personal-cert?flow=member-join']);
+  assert.equal(env.requests.filter(request => request.method === 'POST').length, 0);
+  assert.equal(env.app.globalData.pendingInvite.code, 'member-code');
+  assert.ok(env.storage.tradepass_member_identity_invite);
+});
+
+test('server real-name requirement on a manual join preserves its code for certification', async () => {
+  for (const name of ['index', 'company']) for (const code of [46103, 46201]) {
+    const env = harness();
+    env.wx.request = options => options.success({ statusCode: 200,
+      data: { code, message: '请先核验手机号并完成个人实名认证，再申请加入企业' } });
+    const page = name === 'index' ? env.home() : env.page(name);
+    Object.assign(page.data, { joinCompanyId: 'manual-code', joinCode: 'manual-code', showJoinModal: true });
+    await (name === 'index' ? page.joinCompany() : page.submitJoin());
+    assert.equal(page.data.showJoinModal, false);
+    assert.deepEqual(env.navigations, ['/pages/personal-cert/personal-cert?flow=member-join']);
+    assert.equal(env.app.globalData.pendingInvite.code, 'manual-code');
+  }
+});
+
+test('targeted member invitation cannot be prepared or shared without its recipient phone', async () => {
+  const env = harness();
+  const page = env.page('auth-manage');
+  page.openMemberInvite();
+  await page.shareInvite();
+  assert.equal(env.requests.length, 0);
+  assert.match(env.toasts.at(-1).title, /受邀人.*手机号/);
+  let sending;
+  env.wx.request = options => { env.requests.push(options); sending = options; };
+  page.onInvitePhoneInput({ detail: { value: '13800138000' } });
+  const preparing = page.shareInvite();
+  assert.equal(sending.data.targetPhone, '13800138000');
+  const event = { from: 'button', target: { dataset: { inviteType: 'member' } } };
+  assert.equal(page.onShareAppMessage(event).path, '/pages/index/index');
+  sending.success({ statusCode: 200, data: { code: 0, data: { code: 'targeted-code' } } });
+  await preparing;
+  assert.equal(page.data.invitePhoneMasked, '138****8000');
+  assert.equal(page.onShareAppMessage(event).path, '/pages/index/index?inviteCode=targeted-code&type=member');
+  assert.doesNotMatch(page.onShareAppMessage(event).path, /13800138000/);
+  page.onInvitePhoneInput({ detail: { value: '13900139000' } });
+  assert.equal(page.onShareAppMessage(event).path, '/pages/index/index');
+});
+
+test('a prepared invitation for an earlier phone or login cannot overwrite the current recipient', async () => {
+  const env = harness();
+  const page = env.page('auth-manage');
+  const pending = [];
+  env.wx.request = options => pending.push(options);
+  page.openMemberInvite();
+  page.onInvitePhoneInput({ detail: { value: '13800138000' } });
+  const first = page.shareInvite();
+  page.onInvitePhoneInput({ detail: { value: '13900139000' } });
+  const second = page.shareInvite();
+  pending[1].success({ statusCode: 200, data: { code: 0, data: { code: 'new-code' } } });
+  await second;
+  pending[0].success({ statusCode: 200, data: { code: 0, data: { code: 'old-code' } } });
+  await first;
+  assert.equal(page.data.inviteCode, 'new-code');
+  assert.equal(page.data.invitePhone, '13900139000');
+  env.app.globalData.token = 'other-login';
+  const event = { from: 'button', target: { dataset: { inviteType: 'member' } } };
+  assert.equal(page.onShareAppMessage(event).path, '/pages/index/index');
+});
+
+test('a recipient without a verified phone is guided to verification before any membership write', async () => {
+  const env = harness();
+  env.app.onShow({ scene: 1007, query: { inviteCode: 'targeted-code', type: 'member' } });
+  env.wx.request = options => options.success({ statusCode: 200, data: { code: 0, data: {
+    companyId: 'inviter', companyName: '邀请方企业', type: 'member', phoneBindingRequired: true,
+    targetPhoneMasked: '138****8000', personalIdentityRequired: false
+  } } });
+  await env.home().onShow();
+  assert.equal(env.modals[0].confirmText, '核验手机号');
+  assert.match(env.modals[0].content, /138\*\*\*\*8000/);
+  env.modals[0].success({ confirm: true });
+  env.modals[0].complete();
+  assert.deepEqual(env.navigations, ['/pages/personal-cert/personal-cert?flow=member-join']);
+  assert.equal(env.requests.filter(request => request.method === 'POST').length, 0);
+  assert.equal(env.app.globalData.pendingInvite.code, 'targeted-code');
+});
+
+for (const code of [46202, 46203, 46204]) {
+  test(`an unusable member invitation (${code}) is dismissed without creating a membership`, async () => {
+    const env = harness();
+    env.app.onShow({ scene: 1007, query: { inviteCode: 'targeted-code', type: 'member' } });
+    env.wx.request = options => {
+      env.requests.push(options);
+      options.success({ statusCode: 200, data: { code, message: '此邀请仅限指定受邀人使用，请联系邀请人重新发送' } });
+    };
+    await env.home().onShow();
+    assert.equal(env.app.globalData.pendingInvite, null);
+    assert.equal(env.requests.filter(request => request.method === 'POST').length, 0);
+    assert.equal(env.modals[0].showCancel, false);
+    assert.match(env.modals[0].content, /指定受邀人/);
+    assert.equal(env.navigations.length, 0);
+  });
+}
+
+test('a previously saved phone is reverified before an already-real-name member resumes its invitation', async () => {
+  const env = harness();
+  env.invitations.startMemberIdentity(env.app, 'targeted-code');
+  env.navigations.length = 0;
+  const page = env.page('personal-cert');
+  page._memberJoinFlow = true;
+  page._flowToken = env.app.globalData.token;
+  page.data.phoneLoading = false;
+  page.applyPhoneProfile({ id: 'user-1', phone: '13800138000', phoneVerified: false }, env.app.globalData.token);
+  assert.equal(page.data.phoneBound, false);
+  env.wx.request = options => options.success({ statusCode: 200, data: { code: 0, data:
+    options.url.endsWith('/auth/bind-phone')
+      ? { id: 'user-1', phone: '13800138000', phoneVerified: true }
+      : { status: 'VERIFIED', providerEnabled: true }
+  } });
+  await page.loadIdentity(false);
+  assert.equal(env.navigations.length, 0);
+  await page.bindWechatPhone({ detail: { errMsg: 'getPhoneNumber:ok', code: 'server-verifiable-phone-code' } });
+  assert.equal(page.data.phoneBound, true);
+  assert.deepEqual(env.navigations, ['/pages/index/index']);
+  assert.equal(env.app.globalData.pendingInvite.code, 'targeted-code');
+});
+
+test('certification invitation survives restart only for its own account and cancellation clears it', async () => {
+  const storage = {};
+  const original = harness(storage);
+  original.invitations.startMemberIdentity(original.app, 'member-code');
+  const reopened = harness(storage);
+  reopened.invitations.restoreMemberIdentityInvite(reopened.app);
+  assert.equal(reopened.app.globalData.pendingInvite.code, 'member-code');
+  reopened.app.globalData.userInfo = { id: 'other-account' };
+  reopened.invitations.restoreMemberIdentityInvite(reopened.app);
+  assert.equal(reopened.app.globalData.pendingInvite, null);
+  reopened.app.globalData.userInfo = { id: 'user-1' };
+  reopened.invitations.restoreMemberIdentityInvite(reopened.app);
+  reopened.invitations.dismissInvite(reopened.app, reopened.app.globalData.pendingInvite);
+  assert.equal(storage.tradepass_member_identity_invite, undefined);
+  assert.equal(reopened.app.globalData.pendingInvite, null);
+});
+
+test('verified personal certification returns to the retained member invitation but ignores a changed login', async () => {
+  const env = harness();
+  env.invitations.startMemberIdentity(env.app, 'member-code');
+  env.navigations.length = 0;
+  env.wx.request = options => options.success({ statusCode: 200, data: { code: 0,
+    data: { status: 'VERIFIED', providerEnabled: true } } });
+  const page = env.page('personal-cert');
+  page._flowToken = env.app.globalData.token;
+  page._memberJoinFlow = true;
+  page.data.phoneLoading = false;
+  page.data.phoneBound = true;
+  await page.loadIdentity(false);
+  assert.deepEqual(env.navigations, ['/pages/index/index']);
+  assert.equal(env.app.globalData.pendingInvite.code, 'member-code');
+  env.navigations.length = 0;
+  page._returning = false;
+  env.app.globalData.token = 'another-login';
+  await page.loadIdentity(false);
+  assert.deepEqual(env.navigations, []);
 });

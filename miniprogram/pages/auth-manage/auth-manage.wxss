@@ -84,6 +84,16 @@ page {
   margin-right: 3rpx;
 }
 
+.invite-sheet { background: #fff; border-radius: 32rpx 32rpx 0 0; box-sizing: border-box; padding: 16rpx 30rpx calc(28rpx + env(safe-area-inset-bottom)); width: 100%; }
+.invite-field-label { color: #30465e; font-size: 25rpx; margin-top: 28rpx; }
+.invite-phone-input { background: #f5f8fc; border: 1rpx solid #e4edf7; border-radius: 16rpx; box-sizing: border-box; color: #20364e; font-size: 30rpx; height: 92rpx; margin-top: 14rpx; padding: 0 22rpx; width: 100%; }
+.invite-phone-note { color: #8293a6; font-size: 22rpx; line-height: 1.7; margin-top: 16rpx; }
+.invite-phone-note.secondary { color: #a2adbb; font-size: 20rpx; text-align: center; }
+.invite-ready { background: #eef8f2; border-radius: 12rpx; color: #338661; font-size: 23rpx; margin-top: 20rpx; padding: 16rpx 20rpx; }
+.invite-send { background: #3498ff; border: 0; border-radius: 16rpx; color: #fff; font-size: 26rpx; height: 80rpx; line-height: 80rpx; margin: 26rpx 0 0; width: 100%; }
+.invite-send::after { border: 0; }
+.invite-send[disabled] { background: #e9f0f8; color: #9cabbb; }
+
 .company-identity {
   margin-top: 34rpx;
   position: relative;

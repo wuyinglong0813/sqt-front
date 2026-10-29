@@ -34,6 +34,7 @@ function harness(handler = async () => ({ url: 'https://example.test/members' })
           return options.url === '/fadada/users/me/identity' ? { status: 'VERIFIED' } : handler(options);
         } };
         if (name.endsWith('/companyContext')) return require('../utils/companyContext');
+        if (name.endsWith('/invitation')) return require('../utils/invitation');
         if (name.endsWith('/signingContinuation')) return require('../utils/signingContinuation');
         if (name.endsWith('/privacy')) return { requirePrivacyAuthorization: async () => {} };
         if (name.endsWith('/companyOnboarding') || name.endsWith('/dict') || name.endsWith('/tabBar')) return {};

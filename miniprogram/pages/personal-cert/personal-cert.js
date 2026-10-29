@@ -1,6 +1,7 @@
 const { request } = require('../../utils/request');
 const { returnToCompany } = require('../../utils/companyOnboarding');
 const { signingContinuation } = require('../../utils/signingContinuation');
+const { restoreMemberIdentityInvite } = require('../../utils/invitation');
 
 const STATUS_VIEW = {
   NOT_STARTED: { title: '待完成个人认证', desc: '完成实名认证后，可建立可信的个人身份。', tone: 'pending', button: '开始认证' },
@@ -51,17 +52,19 @@ Page({
     phoneBound: false,
     maskedPhone: '',
     bindingPhone: false,
-    desktopMode: false
+    desktopMode: false,
+    memberJoinFlow: false
   },
 
   onLoad(options = {}) {
     this._flowToken = getApp().globalData.token;
     this._companyFlow = options.flow === 'company-create';
+    this._memberJoinFlow = options.flow === 'member-join';
     this._legalClaimCompanyId = options.flow === 'legal-claim' ? String(options.companyId || '') : '';
     this._returnOptions = options;
     this._identityContinuationId = options.continuationId && signingContinuation(getApp(), options.continuationId)
       ? options.continuationId : '';
-    this.setData({ desktopMode: !!getApp().globalData.isDesktopWechat });
+    this.setData({ desktopMode: !!getApp().globalData.isDesktopWechat, memberJoinFlow: this._memberJoinFlow });
     this.loadPhoneStatus();
     this.loadIdentity(!!this._identityContinuationId);
   },
@@ -86,9 +89,9 @@ Page({
     const current = app.globalData.userInfo;
     if (current && String(current.id) !== String(user.id)) return false;
     // A phone refresh must not change the currently selected company or member roles.
-    if (current) app.globalData.userInfo = { ...current, phone: user.phone || '' };
+    if (current) app.globalData.userInfo = { ...current, phone: user.phone || '', phoneVerified: !!user.phoneVerified };
     const phone = String(user.phone || '');
-    this.setData({ phoneBound: !!phone, maskedPhone: phone.length >= 11
+    this.setData({ phoneBound: !!phone && (!this._memberJoinFlow || user.phoneVerified === true), maskedPhone: phone.length >= 11
       ? `${phone.slice(0, 3)}****${phone.slice(-4)}` : phone });
     return true;
   },
@@ -106,6 +109,7 @@ Page({
     } finally {
       this._phoneLoading = false;
       if (!this._unloaded) this.setData({ phoneLoading: false });
+      this.resumeMemberJoinIfReady();
     }
   },
 
@@ -124,6 +128,7 @@ Page({
         withCompany: false, data: { phoneCode: detail.code } });
       if (this.applyPhoneProfile(user, token)) {
         wx.showToast({ title: '手机号已绑定，可继续认证', icon: 'success' });
+        this.resumeMemberJoinIfReady();
       }
     } catch (error) {
       wx.showToast({ title: error.message || '手机号绑定失败，请重试', icon: 'none' });
@@ -146,7 +151,8 @@ Page({
           withCompany: false
         });
       }
-      if (this._legalClaimCompanyId && (this._unloaded || this._flowToken !== getApp().globalData.token)) return;
+      if ((this._legalClaimCompanyId || this._memberJoinFlow)
+          && (this._unloaded || this._flowToken !== getApp().globalData.token)) return;
       const status = identity && STATUS_VIEW[identity.status] ? identity.status : 'NOT_STARTED';
       const displayIdentity = identityForDisplay(identity);
       this.setData({
@@ -154,6 +160,10 @@ Page({
         providerEnabled: !!(identity && identity.providerEnabled),
         statusView: STATUS_VIEW[status]
       });
+      if (this._memberJoinFlow) {
+        this.resumeMemberJoinIfReady();
+        return;
+      }
       if (status === 'VERIFIED' && this._legalClaimCompanyId && !this._unloaded && !this._returning
           && this._flowToken === getApp().globalData.token) {
         this._returning = true;
@@ -196,6 +206,16 @@ Page({
     } finally {
       this.setData({ loading: false, syncing: false });
     }
+  },
+
+  resumeMemberJoinIfReady() {
+    if (!this._memberJoinFlow || this._unloaded || this._returning || this.data.phoneLoading
+        || !this.data.phoneBound || !this.data.identity || this.data.identity.status !== 'VERIFIED'
+        || this._flowToken !== getApp().globalData.token) return false;
+    this._returning = true;
+    restoreMemberIdentityInvite(getApp());
+    wx.switchTab({ url: '/pages/index/index', fail: () => { this._returning = false; } });
+    return true;
   },
 
   startAuth() {

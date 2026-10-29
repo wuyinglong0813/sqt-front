@@ -155,8 +155,9 @@ test('native contract recovery keeps the original contract and waits for an expl
   require('../utils/signingContinuation').rememberServiceRecovery(env.app, 'contract', { contractId: '12' });
   await env.page.loadContractDetail();
   assert.equal(env.page.data.serviceRecoveryAvailable, true);
+  assert.equal(env.page.data.signButtonText, '继续签署');
   assert.equal(env.navigations.length, 0);
-  env.page.renewServiceLink();
+  env.page.signContract();
   assert.equal(env.navigations[0], '/pages/fadada-auth/fadada-auth?scene=contract&contractId=12');
   env.app.globalData.currentCompanyId = '4';
   env.page.renewServiceLink(); assert.equal(env.navigations.length, 1);

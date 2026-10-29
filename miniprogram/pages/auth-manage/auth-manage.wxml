@@ -6,11 +6,8 @@
         <view class="hero-eyebrow">ORGANIZATION</view>
         <view class="hero-title">组织成员</view>
       </view>
-      <button class="invite-btn" wx:if="{{inviteCode && !preparingInvite}}" open-type="share" data-invite-type="member">
+      <button class="invite-btn" bindtap="openMemberInvite">
         <text class="invite-plus">＋</text> 邀请成员
-      </button>
-      <button class="invite-btn" wx:else loading="{{preparingInvite}}" disabled="{{preparingInvite}}" bindtap="shareInvite">
-        {{preparingInvite ? '准备邀请中' : '重试准备邀请'}}
       </button>
     </view>
     <view class="company-identity">
@@ -19,6 +16,20 @@
         <view class="company-name">{{companyName}}</view>
         <view class="company-status"><text class="online-dot"></text>组织通讯录正常运行</view>
       </view>
+    </view>
+  </view>
+
+  <view class="modal-mask" wx:if="{{showInviteModal}}" bindtap="closeMemberInvite">
+    <view class="invite-sheet" catchtap="noop">
+      <view class="sheet-handle"></view>
+      <view class="sheet-heading"><view><view class="sheet-title">邀请成员</view><view class="sheet-desc">{{companyName}}</view></view><view class="sheet-close" bindtap="closeMemberInvite">×</view></view>
+      <view class="invite-field-label">受邀人手机号</view>
+      <input class="invite-phone-input" type="number" maxlength="11" value="{{targetPhone}}" bindinput="onInvitePhoneInput" placeholder="填写对方的11位手机号"/>
+      <view class="invite-phone-note">仅绑定此手机号并完成实名认证的账号可以申请加入。转发给其他人或自己打开，都无法领取。</view>
+      <view class="invite-ready" wx:if="{{inviteCode}}">邀请已准备好 · {{invitePhoneMasked}}</view>
+      <button class="invite-send" wx:if="{{inviteCode && !preparingInvite}}" open-type="share" data-invite-type="member">发送邀请给微信好友</button>
+      <button class="invite-send" wx:else loading="{{preparingInvite}}" disabled="{{preparingInvite || targetPhone.length !== 11}}" bindtap="shareInvite">{{preparingInvite ? '正在准备邀请' : '准备邀请'}}</button>
+      <view class="invite-phone-note secondary">对方申请后，仍需企业管理员审核并分配角色。</view>
     </view>
   </view>
 

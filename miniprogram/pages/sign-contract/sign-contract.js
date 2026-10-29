@@ -144,7 +144,7 @@ Page({
       const tableSection = (content.sections || []).find(section => section.type === 'table');
       const feeSection = (content.sections || []).find(section => section.type === 'fees');
       const clauses = reorderClauses((content.sections || []).filter(section => section.type === 'clause'));
-      const normalizedTable = normalizeContractTable(
+      const normalizedTable = this.normalizeSigningTable(
         tableSection && tableSection.columns,
         tableSection && tableSection.rows
       );
@@ -228,7 +228,7 @@ Page({
     const tableSection = (content.sections || []).find(s => s.type === 'table');
     const rawClauses = (content.sections || []).filter(s => s.type === 'clause');
     const clauses = reorderClauses(rawClauses);
-    const normalizedTable = normalizeContractTable(
+    const normalizedTable = this.normalizeSigningTable(
       tableSection && tableSection.columns,
       tableSection && tableSection.rows
     );
@@ -249,6 +249,19 @@ Page({
       clauses: clauses.map(c => ({ title: c.title || '', content: c.content || '' })),
       hasTemplate: true
     }, () => this.measureTableScrollbar());
+  },
+
+  normalizeSigningTable(columns, rows) {
+    const table = normalizeContractTable(columns, rows);
+    const productIndex = table.columns.findIndex(isProductNameColumn);
+    // Every goods contract needs a dedicated model field, including legacy templates.
+    if (productIndex >= 0 && !table.columns.some(column => /型号/.test(column) && !/规格/.test(column))) {
+      const specificationIndex = table.columns.findIndex(column => /规格/.test(column));
+      const index = specificationIndex >= 0 ? specificationIndex : productIndex + 1;
+      table.columns.splice(index, 0, '型号');
+      table.rows.forEach(row => row.splice(index, 0, ''));
+    }
+    return table;
   },
 
   tableColumnMetadata(columns) {

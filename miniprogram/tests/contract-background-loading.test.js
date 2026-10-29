@@ -92,6 +92,16 @@ test('overlapping fulfillment reloads await one batch and preserve other section
   assert.equal(env.page.data.invoiceList.length, 1);
 });
 
+test('an unexpected fulfillment payload displays a retryable error in the derived list', async () => {
+  const env = harness();
+  const loading = env.page.loadFulfillmentData();
+  env.requests[0].resolve({ invalid: true });
+  env.requests.slice(1).forEach(request => request.resolve([]));
+  await loading;
+  assert.equal(env.page.data.fulfillmentLoading, false);
+  assert.ok(env.page.data.visibleFulfillmentGroups.some(group => /加载失败/.test(group.errorText)));
+});
+
 test('changed contract or permissions start a new fulfillment batch and stale results do not replace it', async () => {
   const env = harness();
   const old = env.page.loadFulfillmentData();
@@ -136,7 +146,7 @@ test('memo reloads share one request, retain existing notes on timeout and clear
   await Promise.all([first, same]);
   assert.equal(env.toasts.length, 0);
   assert.equal(env.page.data.memoPreview, '已保存的备忘');
-  assert.match(env.page.data.memoLoadError, /备忘录加载失败/);
+  assert.match(env.page.data.memoLoadError, /进展暂时无法读取/);
   const retry = env.page.loadContractMemo();
   env.requests[1].resolve({ content: '新备忘' });
   await retry;
@@ -155,19 +165,65 @@ test('a memo read cannot overwrite a draft opened while it was pending', async (
   assert.equal(env.page.data.personalMemo, '先前保存的内容');
 });
 
-test('saving a memo invalidates a previous read so old content cannot replace the saved result', async () => {
+test('saving a memo invalidates a concurrent background read so old content cannot replace the saved result', async () => {
   const env = harness();
-  const pending = env.page.loadContractMemo();
   env.page.data.memoDraft = '刚保存的内容';
-  env.page.data.memoLoadError = '先前加载失败';
   const save = env.page.saveContractMemo();
-  env.requests[1].resolve({ content: '刚保存的内容' });
+  const pending = env.page.loadContractMemo();
+  env.requests[0].resolve({ content: '刚保存的内容' });
   await save;
-  env.requests[0].resolve({ content: '旧内容' });
+  env.requests[1].resolve({ content: '旧内容' });
   await pending;
   assert.equal(env.page.data.memoDraft, '刚保存的内容');
   assert.equal(env.page.data.personalMemo, '刚保存的内容');
   assert.equal(env.page.data.memoLoadError, '');
+});
+
+test('opening personal progress during its initial read fills the untouched draft and prevents an empty save', async () => {
+  const env = harness();
+  const loading = env.page.loadContractMemo();
+  env.page.openMemoEditor();
+  await env.page.saveContractMemo();
+  assert.equal(env.requests.length, 1);
+  env.requests[0].resolve({ content: '上次约好周五送货' });
+  await loading;
+  assert.equal(env.page.data.memoDraft, '上次约好周五送货');
+  assert.equal(env.page.data.memoLoading, false);
+});
+
+test('more menu opens personal progress without a summary and read-only contracts permit viewing only', async () => {
+  const env = harness();
+  env.page.data.contract = { id: '12' };
+  env.page.data.personalMemo = '仅自己的记录';
+  env.page.toggleContractMore();
+  assert.equal(env.page.data.showContractMore, true);
+  env.page.data.contractReadOnly = true;
+  env.page.openMemoEditor();
+  assert.equal(env.page.data.showContractMore, false);
+  assert.equal(env.page.data.showMemoEditor, true);
+  assert.equal(env.page.data.memoDraft, '仅自己的记录');
+  await env.page.saveContractMemo();
+  assert.equal(env.requests.length, 0);
+  env.page.closeMemoEditor();
+  env.page.data.canViewContractContent = false;
+  env.page.toggleContractMore();
+  env.page.openMemoEditor();
+  assert.equal(env.page.data.showContractMore, false);
+  assert.equal(env.page.data.showMemoEditor, false);
+});
+
+test('saving freezes the editor and a revoked viewer cannot repopulate private progress', async () => {
+  const env = harness();
+  env.page.data.memoDraft = '准备保存的内容';
+  const save = env.page.saveContractMemo();
+  env.page.onMemoInput({ detail: { value: '保存期间额外输入' } });
+  assert.equal(env.page.data.memoDraft, '准备保存的内容');
+  env.page.data.canViewContractContent = false;
+  env.page.data.personalMemo = '';
+  env.requests[0].resolve({ content: '准备保存的内容' });
+  await save;
+  assert.equal(env.page.data.personalMemo, '');
+  assert.equal(env.page.data.memoSaving, false);
 });
 
 test('unloaded pages receive no background list, error or memo updates', async () => {

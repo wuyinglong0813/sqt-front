@@ -3,7 +3,8 @@ const { loadSummary } = require('../../utils/companyOnboarding');
 const { setTabBarHidden, syncTabBar } = require('../../utils/tabBar');
 const { hasPrivacyConsent, acceptPrivacyConsent } = require('../../utils/privacy');
 const { captureInviteEntry, dismissInvite, markInviteProcessed, processedInviteKey,
-  wasInviteProcessed } = require('../../utils/invitation');
+  wasInviteProcessed, restoreMemberIdentityInvite, startMemberIdentity,
+  isMemberInviteRejected, memberInvitePrerequisite } = require('../../utils/invitation');
 const { captureCompanyContext, isCompanyContextCurrent } = require('../../utils/companyContext');
 const {
   USER_ID_KEY,
@@ -136,6 +137,7 @@ Page({
       showHomeGuide: !this.data.showJoinForm && !wx.getStorageSync('tradepass_home_guide_done')
     });
 
+    restoreMemberIdentityInvite(app);
     if (wasInviteProcessed(app, app.globalData.pendingInvite)) {
       dismissInvite(app, app.globalData.pendingInvite);
     }
@@ -181,10 +183,17 @@ Page({
           if (!preview || !preview.companyName || preview.type !== 'member') throw new Error('邀请信息已变化，请联系邀请人重新发送邀请');
           wx.showModal({
             title: '申请加入企业组织',
-            content: `是否使用当前账号申请加入“${preview.companyName}”？提交后需等待该企业管理员审核并分配角色。`,
-            confirmText: '申请加入',
+            content: preview.phoneBindingRequired
+              ? `此邀请仅供绑定手机号 ${preview.targetPhoneMasked || '受邀号码'} 的账号使用。请先通过微信核验手机号，完成实名后继续申请加入“${preview.companyName}”。`
+              : preview.personalIdentityRequired
+              ? `加入“${preview.companyName}”前需要完成个人实名认证。邀请码已保留，认证后可继续提交加入申请。`
+              : `是否使用当前账号（${preview.targetPhoneMasked || '已核验的受邀手机号'}）申请加入“${preview.companyName}”？提交后需等待该企业管理员审核并分配角色。`,
+            confirmText: preview.phoneBindingRequired ? '核验手机号' : preview.personalIdentityRequired ? '去实名认证' : '申请加入',
             success: result => {
-              if (result.confirm && isCompanyContextCurrent(app, context)) this.processInvite(invite.code, invite);
+              if (result.confirm && isCompanyContextCurrent(app, context)) {
+                if (preview.personalIdentityRequired || preview.phoneBindingRequired) startMemberIdentity(app, invite.code);
+                else this.processInvite(invite.code, invite);
+              }
               else dismissInvite(app, invite);
             },
             complete: () => { this._confirmingInvite = false; }
@@ -192,7 +201,11 @@ Page({
         } catch (error) {
           this._confirmingInvite = false;
           if (!isCompanyContextCurrent(app, context) || app.globalData.pendingInvite !== invite) return;
-          if (['邀请码无效', '邀请码已被使用', '邀请码已过期'].includes(error.message)) dismissInvite(app, invite);
+          if (isMemberInviteRejected(error) || ['邀请码无效', '邀请码已被使用', '邀请码已过期'].includes(error.message)) dismissInvite(app, invite);
+          if (isMemberInviteRejected(error)) {
+            wx.showModal({ title: '此邀请无法使用', content: error.message || '此邀请仅限指定受邀人使用，请联系邀请人。', showCancel: false });
+            return;
+          }
           wx.showToast({ title: error.message || '邀请企业加载失败，请重新打开邀请', icon: 'none' });
         }
       }
@@ -422,7 +435,11 @@ Page({
       await app.loadMe();
       await this.onShow();
     } catch (e) {
-      if (['邀请码无效', '邀请码已被使用', '邀请码已过期', '你已是该企业成员', '申请已提交，等待审批'].includes(e.message)) {
+      if (memberInvitePrerequisite(e) && invite && invite.type === 'member' && isCompanyContextCurrent(app, context)) {
+        startMemberIdentity(app, code);
+        return;
+      }
+      if (isMemberInviteRejected(e) || ['邀请码无效', '邀请码已被使用', '邀请码已过期', '你已是该企业成员', '申请已提交，等待审批'].includes(e.message)) {
         dismissInvite(app, invite);
       }
       if (isCompanyContextCurrent(app, context)) wx.showToast({ title: e.message, icon: 'none' });
@@ -548,6 +565,7 @@ Page({
       this.goLogin();
       return;
     }
+    const joinToken = app.globalData.token;
     try {
       const result = await request({
         url: '/companies/join',
@@ -560,6 +578,12 @@ Page({
       await app.loadMe();
       await this.onShow();
     } catch (e) {
+      if (memberInvitePrerequisite(e) && joinToken === app.globalData.token) {
+        setTabBarHidden(this, false);
+        this.setData({ showJoinModal: false });
+        startMemberIdentity(app, companyId);
+        return;
+      }
       wx.showToast({ title: e.message, icon: 'none' });
     }
   },

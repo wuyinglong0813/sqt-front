@@ -4,6 +4,7 @@ const { captureCompanyContext, isCompanyContextCurrent } = require('../../utils/
 const { serviceRecovery, serviceRecoveryUrl } = require('../../utils/signingContinuation');
 const dict = require('../../utils/dict');
 const { setTabBarHidden, syncTabBar } = require('../../utils/tabBar');
+const { startMemberIdentity, memberInvitePrerequisite } = require('../../utils/invitation');
 const app = getApp();
 
 function hasPerm(perm) {
@@ -453,6 +454,7 @@ Page({
   async submitJoin() {
     const code = this.data.joinCode.trim();
     if (!code) { wx.showToast({ title: '请输入邀请码', icon: 'none' }); return; }
+    const joinToken = app.globalData.token;
     try {
       const result = await request({ url: '/companies/join', method: 'POST', data: { code } });
       wx.showToast({ title: result.message || '已提交', icon: 'none' });
@@ -460,6 +462,12 @@ Page({
       this.setData({ showJoinModal: false });
       app.loadMe().then(() => this.loadData());
     } catch (e) {
+      if (memberInvitePrerequisite(e) && joinToken === app.globalData.token) {
+        setTabBarHidden(this, false);
+        this.setData({ showJoinModal: false });
+        startMemberIdentity(app, code);
+        return;
+      }
       wx.showToast({ title: e.message, icon: 'none' });
     }
   }

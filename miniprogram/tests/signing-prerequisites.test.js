@@ -27,6 +27,7 @@ function harness(handler) {
       require: id => {
         if (id.endsWith('/request')) return { request: async o => { requests.push(o); return handler(o); } };
         if (id.endsWith('/companyContext')) return require('../utils/companyContext');
+        if (id.endsWith('/invitation')) return require('../utils/invitation');
         if (id.endsWith('/signingContinuation')) return continuation;
         if (id.endsWith('/privacy')) return require('./privacy-fixture')(wx, () => app);
         if (id.endsWith('/companyOnboarding')) return { returnToCompany() {} };

@@ -1,4 +1,8 @@
 <view class="page">
+  <view class="info-card" wx:if="{{memberJoinFlow}}">
+    <view class="card-title">核验身份后加入企业</view>
+    <view class="notice-desc">邀请码已保留。请通过微信核验受邀手机号并完成个人实名，完成后返回继续申请。</view>
+  </view>
   <view class="hero {{statusView.tone}}">
     <view class="hero-mark">
       <view class="hero-icon" wx:if="{{identity && identity.status === 'VERIFIED'}}">✓</view>
@@ -17,8 +21,8 @@
     <block wx:if="{{!phoneLoading && !phoneBound}}">
       <view class="notice-desc" wx:if="{{desktopMode}}">请在手机微信使用同一微信账号打开商签通，进入“我的 → 账号与个人信息”，授权绑定手机号后继续认证。完成后可回到电脑刷新状态。</view>
       <block wx:else>
-        <view class="notice-desc">个人认证前需要验证手机号，请授权微信提供本人手机号。</view>
-        <button class="primary-button phone-bind-button" open-type="getPhoneNumber" bindgetphonenumber="bindWechatPhone" loading="{{bindingPhone}}" disabled="{{bindingPhone}}">微信授权绑定手机号</button>
+        <view class="notice-desc">{{memberJoinFlow ? '请授权微信核验受邀手机号；此邀请仅限该号码使用。' : '个人认证前需要验证手机号，请授权微信提供本人手机号。'}}</view>
+        <button class="primary-button phone-bind-button" open-type="getPhoneNumber" bindgetphonenumber="bindWechatPhone" loading="{{bindingPhone}}" disabled="{{bindingPhone}}">{{memberJoinFlow ? '微信授权核验手机号' : '微信授权绑定手机号'}}</button>
       </block>
     </block>
   </view>

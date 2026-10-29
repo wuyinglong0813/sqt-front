@@ -43,6 +43,25 @@ function harness(handler = async () => ({})) {
     settled: () => new Promise(resolve => setImmediate(resolve)) };
 }
 
+test('deleting from more closes the menu and still requires permission and confirmation', () => {
+  const h = harness();
+  const page = h.page('contract-preview');
+  Object.assign(page.data, { canViewContractContent: true, showContractMore: true });
+  const event = { currentTarget: { dataset: { action: 'delete' } } };
+  page.runContractMoreAction(event);
+  assert.equal(page.data.showContractMore, false);
+  assert.equal(h.modals.length, 0);
+  page.data.canDeleteContract = true;
+  page.data.showContractMore = true;
+  page.runContractMoreAction(event);
+  assert.equal(h.modals.length, 1);
+  assert.equal(h.modals[0].title, '从我方列表删除');
+  assert.equal(h.calls.length, 0);
+  page.data.contractActionLoading = true;
+  page.runContractMoreAction(event);
+  assert.equal(h.modals.length, 1);
+});
+
 test('approving a contract void refreshes the local result without opening electronic signing', async () => {
   const h = harness();
   const page = h.page('contract-preview');

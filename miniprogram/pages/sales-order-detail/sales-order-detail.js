@@ -1,6 +1,7 @@
 const { request } = require('../../utils/request');
 const { formatDateTime } = require('../../utils/datetime');
 const { downloadApiFile, uploadSignatureApiFile } = require('../../utils/fileTransfer');
+const { createPdfPreview } = require('../../utils/pdfPreview');
 
 Page({
   data: {
@@ -13,6 +14,10 @@ Page({
     warehouses: [],
     warehousesLoading: false,
     warehousesError: '',
+    showWarehousePicker: false,
+    warehousePickerTitle: '',
+    warehousePickerTip: '',
+    selectedWarehouseId: '',
     memo: '',
     memoDraft: '',
     memoPreview: '尚未记录，点击添加',
@@ -43,9 +48,15 @@ Page({
     signatureActionText: '确认签字并通过',
     loading: false,
     pdfLoading: false,
+    pdfPreviewPages: [],
+    pdfPreviewLoading: false,
+    pdfPreviewError: '',
+    pdfPreviewVersionChanged: false,
     loadError: '',
     activeAction: null,
-    actionLoading: false
+    actionLoading: false,
+    showDocumentMore: false,
+    documentMoreActions: []
   },
 
   onLoad(options) {
@@ -61,8 +72,14 @@ Page({
     this.loadAll().finally(() => wx.stopPullDownRefresh());
   },
 
+  onShow() {
+    if (this._hasShown) this.loadWarehouses();
+    this._hasShown = true;
+  },
+
   onUnload() {
     this._unloaded = true;
+    if (this._documentPdfPreview) this._documentPdfPreview.dispose();
     if (this.data.pdfLoading) wx.hideLoading();
     this._loadSequence = (this._loadSequence || 0) + 1;
   },
@@ -78,7 +95,11 @@ Page({
       return;
     }
     const sequence = this._loadSequence = (this._loadSequence || 0) + 1;
-    this.setData({ loading: true, loadError: '', activeAction: null });
+    if (this._documentPdfPreview) this._documentPdfPreview.dispose();
+    this._documentPdfPreview = null;
+    this.setData({ loading: true, loadError: '', activeAction: null,
+      showDocumentMore: false, documentMoreActions: [], pdfPreviewPages: [],
+      pdfPreviewLoading: true, pdfPreviewError: '', pdfPreviewVersionChanged: false });
     try {
       const detailRequest = request({ url: `/trade-documents/${this.data.id}` });
       this.loadSupportingData(sequence);
@@ -97,33 +118,58 @@ Page({
           contractNo: content.contractNo || '—',
           date: content.date || String(detail.createdAt || '').slice(0, 10),
           totalAmount: content.totalAmount || '0',
-          preparedByName: content.preparedByName || '—'
+          preparedByName: content.preparedByName || '—',
+          reviewedByName: content.reviewedByName || ''
         },
         documentNo: detail.documentNo || this.data.documentNo,
         documentLabel,
         isReturnOrder,
         items: detail.items || []
       });
-      wx.setNavigationBarTitle({ title: detail.documentNo || `${documentLabel}详情` });
+      wx.setNavigationBarTitle({ title: `${documentLabel}详情` });
+      this.loadDocumentPreview(sequence);
     } catch (error) {
       if (!this.isCurrentLoad(sequence)) return;
       const message = (error && (error.message || error.errMsg)) || '单据加载失败，请重试';
-      this.setData({ loadError: /timeout/i.test(message) ? '单据加载超时，请重试' : message });
+      this.setData({ loadError: /timeout/i.test(message) ? '单据加载超时，请重试' : message,
+        pdfPreviewLoading: false });
     } finally {
       if (this.isCurrentLoad(sequence)) this.setData({ loading: false });
     }
   },
 
+  loadDocumentPreview(sequence = this._loadSequence) {
+    const id = String(this.data.id);
+    if (!id || this._unloaded || !this.data.detail) return Promise.resolve();
+    if (this._documentPdfPreview) this._documentPdfPreview.dispose();
+    const preview = createPdfPreview({
+      baseUrl: `/trade-documents/${id}`,
+      cachePrefix: `trade-document-${id}`,
+      isCurrent: () => this.isCurrentLoad(sequence) && String(this.data.id) === id && !!this.data.detail,
+      onState: state => this.setData({ pdfPreviewPages: state.pages, pdfPreviewLoading: state.loading,
+        pdfPreviewError: state.error, pdfPreviewVersionChanged: state.versionChanged })
+    });
+    this._documentPdfPreview = preview;
+    return preview.load();
+  },
+
+  retryDocumentPreview(e) {
+    const page = Number(e && e.currentTarget && e.currentTarget.dataset.page);
+    if (!this._documentPdfPreview) return this.loadDocumentPreview();
+    return page ? this._documentPdfPreview.retry(page) : this._documentPdfPreview.load(true);
+  },
+
+  onDocumentPreviewImageError(e) {
+    if (this._documentPdfPreview) this._documentPdfPreview.imageError(e.currentTarget.dataset.page);
+  },
+
+  downloadDocumentPdf() {
+    return this.downloadPdf(true);
+  },
+
   loadSupportingData(sequence) {
     this.loadMemo(sequence);
-    this.setData({ warehousesLoading: true, warehousesError: '' });
-    request({ url: '/warehouses' }).then(warehouses => {
-      if (this.isCurrentLoad(sequence)) this.setData({ warehouses: warehouses || [] });
-    }).catch(() => {
-      if (this.isCurrentLoad(sequence)) this.setData({ warehousesError: '仓库加载失败，请下拉重试' });
-    }).finally(() => {
-      if (this.isCurrentLoad(sequence)) this.setData({ warehousesLoading: false });
-    });
+    this.loadWarehouses(sequence);
     request({
       url: `/bilateral-actions/active?bizType=BUSINESS_DOCUMENT&bizId=${this.data.id}`
     }).then(activeAction => {
@@ -131,6 +177,27 @@ Page({
         this.setData({ activeAction: activeAction && activeAction.id ? activeAction : null });
       }
     }).catch(() => {});
+  },
+
+  async loadWarehouses(sequence = this._loadSequence) {
+    const warehouseSequence = this._warehouseSequence = (this._warehouseSequence || 0) + 1;
+    const current = () => this.isCurrentLoad(sequence) && warehouseSequence === this._warehouseSequence;
+    this.setData({ warehousesLoading: true, warehousesError: '' });
+    try {
+      const result = await request({ url: '/warehouses' });
+      if (!current()) return;
+      const warehouses = Array.isArray(result) ? result : [];
+      this.setData({ warehouses, selectedWarehouseId: warehouses.some(item =>
+        String(item.id) === this.data.selectedWarehouseId) ? this.data.selectedWarehouseId : '' });
+    } catch (error) {
+      if (current()) this.setData({ warehousesError: '仓库加载失败，请点击重试' });
+    } finally {
+      if (current()) this.setData({ warehousesLoading: false });
+    }
+  },
+
+  retryWarehouses() {
+    return this.loadWarehouses();
   },
 
   async loadMemo(sequence = this._loadSequence) {
@@ -156,6 +223,7 @@ Page({
   },
 
   onMemoInput(e) {
+    if (this.data.memoSaving || (this.data.detail && this.data.detail.contractReadOnly)) return;
     this.setData({ memoDraft: e.detail.value });
   },
 
@@ -166,10 +234,6 @@ Page({
   },
 
   openMemoEditor() {
-    if (this.data.detail && this.data.detail.contractReadOnly) {
-      wx.showToast({ title: '合同当前仅允许查看', icon: 'none' });
-      return;
-    }
     if (this.data.memoLoading) {
       wx.showToast({ title: '进展加载中，请稍候', icon: 'none' });
       return;
@@ -179,6 +243,99 @@ Page({
       return;
     }
     this.setData({ showMemoEditor: true, memoDraft: this.data.memo });
+  },
+
+  documentActionBusy() {
+    return this._unloaded || this.data.loading || this.data.loadError || this.data.actionLoading || this.data.publishing
+      || this.data.deleting || this.data.receiving || this.data.draftSaving
+      || this.data.memoSaving || this.data.pdfLoading;
+  },
+
+  canCancelPendingDocumentVoid() {
+    const detail = this.data.detail;
+    const action = this.data.activeAction;
+    return Boolean(detail && !['COMPLETED', 'VOIDED'].includes(detail.contractStatus)
+      && action && action.id && action.canCancel && action.status === 'PENDING'
+      && action.actionType === 'VOID' && action.bizType === 'BUSINESS_DOCUMENT'
+      && String(action.bizId) === String(this.data.id));
+  },
+
+  canReviewPendingDocumentVoid() {
+    const detail = this.data.detail;
+    const action = this.data.activeAction;
+    return Boolean(detail && !['COMPLETED', 'VOIDED'].includes(detail.contractStatus)
+      && action && action.id && action.canReview && action.status === 'PENDING'
+      && action.actionType === 'VOID' && action.bizType === 'BUSINESS_DOCUMENT'
+      && String(action.bizId) === String(this.data.id));
+  },
+
+  availableDocumentMoreActions() {
+    const detail = this.data.detail;
+    if (!detail) return [];
+    const actions = [];
+    const memo = { key: 'memo', label: '我的进展', tip: '仅自己可见' };
+    if (['COMPLETED', 'VOIDED'].includes(detail.contractStatus)) return [memo];
+    if (this.canReviewPendingDocumentVoid()) actions.push({ key: 'voidApprove', label: '同意作废', tone: 'caution' }, { key: 'voidReject', label: '拒绝作废' });
+    if (detail.contractReadOnly) {
+      if (this.canCancelPendingDocumentVoid()) actions.push({ key: 'cancelVoid', label: '撤回作废申请' });
+      return [...actions, memo];
+    }
+    if (detail.canPublish) actions.push({ key: 'publish', label: '提交给对方确认', tone: 'primary' });
+    if (detail.canReceive && (!this.data.isReturnOrder || (detail.buyerCompanyId
+        && String(detail.viewerCompanyId) === String(detail.buyerCompanyId)))) {
+      actions.push({ key: 'receive', label: this.data.isReturnOrder ? '同意并退货出库' : '同意，暂不入库', tone: 'primary' });
+    }
+    if (detail.canInbound) actions.push({ key: 'inbound', label: this.data.isReturnOrder ? '同意并退货入库'
+      : detail.status === 'ACKNOWLEDGED' ? '选择仓库入库' : '同意并入库', tone: 'primary' });
+    if (detail.canReject) actions.push({ key: 'reject', label: '驳回', tone: 'caution' });
+    actions.push(memo);
+    if (detail.canEditDraft) actions.push({ key: 'edit', label: '编辑草稿' });
+    if (detail.canSelectOutboundWarehouse) actions.push({ key: 'warehouse',
+      label: detail.outboundWarehouseName ? '修改出库仓库' : '设置出库仓库' });
+    if (detail.canWithdraw) actions.push({ key: 'withdraw', label: '撤回单据' });
+    if (this.canCancelPendingDocumentVoid()) {
+      actions.push({ key: 'cancelVoid', label: '撤回作废申请' });
+    }
+    if (detail.canRequestVoid) actions.push({ key: 'void', label: '申请作废', tone: 'caution' });
+    if (detail.canDeleteDraft) actions.push({ key: 'delete',
+      label: detail.status === 'REJECTED' ? '删除已驳回单据' : '删除草稿', tone: 'danger' });
+    return actions;
+  },
+
+  toggleDocumentMore() {
+    if (!this.data.detail || this.documentActionBusy()) return;
+    if (this.data.showDocumentMore) return this.closeDocumentMore();
+    this._documentMenuId = String(this.data.id);
+    this._documentMenuActionId = String(this.data.activeAction && this.data.activeAction.id || '');
+    this.setData({ showDocumentMore: true, documentMoreActions: this.availableDocumentMoreActions() });
+  },
+
+  closeDocumentMore() {
+    this._documentMenuId = '';
+    this._documentMenuActionId = '';
+    this.setData({ showDocumentMore: false, documentMoreActions: [] });
+  },
+
+  runDocumentMoreAction(e) {
+    const action = e.currentTarget.dataset.action;
+    if (!this.data.showDocumentMore || this.documentActionBusy()) return;
+    if (this._documentMenuId !== String(this.data.id)
+        || (['cancelVoid', 'voidApprove', 'voidReject'].includes(action) && this._documentMenuActionId !== String(this.data.activeAction && this.data.activeAction.id || ''))
+        || !this.availableDocumentMoreActions().some(item => item.key === action)) {
+      this.closeDocumentMore();
+      return;
+    }
+    if (action === 'voidApprove' || action === 'voidReject') {
+      this.closeDocumentMore();
+      return this.reviewDocumentVoid({ currentTarget: { dataset: { decision: action === 'voidApprove' ? 'APPROVE' : 'REJECT' } } });
+    }
+    const method = { memo: 'openMemoEditor', publish: 'publishDraft', receive: 'receiveOnly',
+      inbound: 'chooseWarehouse', reject: 'rejectSalesOrder',
+      edit: 'openDraftEditor', warehouse: 'chooseOutboundWarehouse', withdraw: 'withdrawDocument',
+      cancelVoid: 'cancelDocumentVoid', void: 'requestDocumentVoid', delete: 'deleteDraft' }[action];
+    if (!method) return;
+    this.closeDocumentMore();
+    return this[method]();
   },
 
   closeMemoEditor() {
@@ -349,24 +506,14 @@ Page({
       this.chooseReturnWarehouseForPublish();
       return;
     }
-    this.confirmPublishDraft(null);
+    this.openWarehousePicker('PUBLISH_SALES', '选择销售出库仓库', '对方确认收货后，将从此仓库扣减商品数量；库存不足时可记为负数。');
   },
 
   chooseReturnWarehouseForPublish() {
-    if (!this.warehousesReady()) return;
-    if (this.data.warehouses.length === 0) {
-      wx.showToast({ title: '请先在库存管理中创建仓库', icon: 'none' });
-      return;
-    }
     const detail = this.data.detail || {};
     const isBuyer = String(detail.viewerCompanyId) === String(detail.buyerCompanyId);
-    wx.showActionSheet({
-      itemList: this.data.warehouses.map(item => `${item.name}（${isBuyer ? '退货出库' : '退货入库'}）`),
-      success: result => {
-        const warehouse = this.data.warehouses[result.tapIndex];
-        if (warehouse) this.confirmPublishDraft(warehouse.id);
-      }
-    });
+    this.openWarehousePicker('PUBLISH_RETURN', isBuyer ? '选择退货出库仓库' : '选择退货入库仓库',
+      isBuyer ? '对方确认后，将从此仓库扣减退货数量。' : '对方确认后，退回的商品将计入此仓库。');
   },
 
   confirmPublishDraft(warehouseId) {
@@ -471,14 +618,14 @@ Page({
   reviewDocumentVoid(e) {
     const decision = e.currentTarget.dataset.decision;
     const action = this.data.activeAction;
-    if (!action || !action.id || !action.canReview) return;
+    if (!this.canReviewPendingDocumentVoid()) return;
     if (decision === 'REJECT') {
       wx.showModal({
         title: '拒绝作废申请', editable: true, placeholderText: '请输入拒绝原因',
         confirmText: '确认拒绝',
         success: result => {
           const reason = String(result.content || '').trim();
-          if (result.confirm && reason) this.submitDocumentActionDecision('REJECT', reason);
+          if (result.confirm && reason) this.submitDocumentActionDecision('REJECT', reason, action.id);
         }
       });
       return;
@@ -488,14 +635,15 @@ Page({
       content: '确认后将冲销对账和已产生的库存流水，原记录仍保留为已作废。',
       confirmText: '确认作废', confirmColor: '#d94848',
       success: result => {
-        if (result.confirm) this.submitDocumentActionDecision('APPROVE', '');
+        if (result.confirm) this.submitDocumentActionDecision('APPROVE', '', action.id);
       }
     });
   },
 
-  async submitDocumentActionDecision(decision, reason) {
+  async submitDocumentActionDecision(decision, reason, expectedActionId) {
     const action = this.data.activeAction;
-    if (!action || !action.id || this.data.actionLoading) return;
+    if (!this.canReviewPendingDocumentVoid() || this.data.actionLoading
+        || (expectedActionId && String(action.id) !== String(expectedActionId))) return;
     try {
       this.setData({ actionLoading: true });
       await request({
@@ -512,7 +660,7 @@ Page({
 
   async cancelDocumentVoid() {
     const action = this.data.activeAction;
-    if (!action || !action.id || !action.canCancel || this.data.actionLoading) return;
+    if (!this.canCancelPendingDocumentVoid() || this.data.actionLoading) return;
     try {
       this.setData({ actionLoading: true });
       await request({ url: `/bilateral-actions/${action.id}/cancel`, method: 'POST', data: {} });
@@ -547,18 +695,7 @@ Page({
     const buyerConfirmingReturn = this.data.isReturnOrder
       && String(detail.viewerCompanyId) === String(detail.buyerCompanyId);
     if (buyerConfirmingReturn) {
-      if (!this.warehousesReady()) return;
-      if (this.data.warehouses.length === 0) {
-        wx.showToast({ title: '请先创建退货出库仓库', icon: 'none' });
-        return;
-      }
-      wx.showActionSheet({
-        itemList: this.data.warehouses.map(item => `${item.name}（退货出库）`),
-        success: result => {
-          const warehouse = this.data.warehouses[result.tapIndex];
-          if (warehouse) this.openSignatureEditor('RECEIVE_ONLY', warehouse.id);
-        }
-      });
+      this.openWarehousePicker('RECEIVE_RETURN', '选择退货出库仓库', '确认后，将从此仓库扣减退货数量。');
       return;
     }
     this.openSignatureEditor('RECEIVE_ONLY');
@@ -591,30 +728,69 @@ Page({
   },
 
   chooseWarehouse() {
-    if (!this.warehousesReady()) return;
-    if (this.data.warehouses.length === 0) {
-      wx.showModal({
-        title: '请先创建仓库',
-        content: '直接入库前，需要在库存管理中至少创建一个仓库。',
-        confirmText: '去创建',
-        success: result => {
-          if (result.confirm) wx.navigateTo({ url: '/pages/inventory/inventory' });
-        }
-      });
-      return;
+    this.openWarehousePicker('INBOUND', this.data.isReturnOrder ? '选择退货入库仓库' : '选择收货仓库',
+      this.data.isReturnOrder ? '确认后，退回的商品将计入此仓库。' : '销售单商品将计入所选仓库，并同步扣减供方库存。');
+  },
+
+  chooseOutboundWarehouse() {
+    if (!this.data.detail || !this.data.detail.canSelectOutboundWarehouse) return;
+    return this.openWarehousePicker('SET_OUTBOUND', '设置销售出库仓库', '对方入库时，将从此仓库扣减商品数量；库存不足时可记为负数。');
+  },
+
+  async saveOutboundWarehouse(warehouseId) {
+    if (this.data.actionLoading) return;
+    this.setData({ actionLoading: true });
+    try {
+      await request({ url: `/trade-documents/${this.data.id}/outbound-warehouse`, method: 'POST',
+        data: { warehouseId } });
+      wx.showToast({ title: '出库仓库已设置', icon: 'success' });
+      await this.loadAll();
+    } catch (error) {
+      wx.showToast({ title: error.message || '设置失败，请重试', icon: 'none' });
+    } finally {
+      this.setData({ actionLoading: false });
     }
-    wx.showActionSheet({
-      itemList: this.data.warehouses.map(item => item.name),
-      success: result => {
-        const warehouse = this.data.warehouses[result.tapIndex];
-        if (!warehouse) return;
-        if (this.data.detail && this.data.detail.status === 'ACKNOWLEDGED') {
-          this.submitReceive('INBOUND', warehouse.id);
-          return;
-        }
-        this.openSignatureEditor('INBOUND', warehouse.id);
-      }
-    });
+  },
+
+  openWarehousePicker(mode, title, tip) {
+    if (this.data.receiving || this.data.publishing) return;
+    this._warehouseMode = mode;
+    this.setData({ showWarehousePicker: true, warehousePickerTitle: title,
+      warehousePickerTip: tip, selectedWarehouseId: '' });
+    return this.loadWarehouses();
+  },
+
+  closeWarehousePicker() {
+    this.setData({ showWarehousePicker: false });
+    this._warehouseMode = '';
+  },
+
+  selectWarehouse(e) {
+    if (this.data.warehousesLoading || this.data.warehousesError) return;
+    this.setData({ selectedWarehouseId: String(e.currentTarget.dataset.id) });
+  },
+
+  createWarehouse() {
+    wx.navigateTo({ url: '/pages/inventory/inventory' });
+  },
+
+  confirmWarehouse() {
+    if (!this.warehousesReady()) return;
+    const warehouse = this.data.warehouses.find(item => String(item.id) === this.data.selectedWarehouseId);
+    if (!warehouse) return;
+    const mode = this._warehouseMode;
+    this.closeWarehousePicker();
+    if (mode === 'SET_OUTBOUND') {
+      this.saveOutboundWarehouse(warehouse.id);
+    } else if (mode === 'PUBLISH_RETURN' || mode === 'PUBLISH_SALES') {
+      this.confirmPublishDraft(warehouse.id);
+    } else if (mode === 'RECEIVE_RETURN') {
+      this.openSignatureEditor('RECEIVE_ONLY', warehouse.id);
+    } else if (mode === 'INBOUND') {
+      if (this.data.detail && this.data.detail.status === 'ACKNOWLEDGED') {
+        this.submitReceive('INBOUND', warehouse.id);
+      } else this.openSignatureEditor('INBOUND', warehouse.id);
+    }
   },
 
   openSignatureEditor(decision, warehouseId = '') {

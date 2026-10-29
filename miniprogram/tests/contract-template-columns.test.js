@@ -122,19 +122,21 @@ test('cancelled deletions and duplicate column names preserve the original table
   assert.deepEqual(plain(h.page.data.tableSection.columns), ['数量', '单价', '金额']);
 });
 
-test('contract creation retains deleted columns and derives totals without an amount column', async () => {
+test('goods contracts expose a model column immediately and retain custom columns and totals', async () => {
   const h = harness('sign-contract');
   const content = template(['产品名称', '数量', '单价', '品牌'], [['电线', '2', '3', '品牌A']]);
   h.page.data.templates = [{ id: '1', name: '定制版式', content: JSON.stringify(content) }];
   h.page.selectTemplate(0);
-  h.page.onTableCellChange(event({ row: 0, col: 1 }, '4'));
+  assert.deepEqual(plain(h.page.data.tableSection.columns), ['产品名称', '型号', '数量', '单价', '品牌']);
+  h.page.onTableCellChange(event({ row: 0, col: 1 }, 'RVVP'));
+  h.page.onTableCellChange(event({ row: 0, col: 2 }, '4'));
   assert.equal(h.page.data.totalAmount, '12');
   await h.page.onSubmit();
   const write = h.calls.find(call => call.url === '/contracts');
   const saved = JSON.parse(write.data.terms).sections[0];
   assert.equal(write.data.amount, 12);
-  assert.deepEqual(saved.columns, content.sections[0].columns);
-  assert.deepEqual(saved.rows[0], ['电线', '4', '3', '品牌A']);
+  assert.deepEqual(saved.columns, ['产品名称', '型号', '数量', '单价', '品牌']);
+  assert.deepEqual(saved.rows[0], ['电线', 'RVVP', '4', '3', '品牌A']);
   assert.equal(saved.summary.totalAmount, '12');
 });
 
@@ -194,16 +196,16 @@ test('selecting inventory with a model adds a separate column without reinterpre
   assert.equal(h.page.data.tableSection.columns.length, 7);
 });
 
-test('legacy inventory without a model keeps the existing combined specification column', () => {
+test('legacy inventory without a model keeps its specification in place beside an empty model', () => {
   const h = harness('sign-contract');
   const content = template(['产品名称', '规格型号', '单位', '数量', '单价', '金额'], [['', '', '', '2', '3', '6']]);
   h.page.data.templates = [{ id: '1', name: '历史模板', content: JSON.stringify(content) }];
   h.page.selectTemplate(0);
   h.page.data.inventoryProducts = [{ id: '11', productName: '电缆', specification: 'RVS 2×1.5', baseUnit: '米' }];
   h.page.selectInventoryProduct(event({ row: 0, name: '电缆' }));
-  assert.equal(h.page.tableColumnIndex('model'), -1);
-  assert.deepEqual(plain(h.page.data.tableSection.columns), content.sections[0].columns);
-  assert.deepEqual(plain(h.page.data.tableRows[0]), ['电缆', 'RVS 2×1.5', '米', '2', '3', '6']);
+  assert.equal(h.page.tableColumnIndex('model'), 1);
+  assert.deepEqual(plain(h.page.data.tableSection.columns), ['产品名称', '型号', '规格型号', '单位', '数量', '单价', '金额']);
+  assert.deepEqual(plain(h.page.data.tableRows[0]), ['电缆', '', 'RVS 2×1.5', '米', '2', '3', '6']);
 });
 
 test('inventory selection finds the real product name after product-prefixed model and specification columns', async () => {

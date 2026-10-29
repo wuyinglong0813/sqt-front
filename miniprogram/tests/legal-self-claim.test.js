@@ -29,6 +29,7 @@ function harness(handler = async () => ({ status: 'VERIFIED' })) {
       require: id => {
         if (id.endsWith('/request')) return { request: async o => { calls.push(o); return handler(o); } };
         if (id.endsWith('/companyContext')) return require('../utils/companyContext');
+        if (id.endsWith('/invitation')) return require('../utils/invitation');
         if (id.endsWith('/signingContinuation')) return require('../utils/signingContinuation');
         if (id.endsWith('/companyOnboarding')) return { returnToCompany() { throw Error('Legal claim must not create a new enterprise'); } };
         if (id.endsWith('/privacy')) return {};

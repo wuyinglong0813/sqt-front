@@ -6,88 +6,59 @@
   </view>
   <block wx:if="{{detail}}">
     <view class="hero">
-      <view class="hero-label">{{detail.title}}</view>
+      <view class="hero-head"><view class="hero-label">{{detail.title}}</view>
+        <view class="document-more">
+          <button class="document-more-button" bindtap="toggleDocumentMore" aria-label="更多单据操作" aria-expanded="{{showDocumentMore}}" disabled="{{loading || pdfLoading || actionLoading || publishing || deleting || receiving || draftSaving || memoSaving}}">更多</button>
+          <view class="document-more-mask" wx:if="{{showDocumentMore}}" bindtap="closeDocumentMore"></view>
+          <view class="document-more-menu" wx:if="{{showDocumentMore}}" catchtap="noop">
+            <scroll-view scroll-y class="document-more-scroll">
+              <button class="document-more-action {{item.tone}}" wx:for="{{documentMoreActions}}" wx:key="key" disabled="{{loading || pdfLoading || actionLoading || publishing || deleting || receiving || draftSaving || memoSaving}}" data-action="{{item.key}}" bindtap="runDocumentMoreAction"><text>{{item.label}}</text><text class="document-more-tip" wx:if="{{item.tip}}">{{item.tip}}</text></button>
+            </scroll-view>
+          </view>
+        </view>
+      </view>
       <view class="hero-no">{{documentNo}}</view>
       <view class="hero-row"><view>{{detail.companyName}} → {{detail.counterpartyName}}</view><view class="status {{detail.status === 'DRAFT' ? 'draft' : (detail.status === 'REJECTED' ? 'rejected' : '')}}">{{detail.statusText}}</view></view>
     </view>
 
-    <view class="memo-summary {{detail.contractReadOnly ? 'readonly' : ''}}" bindtap="openMemoEditor">
-      <view class="memo-summary-icon">记</view>
-      <view class="memo-summary-body">
-        <view class="memo-summary-head"><text>我的进展</text><text wx:if="{{memoUpdatedAt}}">{{memoUpdatedAt}}</text></view>
-        <view class="memo-summary-text {{memo ? '' : 'empty'}}">{{memoLoading ? '正在加载进展…' : (memoError || memoPreview)}}</view>
-        <view class="memo-summary-private">{{detail.contractReadOnly ? '合同当前只读，不可修改' : '仅当前账号可见'}}</view>
+    <view class="document-pdf-reader">
+      <view class="document-pdf-page" wx:for="{{pdfPreviewPages}}" wx:key="pageNumber">
+        <image class="document-pdf-image" wx:if="{{item.filePath && !item.error}}" src="{{item.filePath}}" mode="widthFix" lazy-load="{{true}}" data-page="{{item.pageNumber}}" binderror="onDocumentPreviewImageError" bindtap="viewPdf"/>
+        <view class="document-preview-state" wx:elif="{{item.loading}}">加载中…</view>
+        <view class="document-preview-state" wx:else><view>{{item.error}}</view><button data-page="{{item.pageNumber}}" disabled="{{pdfPreviewLoading}}" bindtap="retryDocumentPreview">重新加载此页</button></view>
       </view>
-      <view class="memo-summary-arrow">›</view>
+      <view class="document-preview-state" wx:if="{{pdfPreviewLoading && !pdfPreviewPages.length}}">{{documentLabel}}加载中…</view>
+      <view class="document-preview-state" wx:elif="{{!pdfPreviewPages.length}}"><view>{{pdfPreviewError || 'PDF预览加载失败，请重试'}}</view><button disabled="{{pdfPreviewLoading}}" bindtap="retryDocumentPreview">重新加载</button></view>
+      <view class="document-pdf-actions"><button class="primary" loading="{{pdfLoading}}" disabled="{{loading || pdfLoading}}" bindtap="viewPdf">查看 PDF</button><button class="secondary" loading="{{pdfLoading}}" disabled="{{loading || pdfLoading}}" bindtap="downloadDocumentPdf">下载 PDF</button></view>
     </view>
 
-    <view class="draft-notice" wx:if="{{detail.status === 'DRAFT' || detail.status === 'REJECTED'}}">
-      <view class="draft-notice-title">{{detail.status === 'REJECTED' ? documentLabel + '已被驳回' : '这是' + documentLabel + '草稿'}}</view>
-      <view class="reject-reason" wx:if="{{detail.status === 'REJECTED'}}">驳回原因：{{detail.rejectedReason}}</view>
-      <view wx:elif="{{detail.contractStatus === 'PENDING'}}">合同尚待对方确认，当前只有制单方可见；合同生效后才能提交。</view>
-      <view wx:elif="{{detail.contractStatus === 'ACTIVE'}}">合同已生效，可以继续编辑或提交给对方确认。</view>
-      <view wx:else>合同当前未生效，此草稿不能编辑或发布。</view>
-      <view class="draft-actions">
-        <button wx:if="{{detail.canEditDraft}}" class="secondary" bindtap="openDraftEditor">编辑草稿</button>
-        <button wx:if="{{detail.canPublish}}" class="primary" loading="{{publishing}}" disabled="{{publishing}}" bindtap="publishDraft">提交给对方确认</button>
-        <button wx:if="{{detail.canDeleteDraft}}" class="danger" loading="{{deleting}}" disabled="{{deleting}}" bindtap="deleteDraft">删除{{detail.status === 'REJECTED' ? '已驳回单据' : '草稿'}}</button>
-      </view>
-    </view>
-
-    <view class="action-notice" wx:if="{{activeAction}}">
-      <view class="action-notice-title">{{documentLabel}}作废申请待处理</view>
-      <view>原因：{{activeAction.reason}}</view>
-      <view class="draft-actions" wx:if="{{activeAction.canReview}}">
-        <button class="secondary" data-decision="REJECT" bindtap="reviewDocumentVoid">拒绝</button>
-        <button class="danger" data-decision="APPROVE" bindtap="reviewDocumentVoid">确认作废</button>
-      </view>
-      <view class="draft-actions" wx:if="{{activeAction.canCancel}}"><button class="secondary" bindtap="cancelDocumentVoid">撤回申请</button></view>
-    </view>
-
-    <view class="draft-actions standalone" wx:if="{{detail.canWithdraw || detail.canRequestVoid}}">
-      <button wx:if="{{detail.canWithdraw}}" class="secondary" loading="{{actionLoading}}" bindtap="withdrawDocument">撤回待确认单据</button>
-      <button wx:if="{{detail.canRequestVoid}}" class="danger" loading="{{actionLoading}}" bindtap="requestDocumentVoid">申请作废</button>
-    </view>
-
-    <view class="card summary-card">
-      <view class="summary-row"><text>关联合同</text><view>{{detail.contractNo}}</view></view>
-      <view class="summary-row"><text>单据日期</text><view>{{detail.date}}</view></view>
-      <view class="summary-row"><text>制单人</text><view>{{detail.preparedByName}}</view></view>
-      <view class="summary-row"><text>合计金额</text><view class="amount">¥{{detail.totalAmount}}</view></view>
-      <view class="pdf-actions"><button bindtap="viewPdf" loading="{{pdfLoading}}" disabled="{{pdfLoading}}">查看 PDF</button><button bindtap="downloadPdf" loading="{{pdfLoading}}" disabled="{{pdfLoading}}">下载 PDF</button></view>
-    </view>
-
-    <view class="card">
-      <view class="section-title">商品明细</view>
-      <scroll-view class="table-scroll" scroll-x>
-        <view class="table">
-          <view class="table-row header"><view>项目</view><view>型号</view><view>规格</view><view>单位</view><view>数量</view><view>单价</view><view>金额</view><view>备注</view></view>
-          <view class="table-row {{item.lineType === 'FEE' ? 'fee-row' : ''}}" wx:for="{{items}}" wx:key="id"><view>{{item.productName}}</view><view>{{item.model || '—'}}</view><view>{{item.specification || '—'}}</view><view>{{item.baseUnit}}</view><view>{{item.quantity}}</view><view>{{item.unitPrice}}</view><view>{{item.amount}}</view><view>{{item.remark || '—'}}</view></view>
-        </view>
-      </scroll-view>
-    </view>
-
-    <view class="receive-card" wx:if="{{detail.canReceive || detail.canInbound || detail.canReject}}">
-      <view class="receive-title">{{documentLabel}}确认</view>
-      <view class="receive-tip">首次通过需要当前用户手写签名；通过后{{isReturnOrder ? '退货方库存减少、供方库存增加，并以负数冲减双方对账' : '正式进入双方对账'}}。</view>
-      <view class="receive-actions">
-        <button wx:if="{{detail.canReject}}" class="secondary" loading="{{receiving}}" disabled="{{receiving}}" bindtap="rejectSalesOrder">驳回</button>
-        <button wx:if="{{detail.canReceive}}" class="secondary" loading="{{receiving}}" disabled="{{receiving}}" bindtap="receiveOnly">通过，暂不入库</button>
-        <button wx:if="{{detail.canInbound}}" class="primary" loading="{{receiving}}" disabled="{{receiving}}" bindtap="chooseWarehouse">通过并入库</button>
-      </view>
-    </view>
-    <view class="done-tip" wx:if="{{detail.status === 'ACKNOWLEDGED'}}">该{{documentLabel}}已通过并更新对账，{{detail.canInbound ? '可选择仓库完成入库' : '等待合同供方完成入库'}}</view>
-    <view class="done-tip" wx:if="{{detail.status === 'INBOUNDED'}}">该{{documentLabel}}已通过、更新对账并完成入库</view>
-    <view class="done-tip voided" wx:if="{{detail.status === 'VOIDED'}}">该{{documentLabel}}已作废，原记录仅供查看</view>
+    <view class="document-state-note" wx:if="{{detail.status === 'REJECTED' && detail.rejectedReason}}">驳回原因：{{detail.rejectedReason}}</view>
+    <view class="document-state-note" wx:if="{{activeAction && activeAction.reason}}">作废申请：{{activeAction.reason}}</view>
   </block>
+
+  <view class="warehouse-mask" wx:if="{{showWarehousePicker}}" bindtap="closeWarehousePicker">
+    <view class="warehouse-sheet" catchtap="noop">
+      <view class="warehouse-handle"></view>
+      <view class="warehouse-head"><view class="warehouse-title">{{warehousePickerTitle}}</view><view class="warehouse-close" bindtap="closeWarehousePicker">×</view></view>
+      <view class="warehouse-tip">{{warehousePickerTip}}</view>
+      <view class="warehouse-state" wx:if="{{warehousesLoading}}">正在加载仓库…</view>
+      <view class="warehouse-state" wx:elif="{{warehousesError}}"><text>{{warehousesError}}</text><button bindtap="retryWarehouses">重新加载</button></view>
+      <view class="warehouse-state" wx:elif="{{!warehouses.length}}"><view class="warehouse-empty-icon">仓</view><view class="warehouse-empty-title">还没有仓库</view><view>创建仓库后返回，即可继续办理</view></view>
+      <scroll-view class="warehouse-list" scroll-y wx:else>
+        <view class="warehouse-option {{selectedWarehouseId == item.id ? 'selected' : ''}}" wx:for="{{warehouses}}" wx:key="id" data-id="{{item.id}}" bindtap="selectWarehouse"><view class="warehouse-option-icon">仓</view><view class="warehouse-option-name">{{item.name}}</view><view class="warehouse-radio">{{selectedWarehouseId == item.id ? '✓' : ''}}</view></view>
+      </scroll-view>
+      <view class="warehouse-footer"><button class="warehouse-create" bindtap="createWarehouse">＋ 新建仓库</button><button class="warehouse-confirm" disabled="{{warehousesLoading || warehousesError || !selectedWarehouseId}}" bindtap="confirmWarehouse">确认选择</button></view>
+    </view>
+  </view>
 
   <view class="memo-mask" wx:if="{{showMemoEditor}}" bindtap="closeMemoEditor">
     <view class="memo-sheet" catchtap="noop">
       <view class="memo-sheet-handle"></view>
       <view class="memo-head"><view><view class="section-title">我的{{documentLabel}}进展</view><view class="memo-tip">仅当前账号可见，不与同事或对方共享</view></view><view class="memo-close" bindtap="closeMemoEditor">×</view></view>
-      <textarea value="{{memoDraft}}" maxlength="4000" bindinput="onMemoInput" placeholder="记录接收、入库或后续处理进展…" focus="{{showMemoEditor}}"/>
+      <textarea value="{{memoDraft}}" maxlength="4000" bindinput="onMemoInput" placeholder="记录接收、入库或后续处理进展…" focus="{{showMemoEditor && !detail.contractReadOnly}}" disabled="{{memoSaving || detail.contractReadOnly}}"/>
       <view class="memo-sheet-meta"><text>{{memoDraft.length}} / 4000</text><text wx:if="{{memoUpdatedAt}}">上次保存 {{memoUpdatedAt}}</text></view>
-      <button class="memo-save" loading="{{memoSaving}}" disabled="{{memoSaving}}" bindtap="saveMemo">保存我的进展</button>
+      <view class="memo-readonly" wx:if="{{detail.contractReadOnly}}">合同当前只读，可查看已有进展</view>
+      <button class="memo-save" wx:else loading="{{memoSaving}}" disabled="{{memoSaving}}" bindtap="saveMemo">保存我的进展</button>
     </view>
   </view>
 

@@ -399,7 +399,8 @@ test('signed contract detail renders the provider archive page instead of a fake
   const previewTemplate = fs.readFileSync(path.join(previewDir, 'contract-preview.wxml'), 'utf8');
   assert.ok(previewScript.includes('/signed-preview-chunk-data'));
   assert.ok(previewTemplate.includes('src="{{signedPreviewFilePath}}"'));
-  assert.ok(previewTemplate.includes('真实签署文件'));
+  assert.ok(previewTemplate.includes('src="{{item.filePath}}"'));
+  assert.ok(previewTemplate.includes('bindtap="openContractPdf"'));
   assert.ok(!previewTemplate.includes('电子签章'));
   assert.ok(!previewTemplate.includes('已完成'));
 });
@@ -1231,7 +1232,7 @@ test('partner loading distinguishes failures from empty company bindings and can
   } finally { app.getCurrentCompanyId = oldGetter; wx.request = oldRequest; }
 });
 
-test('member invitation prepares on entry and ready button opens native sharing', async () => {
+test('member invitation requires a recipient before creating a share card', async () => {
   const page = loadPage('../pages/auth-manage/auth-manage');
   const oldReady = app.ensureSessionReady; const oldGetter = app.getCurrentCompanyId;
   app.ensureSessionReady = async () => {}; app.getCurrentCompanyId = () => '123';
@@ -1239,8 +1240,8 @@ test('member invitation prepares on entry and ready button opens native sharing'
   context.shareInvite = () => { prepared++; };
   context.loadMembers = () => {}; context.loadRoles = () => {};
   try {
-    await context.onShow(); assert.strictEqual(prepared, 1);
-    await context.onShow(); assert.strictEqual(prepared, 2);
+    await context.onShow(); assert.strictEqual(prepared, 0);
+    await context.onShow(); assert.strictEqual(prepared, 0);
     const template = fs.readFileSync(path.join(__dirname, '../pages/auth-manage/auth-manage.wxml'), 'utf8');
     assert.ok(template.includes('wx:if="{{inviteCode && !preparingInvite}}" open-type="share"'));
     assert.ok(!template.includes('生成成员邀请'));
@@ -1256,6 +1257,7 @@ test('member invitation waits for a code and cannot share across companies', asy
   app.getCurrentCompanyId = () => cid;
   wx.request = options => { pending = options; };
   const context = pageInstance(page);
+  context.data.targetPhone = '13800138000';
   const event = { from: 'button', target: { dataset: { inviteType: 'member' } } };
   try {
     const generating = context.shareInvite();
@@ -1608,9 +1610,10 @@ test('contract collaboration groups sales orders and uploadable invoices in fulf
   assert.ok(script.includes("{ key: 'fulfillment', label: '履约资料' }"));
   assert.ok(!script.includes("{ key: 'sales', label: '销售单' }"));
   assert.ok(!script.includes("{ key: 'payment'"));
-  assert.ok(template.indexOf('>销售单<') < template.indexOf('>物流单<'));
-  assert.ok(template.indexOf('>发票<') < template.indexOf('>其它<'));
-  assert.ok(template.includes('data-category="INVOICE"'));
+  assert.ok(script.indexOf("key: 'SALES_ORDER'") < script.indexOf("key: 'LOGISTICS'"));
+  assert.ok(script.indexOf("key: 'INVOICE'") < script.indexOf("key: 'OTHER'"));
+  assert.ok(template.includes('bindtap="openFulfillmentDetailMore"'));
+  assert.ok(!template.includes('class="record-more"'));
   assert.ok(script.includes('attachments?category=INVOICE'));
   assert.ok(script.includes('showPaymentAmountEditor: true'));
   assert.ok(script.includes('voucherAmount: normalizedAmount'));

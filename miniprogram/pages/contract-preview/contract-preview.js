@@ -9,6 +9,13 @@ const { formatDateTime } = require('../../utils/datetime');
 const { money } = require('../../utils/retail');
 const { runPrivacyAction } = require('../../utils/privacy');
 const { serviceRecovery, serviceRecoveryUrl } = require('../../utils/signingContinuation');
+const { createPdfPreview } = require('../../utils/pdfPreview');
+
+function isPdfAttachment(item) {
+  const type = String(item.contentType || '').split(';')[0].trim().toLowerCase();
+  return type === 'application/pdf' || ((!type || type === 'application/octet-stream')
+    && /\.pdf$/i.test(String(item.originalName || '')));
+}
 
 function isProductNameColumn(column) {
   const text = String(column || '');
@@ -19,6 +26,15 @@ function today() {
   const now = new Date();
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 }
+
+const FULFILLMENT_SECTIONS = [
+  { key: 'SALES_ORDER', label: '销售单', mark: '销', tone: 'sales', list: 'salesDocuments', error: 'sales', permission: 'canViewContractContent' },
+  { key: 'RETURN_ORDER', label: '退货单', mark: '退', tone: 'return', list: 'returnDocuments', error: 'returns', permission: 'canViewContractContent' },
+  { key: 'PAYMENT_VOUCHER', label: '转款凭证', mark: '款', tone: 'payment', list: 'paymentAttachments', error: 'payments', permission: 'canViewPayments' },
+  { key: 'INVOICE', label: '发票', mark: '票', tone: 'invoice', list: 'invoiceList', error: 'invoices', permission: 'canViewInvoices' },
+  { key: 'LOGISTICS', label: '物流单', mark: '物', tone: 'logistics', list: 'logisticsList', error: 'logistics', permission: 'canViewContractContent' },
+  { key: 'OTHER', label: '其它资料', mark: '资', tone: 'other', list: 'otherAttachments', error: 'others', permission: 'canViewOtherAttachments' }
+];
 
 Page({
   data: {
@@ -33,6 +49,39 @@ Page({
     canViewOtherAttachments: false,
     canUploadAttachments: false,
     fulfillmentErrors: {},
+    fulfillmentFilter: 'ALL',
+    fulfillmentSearch: '',
+    fulfillmentStatusIndex: 0,
+    fulfillmentStatusChoices: [
+      { key: 'ALL', label: '全部状态' }, { key: 'PENDING', label: '待确认' },
+      { key: 'DRAFT', label: '草稿' }, { key: 'EFFECTIVE', label: '已通过' },
+      { key: 'REJECTED', label: '已驳回' }, { key: 'VOIDED', label: '已作废' }
+    ],
+    fulfillmentVisibleLimit: 20,
+    fulfillmentMatchCount: 0,
+    fulfillmentHasMore: false,
+    fulfillmentHasFilters: false,
+    fulfillmentShowStatus: false,
+    fulfillmentCategoryLabel: '',
+    fulfillmentCreateLabel: '',
+    fulfillmentTabs: [],
+    fulfillmentTabAnchor: '',
+    visibleFulfillmentGroups: [],
+    canAddFulfillment: false,
+    showFulfillmentMenu: false,
+    fulfillmentMenuTitle: '',
+    fulfillmentMenuSubtitle: '',
+    fulfillmentMenuActions: [],
+    showFulfillmentDetail: false,
+    fulfillmentDetail: null,
+    fulfillmentDetailImage: '',
+    fulfillmentDetailImageLoading: false,
+    fulfillmentDetailImageError: '',
+    fulfillmentDetailPdfPages: [],
+    fulfillmentDetailPdfLoading: false,
+    fulfillmentDetailPdfError: '',
+    fulfillmentDetailPdfVersionChanged: false,
+    fulfillmentDetailPdfFileLoading: false,
     // Tab
     tabs: [
       { key: 'detail', label: '合同' },
@@ -108,6 +157,7 @@ Page({
     signedPreviewArchiveKey: '',
     signedPreviewVersionChanged: false,
     canSignContract: false,
+    serviceRecoveryAvailable: false,
     signButtonText: '签署合同',
     canCreateSalesOrder: false,
     canCreateReturnOrder: false,
@@ -119,7 +169,11 @@ Page({
     memoPreview: '尚未记录，点击添加',
     memoUpdatedAt: '',
     memoSaving: false,
+    memoLoading: false,
+    memoLoadError: '',
+    memoDraftDirty: false,
     showMemoEditor: false,
+    showContractMore: false,
     showProjectLedgerPrompt: false,
     projectLedgerHasProjects: false,
     projectLedgerProjectCount: 0,
@@ -169,6 +223,7 @@ Page({
 
   onUnload() {
     this._pdfPageUnloaded = true;
+    if (this._fulfillmentPdfPreview) this._fulfillmentPdfPreview.dispose();
     if (this._businessDocumentDownloading || this.data.pdfLoading) wx.hideLoading();
     this._signedPreviewGeneration = (this._signedPreviewGeneration || 0) + 1;
   },
@@ -185,11 +240,16 @@ Page({
     Promise.all(tasks).finally(() => wx.stopPullDownRefresh());
   },
 
+  onReachBottom() {
+    if (this.data.activeTab === 'fulfillment') this.showMoreFulfillment();
+  },
+
   switchTab(e) {
     const tab = e.currentTarget.dataset.tab;
     if (tab === this.data.activeTab) return;
     this.setData({ activeTab: tab });
     if (tab === 'fulfillment') {
+      this.updateFulfillmentCount();
       this.loadBusinessDocuments('SALES_ORDER');
       this.loadBusinessDocuments('RETURN_ORDER');
       this.loadFulfillmentData();
@@ -215,8 +275,11 @@ Page({
       const canViewInvoices = canViewPayments || this.hasAnyPermission('invoice_view');
       const canManageContract = this.hasAnyPermission('contract_sign');
       const canCreateDocument = this.hasAnyPermission('contract_sign', 'order_create');
+      if (!canViewContractContent) this._contractMemoLoad = null;
       this.setData({
         canViewContractContent, canViewPayments, canViewInvoices,
+        ...(!canViewContractContent ? { showContractMore: false, showMemoEditor: false,
+          personalMemo: '', memoDraft: '', memoLoading: false, memoLoadError: '' } : {}),
         canViewOtherAttachments: canViewPayments,
         canUploadAttachments: this.hasAnyPermission('contract_attachment_upload', 'contract_sign', 'order_create', 'reconciliation'),
         tabs: canViewContractContent
@@ -224,6 +287,7 @@ Page({
           : [{ key: 'fulfillment', label: '履约资料' }],
         activeTab: canViewContractContent ? this.data.activeTab : 'fulfillment'
       });
+      this.updateFulfillmentCount();
       const [contract, activeContractAction, signing] = await Promise.all([
         request({ url: `/contracts/${this.data.contractId}` }),
         request({
@@ -359,7 +423,8 @@ Page({
         signedContractArchived: !!(signing && signing.signedFileArchived),
         canSignContract: canManageContract && contract.status === 'PENDING'
           && !!(signing && signing.canSign) && !pendingSigningText,
-        signButtonText: '签署合同',
+        signButtonText: recovery && recovery.target.scene === 'contract'
+          && recovery.target.contractId === this.data.contractId ? '继续签署' : '签署合同',
         canCreateSalesOrder,
         canCreateReturnOrder,
         createAsDraft,
@@ -376,6 +441,7 @@ Page({
         pdfBuyerSignText: initiatorIsSupplier ? counterpartySignText : initiatorSignText,
         pdfDate: pdfDate || '—'
       }, () => {
+        this.updateFulfillmentCount();
         if (this.data.signedContractArchived) {
           this.loadSignedContractPreview();
         } else if (this.data.signedPreviewPages.length || this.data.signedPreviewFilePath
@@ -436,6 +502,10 @@ Page({
 
   signContract() {
     if (!this.data.canSignContract || this.data.contractActionLoading) return;
+    if (this.data.serviceRecoveryAvailable) {
+      this.renewServiceLink();
+      return;
+    }
     wx.navigateTo({
       url: `/pages/fadada-auth/fadada-auth?scene=contract&contractId=${this.data.contractId}`
     });
@@ -474,10 +544,10 @@ Page({
   requestContractEnd() {
     if (!this.data.canRequestEnd || this.data.contractActionLoading) return;
     wx.showModal({
-      title: '结束合同风险提示',
-      content: '对方确认后，合同及销售单、退货单、发票、凭证、物流资料将永久只读，不能再上传、编辑、删除、作废或重新开启。请先确认双方业务、库存和账务均已处理完成。',
+      title: '申请结束合同',
+      content: '适用于双方业务已经完成的合同。结束会保留现有单据、库存和对账结果；对方同意后，合同及履约资料永久只读。请先完成草稿、待确认及待入库事项。',
       confirmText: '我已了解',
-      confirmColor: '#d97706',
+      confirmColor: '#2989e5',
       success: riskResult => {
         if (!riskResult.confirm) return;
         wx.showModal({
@@ -517,7 +587,7 @@ Page({
     if (!this.data.canRequestVoid || this.data.contractActionLoading) return;
     wx.showModal({
       title: '申请作废合同',
-      content: '',
+      content: '适用于不再履行的合同。请先撤回、删除或作废关联单据、发票和凭证；对方同意后，合同永久只读。已签署文件及历史记录仍会保留。',
       editable: true,
       placeholderText: '请输入作废原因',
       confirmText: '提交申请',
@@ -1202,7 +1272,7 @@ Page({
       } catch (error) {
         if (current()) this.setData({
           fulfillmentErrors: { ...this.data.fulfillmentErrors, others: '履约资料加载失败，请下拉刷新重试' }
-        });
+        }, () => this.updateFulfillmentCount());
       } finally {
         if (current()) this.setData({ fulfillmentLoading: false });
         if (this._fulfillmentLoad === pending) this._fulfillmentLoad = null;
@@ -1212,14 +1282,389 @@ Page({
   },
 
   updateFulfillmentCount() {
+    const sections = FULFILLMENT_SECTIONS.filter(section => this.data[section.permission]);
+    const createActions = this.fulfillmentCreateActions();
+    const count = sections.reduce((sum, section) => sum + this.data[section.list].length, 0);
+    const filter = this.data.fulfillmentFilter === 'ALL' || sections.some(section => section.key === this.data.fulfillmentFilter)
+      ? this.data.fulfillmentFilter : 'ALL';
+    const query = filter === 'ALL' ? '' : String(this.data.fulfillmentSearch || '').trim().toLowerCase();
+    const statusIndex = filter === this.data.fulfillmentFilter ? this.data.fulfillmentStatusIndex : 0;
+    const status = this.data.fulfillmentStatusChoices[statusIndex] || this.data.fulfillmentStatusChoices[0];
+    const limit = Math.max(20, Number(this.data.fulfillmentVisibleLimit) || 20);
+    let matchCount = 0;
+    const groups = sections.filter(section => filter === 'ALL' || section.key === filter).map(section => {
+      // The API already orders by created_at DESC, id DESC. Filter the complete
+      // authorized list before slicing so search also finds later batches.
+      const records = this.data[section.list].filter(item => filter === 'ALL' || (
+        (!query || [item.documentNo, item.invoiceNo, item.originalName, item.uploaderCompanyName,
+          item.dateText, item.invoiceDate, item.voucherDate].some(value => String(value || '').toLowerCase().includes(query)))
+        && this.matchesFulfillmentStatus(item, status.key)
+      ));
+      if (filter !== 'ALL') matchCount = records.length;
+      return {
+        ...section, count: this.data[section.list].length,
+        createLabel: (createActions.find(action => action.key === section.key) || {}).label || '',
+        errorText: this.data.fulfillmentErrors[section.error] || '',
+        items: records.slice(0, filter === 'ALL' ? 3 : limit).map(item => {
+          const amount = section.key === 'INVOICE' ? item.invoiceAmount
+            : section.key === 'PAYMENT_VOUCHER' ? item.voucherAmount : item.totalAmount;
+          const date = item.invoiceDate || item.voucherDate || item.dateText || '';
+          return { id: String(item.id), title: item.documentNo || item.invoiceNo || item.originalName || section.label,
+            status: item.status || '', statusText: item.statusText || '', rejectedReason: item.rejectedReason || '',
+            amountText: amount === null || amount === undefined || amount === '' ? '' : `¥${money(amount)}`,
+            dateText: String(date).slice(0, 10), companyName: item.uploaderCompanyName || '' };
+        })
+      };
+    }).filter(group => filter !== 'ALL' || group.items.length > 0 || group.errorText || group.createLabel);
+    const context = this._fulfillmentMenuContext;
+    if (context && (context.contractId !== this.data.contractId
+        || (context.kind && !this.fulfillmentRecord(context.kind, context.id)))) {
+      this.closeFulfillmentMenu();
+    }
+    this.syncFulfillmentDetail();
     this.setData({
-      fulfillmentCount: this.data.logisticsList.length
-        + this.data.salesDocuments.length
-        + this.data.returnDocuments.length
-        + this.data.paymentAttachments.length
-        + this.data.otherAttachments.length
-        + this.data.invoiceList.length
+      fulfillmentCount: count, fulfillmentFilter: filter, visibleFulfillmentGroups: groups,
+      fulfillmentTabAnchor: filter !== this.data.fulfillmentFilter ? `fulfillment-filter-${filter}` : this.data.fulfillmentTabAnchor,
+      fulfillmentSearch: filter === 'ALL' ? '' : this.data.fulfillmentSearch,
+      fulfillmentStatusIndex: filter === 'ALL' ? 0 : statusIndex,
+      fulfillmentMatchCount: matchCount, fulfillmentHasMore: filter !== 'ALL' && matchCount > limit,
+      fulfillmentHasFilters: filter !== 'ALL' && (!!query || status.key !== 'ALL'),
+      fulfillmentShowStatus: !['ALL', 'LOGISTICS', 'OTHER'].includes(filter),
+      fulfillmentCategoryLabel: (sections.find(section => section.key === filter) || {}).label || '',
+      fulfillmentCreateLabel: (createActions.find(action => action.key === filter) || {}).label || '',
+      fulfillmentTabs: [{ key: 'ALL', label: '全部', count }, ...sections.map(section => ({
+        key: section.key, label: section.label, count: this.data[section.list].length
+      }))], canAddFulfillment: createActions.length > 0
     });
+  },
+
+  filterFulfillment(e) {
+    this.setData({ fulfillmentFilter: e.currentTarget.dataset.key, fulfillmentSearch: '',
+      fulfillmentStatusIndex: 0, fulfillmentVisibleLimit: 20,
+      fulfillmentTabAnchor: `fulfillment-filter-${e.currentTarget.dataset.key}` });
+    this.updateFulfillmentCount();
+    if (wx.pageScrollTo) wx.pageScrollTo({ selector: '#fulfillment-panel', duration: 200 });
+  },
+
+  matchesFulfillmentStatus(item, status) {
+    if (status === 'ALL') return true;
+    if (status === 'PENDING') return ['ISSUED', 'PENDING_CONFIRMATION'].includes(item.status) || !!item.pendingActionId;
+    if (status === 'EFFECTIVE') return ['APPROVED', 'ACKNOWLEDGED', 'INBOUNDED'].includes(item.status);
+    return item.status === status;
+  },
+
+  onFulfillmentSearch(e) {
+    this.setData({ fulfillmentSearch: e.detail.value, fulfillmentVisibleLimit: 20 });
+    this.updateFulfillmentCount();
+  },
+
+  clearFulfillmentSearch() {
+    this.setData({ fulfillmentSearch: '', fulfillmentVisibleLimit: 20 });
+    this.updateFulfillmentCount();
+  },
+
+  onFulfillmentStatusChange(e) {
+    const index = Number(e.detail.value);
+    if (!Number.isInteger(index) || !this.data.fulfillmentStatusChoices[index]) return;
+    this.setData({ fulfillmentStatusIndex: index, fulfillmentVisibleLimit: 20 });
+    this.updateFulfillmentCount();
+  },
+
+  showMoreFulfillment() {
+    if (this.data.fulfillmentFilter === 'ALL' || !this.data.fulfillmentHasMore) return;
+    this.setData({ fulfillmentVisibleLimit: this.data.fulfillmentVisibleLimit + 20 });
+    this.updateFulfillmentCount();
+  },
+
+  fulfillmentRecord(kind, id) {
+    const section = FULFILLMENT_SECTIONS.find(section => section.key === kind && this.data[section.permission]);
+    return section && this.data[section.list].find(item => String(item.id) === String(id));
+  },
+
+  openFulfillmentRecord(e) {
+    const { kind, id } = e.currentTarget.dataset;
+    const item = this.fulfillmentRecord(kind, id);
+    if (!item) return;
+    const event = { currentTarget: { dataset: { document: item, attachment: item } } };
+    if (kind === 'SALES_ORDER' || kind === 'RETURN_ORDER') return this.openSalesOrderDetail(event);
+    this.closeFulfillmentMenu();
+    if (this._fulfillmentPdfPreview) this._fulfillmentPdfPreview.dispose();
+    this._fulfillmentPdfPreview = null;
+    this._fulfillmentDetailContext = { contractId: this.data.contractId, kind, id: String(id) };
+    this.setData({ showFulfillmentDetail: true, fulfillmentDetailImage: '',
+      fulfillmentDetailImageError: '', fulfillmentDetailImageLoading: false,
+      fulfillmentDetailPdfPages: [], fulfillmentDetailPdfLoading: false, fulfillmentDetailPdfError: '',
+      fulfillmentDetailPdfVersionChanged: false, fulfillmentDetailPdfFileLoading: false });
+    this.syncFulfillmentDetail();
+    if (this.data.fulfillmentDetail && this.data.fulfillmentDetail.isImage) this.loadFulfillmentDetailImage();
+    if (this.data.fulfillmentDetail && this.data.fulfillmentDetail.isPdf) this.loadFulfillmentDetailPdf();
+  },
+
+  syncFulfillmentDetail() {
+    const context = this._fulfillmentDetailContext;
+    if (!context) return;
+    const item = context.contractId === this.data.contractId && this.fulfillmentRecord(context.kind, context.id);
+    if (!item || this._pdfPageUnloaded) return this.closeFulfillmentDetail();
+    const section = FULFILLMENT_SECTIONS.find(section => section.key === context.kind);
+    const amount = context.kind === 'INVOICE' ? item.invoiceAmount : item.voucherAmount;
+    this.setData({ fulfillmentDetail: {
+      id: context.id, kind: context.kind, label: section.label,
+      title: item.originalName || item.invoiceNo || section.label,
+      status: item.status || '', statusText: item.pendingActionId && item.pendingActionType === 'VOID' ? '作废待确认' : item.statusText || '',
+      amountText: amount === null || amount === undefined || amount === '' ? '' : `¥${money(amount)}`,
+      isImage: context.kind === 'LOGISTICS' || item.isImage || String(item.contentType || '').startsWith('image/'),
+      isPdf: isPdfAttachment(item),
+      hasMoreActions: this.fulfillmentRecordActions(context.kind, item).length > 0,
+      fields: [
+        { label: '发票号码', value: item.invoiceNo },
+        { label: '所属企业', value: item.uploaderCompanyName },
+        { label: '日期', value: item.invoiceDate || item.voucherDate || item.dateText },
+        { label: '文件大小', value: item.fileSizeText },
+        { label: '作废原因', value: item.pendingActionType === 'VOID' ? item.pendingActionReason : '' },
+        { label: '驳回原因', value: item.rejectedReason }
+      ].filter(field => field.value)
+    } });
+  },
+
+  closeFulfillmentDetail() {
+    if (this._fulfillmentPdfPreview) this._fulfillmentPdfPreview.dispose();
+    this._fulfillmentPdfPreview = null;
+    this._fulfillmentDetailContext = null;
+    this._fulfillmentDetailImageRequest = null;
+    this.closeFulfillmentMenu();
+    this.setData({ showFulfillmentDetail: false, fulfillmentDetail: null,
+      fulfillmentDetailImage: '', fulfillmentDetailImageLoading: false, fulfillmentDetailImageError: '',
+      fulfillmentDetailPdfPages: [], fulfillmentDetailPdfLoading: false, fulfillmentDetailPdfError: '',
+      fulfillmentDetailPdfVersionChanged: false, fulfillmentDetailPdfFileLoading: false });
+  },
+
+  openFulfillmentDetailMore() {
+    const context = this._fulfillmentDetailContext;
+    if (!context || context.contractId !== this.data.contractId || this.data.fulfillmentDetailPdfFileLoading) return;
+    this.openFulfillmentMenu({ currentTarget: { dataset: context } });
+  },
+
+  async openFulfillmentDetailPdf(e) {
+    const context = this._fulfillmentDetailContext;
+    if (!context || context.contractId !== this.data.contractId || this.data.fulfillmentDetailPdfFileLoading) return;
+    const item = this.fulfillmentRecord(context.kind, context.id);
+    if (!item || !this.data.fulfillmentDetail || !this.data.fulfillmentDetail.isPdf) return;
+    this.setData({ fulfillmentDetailPdfFileLoading: true });
+    try {
+      await this.downloadAttachmentFile(item, !!(e && e.currentTarget && e.currentTarget.dataset.download), {
+        shouldContinue: () => !this._pdfPageUnloaded && context === this._fulfillmentDetailContext
+          && context.contractId === this.data.contractId && !!this.fulfillmentRecord(context.kind, context.id)
+      });
+    } finally {
+      if (!this._pdfPageUnloaded && context === this._fulfillmentDetailContext) this.setData({ fulfillmentDetailPdfFileLoading: false });
+    }
+  },
+
+  loadFulfillmentDetailPdf(force = false) {
+    const context = this._fulfillmentDetailContext;
+    if (!context || context.contractId !== this.data.contractId || !this.data.fulfillmentDetail || !this.data.fulfillmentDetail.isPdf) return;
+    if (!this._fulfillmentPdfPreview) {
+      const current = () => !this._pdfPageUnloaded && context === this._fulfillmentDetailContext
+        && context.contractId === this.data.contractId && !!this.fulfillmentRecord(context.kind, context.id);
+      this._fulfillmentPdfPreview = createPdfPreview({
+        baseUrl: `/contract-attachments/${context.id}`,
+        cachePrefix: `attachment-${context.id}`,
+        isCurrent: current,
+        onState: state => {
+          if (current()) this.setData({ fulfillmentDetailPdfPages: state.pages,
+            fulfillmentDetailPdfLoading: state.loading, fulfillmentDetailPdfError: state.error,
+            fulfillmentDetailPdfVersionChanged: state.versionChanged });
+        }
+      });
+    }
+    return this._fulfillmentPdfPreview.load(force);
+  },
+
+  retryFulfillmentDetailPdf(e) {
+    if (!this._fulfillmentPdfPreview) return this.loadFulfillmentDetailPdf(true);
+    return this._fulfillmentPdfPreview.retry(Number(e && e.currentTarget && e.currentTarget.dataset.page));
+  },
+
+  onFulfillmentPdfImageError(e) {
+    if (this._fulfillmentPdfPreview) this._fulfillmentPdfPreview.imageError(Number(e.currentTarget.dataset.page));
+  },
+
+  viewFulfillmentDetailFile() {
+    const context = this._fulfillmentDetailContext;
+    if (!context || context.contractId !== this.data.contractId) return;
+    const item = this.fulfillmentRecord(context.kind, context.id);
+    if (!item) return this.closeFulfillmentDetail();
+    if (this.data.fulfillmentDetailImageLoading) {
+      wx.showToast({ title: '图片加载中，请稍候', icon: 'none' });
+      return;
+    }
+    const event = { currentTarget: { dataset: { document: item, attachment: item } } };
+    return context.kind === 'LOGISTICS' ? this.previewLogisticsImage(event) : this.viewAttachment(event);
+  },
+
+  async loadFulfillmentDetailImage() {
+    const context = this._fulfillmentDetailContext;
+    if (!context || this._pdfPageUnloaded) return;
+    const item = context.contractId === this.data.contractId && this.fulfillmentRecord(context.kind, context.id);
+    if (!item || !this.data.fulfillmentDetail || !this.data.fulfillmentDetail.isImage) return;
+    const pending = {};
+    this._fulfillmentDetailImageRequest = pending;
+    const current = () => this._fulfillmentDetailImageRequest === pending
+      && this._fulfillmentDetailContext === context && !this._pdfPageUnloaded
+      && context.contractId === this.data.contractId && !!this.fulfillmentRecord(context.kind, context.id);
+    this.setData({ fulfillmentDetailImageLoading: true, fulfillmentDetailImageError: '' });
+    let filePath, imageLoad;
+    try {
+      const logistics = context.kind === 'LOGISTICS';
+      const extension = ({ 'image/png': 'png', 'image/gif': 'gif', 'image/webp': 'webp' })[item.contentType] || 'jpg';
+      filePath = logistics ? `${wx.env.USER_DATA_PATH}/logistics-${item.id}.${extension}` : this.attachmentDownloadPath(item);
+      const fileSize = Number(item.fileSize || 0);
+      this._fulfillmentImageLoads = this._fulfillmentImageLoads || {};
+      imageLoad = this._fulfillmentImageLoads[filePath];
+      if (!imageLoad) {
+        imageLoad = localFileReady(filePath, fileSize) ? Promise.resolve({ filePath }) : downloadChunkedApiFile(
+          logistics ? `/logistics-documents/${item.id}/image-chunk-data` : `/contract-attachments/${item.id}/content-chunk-data`,
+          filePath, fileSize > 0 ? fileSize : undefined);
+        this._fulfillmentImageLoads[filePath] = imageLoad;
+      }
+      const result = await imageLoad;
+      if (current()) this.setData({ fulfillmentDetailImage: result.filePath });
+    } catch (error) {
+      if (current()) this.setData({ fulfillmentDetailImageError: '图片加载失败，请重试' });
+    } finally {
+      if (this._fulfillmentImageLoads && this._fulfillmentImageLoads[filePath] === imageLoad) delete this._fulfillmentImageLoads[filePath];
+      if (current()) this.setData({ fulfillmentDetailImageLoading: false });
+    }
+  },
+
+  onFulfillmentDetailImageError() {
+    this.setData({ fulfillmentDetailImage: '', fulfillmentDetailImageError: '图片加载失败，请重试' });
+  },
+
+  fulfillmentCreateActions() {
+    if (this.data.contractReadOnly) return [];
+    const actions = [];
+    if (this.data.canViewContractContent && this.data.canCreateSalesOrder) actions.push({ key: 'SALES_ORDER', label: '新建销售单' });
+    if (this.data.canViewContractContent && this.data.canCreateReturnOrder) actions.push({ key: 'RETURN_ORDER', label: '新建退货单' });
+    if (!this.data.contractReadOnly) {
+      if (this.data.canUploadAttachments && this.data.canViewPayments) actions.push({ key: 'PAYMENT_VOUCHER', label: '上传转款凭证' });
+      if (this.data.canUploadAttachments && this.data.canViewInvoices) actions.push({ key: 'INVOICE', label: '上传发票' });
+      if (this.data.canViewContractContent) actions.push({ key: 'LOGISTICS', label: '上传物流单' });
+      if (this.data.canUploadAttachments && this.data.canViewOtherAttachments) actions.push({ key: 'OTHER', label: '上传其它资料' });
+    }
+    return actions;
+  },
+
+  openAddFulfillment(e) {
+    const filter = e && e.currentTarget && e.currentTarget.dataset.kind || this.data.fulfillmentFilter;
+    if (filter !== 'ALL') return this.createFulfillmentRecord(filter);
+  },
+
+  createFulfillmentRecord(kind) {
+    if (!this.fulfillmentCreateActions().some(action => action.key === kind)) return;
+    const event = { currentTarget: { dataset: { type: kind, category: kind } } };
+    if (kind === 'SALES_ORDER' || kind === 'RETURN_ORDER') return this.createBusinessDocument(event);
+    if (kind === 'LOGISTICS') return this.chooseLogisticsImage();
+    return this.chooseAttachment(event);
+  },
+
+  fulfillmentRecordActions(kind, item) {
+    const document = kind === 'SALES_ORDER' || kind === 'RETURN_ORDER';
+    const pdf = !document && isPdfAttachment(item);
+    const actions = pdf ? [] : [{ key: 'VIEW', label: document ? (item.status === 'DRAFT' ? '预览 PDF' : '查看 PDF') : '查看文件' }];
+    if (!pdf && kind !== 'LOGISTICS') actions.push({ key: 'DOWNLOAD', label: '下载' });
+    if (document) actions.push({ key: 'DETAIL', label: item.canEditDraft && !this.data.contractReadOnly ? '编辑草稿' : '查看详情' });
+    if (document) return actions;
+    const terminal = this.data.contract && ['COMPLETED', 'VOIDED', 'CANCELLED'].includes(this.data.contract.status);
+    if (terminal) return actions;
+    // A pending request locks ordinary edits; it must still be possible to
+    // review or withdraw that exact request so the lock can be resolved.
+    if (item.pendingActionId && item.pendingActionType === 'VOID') {
+      if (item.canReviewAction) actions.push({ key: 'VOID_APPROVE', label: '同意作废', tone: 'danger' }, { key: 'VOID_REJECT', label: '拒绝作废' });
+      if (item.canCancelAction) actions.push({ key: 'VOID_CANCEL', label: '撤回作废申请' });
+    }
+    if (this.data.contractReadOnly) return actions;
+    if (item.canConfirm) actions.push({ key: 'APPROVE', label: '同意', tone: 'primary' }, { key: 'REJECT', label: '驳回', tone: 'danger' });
+    if (item.canWithdraw) actions.push({ key: 'WITHDRAW', label: '撤回' });
+    if (item.canRequestVoid) actions.push({ key: 'VOID', label: '申请作废', tone: 'danger' });
+    if (item.canDelete) actions.push({ key: 'DELETE', label: '删除', tone: 'danger' });
+    return actions;
+  },
+
+  openFulfillmentMenu(e) {
+    const { kind, id } = e.currentTarget.dataset;
+    if (kind === 'SALES_ORDER' || kind === 'RETURN_ORDER') return;
+    const item = this.fulfillmentRecord(kind, id);
+    if (!item) return;
+    const actions = this.fulfillmentRecordActions(kind, item);
+    if (!actions.length) return this.closeFulfillmentMenu();
+    this._fulfillmentMenuContext = { contractId: this.data.contractId, kind, id: String(id), actionId: String(item.pendingActionId || '') };
+    this.setData({ showFulfillmentMenu: true, fulfillmentMenuTitle: item.documentNo || item.invoiceNo || item.originalName || '资料操作',
+      fulfillmentMenuSubtitle: [item.statusText, item.uploaderCompanyName, item.fileSizeText, item.dateText].filter(Boolean).join(' · '),
+      fulfillmentMenuActions: actions });
+  },
+
+  closeFulfillmentMenu() {
+    this._fulfillmentMenuContext = null;
+    this.setData({ showFulfillmentMenu: false });
+  },
+
+  retryFulfillmentSection(e) {
+    const kind = e.currentTarget.dataset.kind;
+    if (kind === 'SALES_ORDER' || kind === 'RETURN_ORDER') return this.loadBusinessDocuments(kind, true);
+    return this.loadFulfillmentData(true);
+  },
+
+  runFulfillmentAction(e) {
+    const context = this._fulfillmentMenuContext;
+    const key = e.currentTarget.dataset.key;
+    if (!context || context.contractId !== this.data.contractId || this._pdfPageUnloaded
+        || this.data.fulfillmentDetailPdfFileLoading || this.data.contractActionLoading || this.data.attachmentLoading || this.data.attachmentUploading || this.data.logisticsUploading) return;
+    const { kind, id } = context;
+    const item = this.fulfillmentRecord(kind, id);
+    if (!item || (key.startsWith('VOID_') && context.actionId !== String(item.pendingActionId || ''))
+        || !this.fulfillmentRecordActions(kind, item).some(action => action.key === key)) {
+      this.closeFulfillmentMenu();
+      return;
+    }
+    if (['VIEW', 'DOWNLOAD'].includes(key) && this.data.fulfillmentDetailImageLoading) {
+      wx.showToast({ title: '图片加载中，请稍候', icon: 'none' });
+      return;
+    }
+    this.closeFulfillmentMenu();
+    const event = { currentTarget: { dataset: { document: item, attachment: item,
+      decision: key === 'VOID_APPROVE' ? 'APPROVE' : 'REJECT' } } };
+    if (key === 'DETAIL') return this.openSalesOrderDetail(event);
+    if (key === 'VIEW') {
+      if (kind === 'LOGISTICS') return this.previewLogisticsImage(event);
+      return kind === 'SALES_ORDER' || kind === 'RETURN_ORDER' ? this.viewBusinessDocument(event) : this.viewAttachment(event);
+    }
+    if (key === 'DOWNLOAD') return kind === 'SALES_ORDER' || kind === 'RETURN_ORDER' ? this.downloadBusinessDocument(event) : this.downloadAttachment(event);
+    if (key === 'DELETE') return kind === 'LOGISTICS' ? this.deleteLogisticsDocument(event) : this.deleteAttachment(event);
+    if (key === 'APPROVE') return this.approveAttachment(event);
+    if (key === 'REJECT') return this.rejectAttachment(event);
+    if (key === 'WITHDRAW') return this.withdrawAttachment(event);
+    if (key === 'VOID') return this.requestAttachmentVoid(event);
+    if (key === 'VOID_CANCEL') return this.cancelAttachmentVoid(event);
+    if (key === 'VOID_APPROVE' || key === 'VOID_REJECT') return this.reviewAttachmentVoid(event);
+  },
+
+  async cancelAttachmentVoid(e) {
+    const attachment = e.currentTarget.dataset.attachment;
+    const current = attachment && this.fulfillmentRecord(attachment.category, attachment.id);
+    if (!current || !this.fulfillmentRecordActions(attachment.category, current).some(action => action.key === 'VOID_CANCEL')
+        || String(current.pendingActionId) !== String(attachment.pendingActionId) || this.data.contractActionLoading) return;
+    const { request } = require('../../utils/request');
+    try {
+      this.setData({ contractActionLoading: true });
+      await request({ url: `/bilateral-actions/${current.pendingActionId}/cancel`, method: 'POST', data: {} });
+      wx.showToast({ title: '作废申请已撤回', icon: 'success' });
+      await this.loadContractDetail();
+    } catch (error) {
+      wx.showToast({ title: error.message || '撤回失败', icon: 'none' });
+    } finally {
+      this.setData({ contractActionLoading: false });
+    }
   },
 
   async loadContractMemo() {
@@ -1230,6 +1675,7 @@ Page({
     }
     const pending = { contractId };
     this._contractMemoLoad = pending;
+    this.setData({ memoLoading: true, memoLoadError: '' });
     const current = () => !this._pdfPageUnloaded && this.data.contractId === contractId
       && this._contractMemoLoad === pending;
     const { request } = require('../../utils/request');
@@ -1239,14 +1685,15 @@ Page({
         if (!current()) return;
         this.setData({
           personalMemo: (memo && memo.content) || '',
-          memoDraft: this.data.showMemoEditor ? this.data.memoDraft : (memo && memo.content) || '',
+          memoDraft: this.data.showMemoEditor && this.data.memoDraftDirty ? this.data.memoDraft : (memo && memo.content) || '',
           memoPreview: this.memoPreviewText((memo && memo.content) || ''),
           memoUpdatedAt: memo && memo.updatedAt ? formatDateTime(memo.updatedAt) : '',
           memoLoadError: ''
         });
       } catch (error) {
-        if (current()) this.setData({ memoLoadError: '备忘录加载失败，请下拉刷新重试' });
+        if (current()) this.setData({ memoLoadError: '进展暂时无法读取，请重试' });
       } finally {
+        if (current()) this.setData({ memoLoading: false });
         if (this._contractMemoLoad === pending) this._contractMemoLoad = null;
       }
     })();
@@ -1254,7 +1701,8 @@ Page({
   },
 
   onMemoInput(e) {
-    this.setData({ memoDraft: e.detail.value });
+    if (this.data.memoSaving || this.data.contractReadOnly) return;
+    this.setData({ memoDraft: e.detail.value, memoDraftDirty: true });
   },
 
   memoPreviewText(content) {
@@ -1263,31 +1711,57 @@ Page({
     return text.length > 54 ? `${text.slice(0, 54)}…` : text;
   },
 
+  toggleContractMore() {
+    if (!this.data.contract || !this.data.canViewContractContent) return;
+    this.setData({ showContractMore: !this.data.showContractMore });
+  },
+
+  closeContractMore() {
+    this.setData({ showContractMore: false });
+  },
+
+  runContractMoreAction(e) {
+    const method = {
+      edit: 'editContract', withdraw: 'cancelContract', delete: 'deleteContract',
+      end: 'requestContractEnd', void: 'requestContractVoid', cancelRequest: 'cancelContractBilateralAction'
+    }[e.currentTarget.dataset.action];
+    if (!method || !this.data.canViewContractContent || this.data.contractActionLoading) return;
+    this.closeContractMore();
+    return this[method]();
+  },
+
+  retryContractMemo() {
+    return this.loadContractMemo();
+  },
+
   openMemoEditor() {
-    if (this.data.contractReadOnly) {
-      wx.showToast({ title: '合同当前仅允许查看', icon: 'none' });
-      return;
-    }
-    this.setData({ showMemoEditor: true, memoDraft: this.data.personalMemo });
+    if (!this.data.canViewContractContent) return;
+    this.setData({ showContractMore: false, showMemoEditor: true,
+      memoDraft: this.data.personalMemo, memoDraftDirty: false });
   },
 
   closeMemoEditor() {
     if (this.data.memoSaving) return;
-    this.setData({ showMemoEditor: false, memoDraft: this.data.personalMemo });
+    this.setData({ showMemoEditor: false, memoDraft: this.data.personalMemo, memoDraftDirty: false });
   },
 
   async saveContractMemo() {
-    if (this.data.memoSaving || this.data.contractReadOnly) return;
+    if (this.data.memoSaving || this.data.contractReadOnly || this.data.memoLoading
+        || this.data.memoLoadError || !this.data.canViewContractContent) return;
     const { request } = require('../../utils/request');
+    const contractId = this.data.contractId;
     try {
       this.setData({ memoSaving: true });
       const memo = await request({
-        url: `/contracts/${this.data.contractId}/memo`,
+        url: `/contracts/${contractId}/memo`,
         method: 'POST',
         data: { content: this.data.memoDraft }
       });
+      if (this._pdfPageUnloaded || this.data.contractId !== contractId || !this.data.canViewContractContent) return;
       this._contractMemoLoad = null;
       this.setData({
+        memoLoading: false,
+        memoDraftDirty: false,
         personalMemo: (memo && memo.content) || '',
         memoDraft: (memo && memo.content) || '',
         memoPreview: this.memoPreviewText((memo && memo.content) || ''),
@@ -1874,8 +2348,10 @@ Page({
     return `${wx.env.USER_DATA_PATH}/${safeBaseName}-${attachment.id}.${extension}`;
   },
 
-  async downloadAttachmentFile(attachment, download) {
+  async downloadAttachmentFile(attachment, download, options = {}) {
     if (!attachment || !attachment.id) return;
+    const current = () => !options.shouldContinue || options.shouldContinue();
+    if (!current()) return;
     const localFilePath = this.attachmentDownloadPath(attachment);
     const fileSize = Number(attachment.fileSize || 0);
     const cached = localFileReady(localFilePath, fileSize);
@@ -1896,6 +2372,7 @@ Page({
           fileSize > 0 ? fileSize : undefined
         );
       const path = result.filePath;
+      if (!current()) return;
       if (attachment.isImage) {
         if (download) {
           await runPrivacyAction(() => wx.saveImageToPhotosAlbum({
@@ -1919,7 +2396,7 @@ Page({
         fail: () => wx.showToast({ title: '文件打开失败', icon: 'none' })
       });
     } catch (error) {
-      wx.showToast({ title: error.message || '文件获取失败', icon: 'none' });
+      if (current()) wx.showToast({ title: error.message || '文件获取失败', icon: 'none' });
     } finally {
       if (!cached) wx.hideLoading();
     }
@@ -1960,7 +2437,7 @@ Page({
             ...this.data.fulfillmentErrors,
             [errorKey]: `${label}加载失败，请下拉刷新重试`
           }
-        });
+        }, () => this.updateFulfillmentCount());
       } finally {
         if (this._businessDocumentLoads[documentType] === pending) {
           delete this._businessDocumentLoads[documentType];
