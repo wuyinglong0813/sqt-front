@@ -28,7 +28,11 @@
   "compileType": "miniprogram",
   "simulatorPluginLibVersion": {},
   "packOptions": {
-    "ignore": [],
+    "ignore": [
+      { "type": "folder", "value": "tests" },
+      { "type": "file", "value": "project.config.json" },
+      { "type": "file", "value": "project.private.config.json" }
+    ],
     "include": []
   },
   "appid": "wxd6d1e93a3868253e",

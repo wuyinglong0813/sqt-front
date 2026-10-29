@@ -2,6 +2,7 @@
   "name": "sqt-front",
   "private": true,
   "scripts": {
+    "check:package": "node scripts/check-package-size.js",
     "test": "node miniprogram/tests/run-tests.js && node --test miniprogram/tests/*.test.js && node miniprogram/tests/legal-representative-tests.js"
   },
   "engines": {
