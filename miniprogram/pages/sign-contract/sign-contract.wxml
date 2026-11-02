@@ -69,6 +69,19 @@
     <view class="card" wx:if="{{tableSection}}">
       <view class="section-title">{{tableSection.title}}</view>
       <view class="table-scroll-hint">左右滑动可编辑全部列 · {{tableTotalHint}}</view>
+      <view class="table-navigation">
+        <view class="table-navigation-head">
+          <text class="table-selection">{{tableSelectionLabel || '点击单元格开始录入'}}</text>
+          <text class="table-keyboard-toggle {{tableKeyboardMode ? 'selected' : ''}}" wx:if="{{tableKeyboardAvailable}}" bindtap="toggleTableKeyboardMode">{{tableKeyboardMode ? '编辑单元格' : '方向键选格'}}</text>
+        </view>
+        <view class="table-navigation-actions">
+          <view class="table-nav-button" data-direction="left" catchtap="onTableNavigate" aria-label="左一格">← 左一格</view>
+          <view class="table-nav-button" data-direction="right" catchtap="onTableNavigate" aria-label="右一格">右一格 →</view>
+          <view class="table-nav-button" data-direction="up" catchtap="onTableNavigate" aria-label="上一行">↑ 上一行</view>
+          <view class="table-nav-button" data-direction="down" catchtap="onTableNavigate" aria-label="下一行">下一行 ↓</view>
+        </view>
+        <view class="table-navigation-hint">{{tableKeyboardMode ? '按方向键选格，回车进入编辑' : '回车进入下一行同一列，末行回车自动添加一行'}}</view>
+      </view>
       <scroll-view class="table-scroll" scroll-x enhanced bounces="{{false}}" show-scrollbar="{{false}}" scroll-with-animation="{{false}}" scroll-left="{{tableScrollLeft}}" bindscroll="onTableScroll" enable-flex>
         <view class="table-wrap" style="width: {{tableSection.columns.length * 150 + 56}}rpx;">
           <view class="table-row table-header">
@@ -77,19 +90,19 @@
             </view>
             <view class="th th-del"></view>
           </view>
-          <view class="table-row" wx:for="{{tableRows}}" wx:for-item="row" wx:for-index="ri" wx:key="ri">
-            <view class="td" wx:for="{{tableSection.columns}}" wx:for-item="col" wx:for-index="ci" wx:key="ci">
+          <view id="contract-table-row-{{ri}}" class="table-row" wx:for="{{tableRows}}" wx:for-item="row" wx:for-index="ri" wx:key="ri">
+            <view class="td {{tableActiveRow === ri && tableActiveCol === ci ? 'active-cell' : ''}}" wx:for="{{tableSection.columns}}" wx:for-item="col" wx:for-index="ci" wx:key="ci">
               <block wx:if="{{ci === amountColumnIndex && amountAutoCalculated}}">
                 <input class="td-input num auto" type="digit" value="{{row[ci]}}" disabled/>
               </block>
               <block wx:elif="{{ci === quantityColumnIndex || ci === priceColumnIndex || ci === amountColumnIndex}}">
-                <input class="td-input num" type="digit" value="{{row[ci]}}" placeholder="0" cursor-spacing="120" adjust-position data-row="{{ri}}" data-col="{{ci}}" bindfocus="onNumberCellFocus" bindblur="onNumberCellBlur" bindinput="onTableCellChange"/>
+                <input class="td-input num" type="digit" value="{{row[ci]}}" placeholder="0" cursor-spacing="120" adjust-position hold-keyboard confirm-type="next" confirm-hold focus="{{tableFocusRow === ri && tableFocusCol === ci}}" data-row="{{ri}}" data-col="{{ci}}" bindfocus="onNumberCellFocus" bindblur="onNumberCellBlur" bindinput="onTableCellChange" bindconfirm="onTableCellConfirm"/>
               </block>
               <block wx:elif="{{ci === productColumnIndex}}">
-                <input class="td-input" type="text" value="{{row[ci]}}" data-row="{{ri}}" data-col="{{ci}}" bindinput="onTableCellChange" bindblur="onProductCellBlur"/>
+                <input class="td-input" type="text" value="{{row[ci]}}" cursor-spacing="120" adjust-position hold-keyboard confirm-type="next" confirm-hold focus="{{tableFocusRow === ri && tableFocusCol === ci}}" data-row="{{ri}}" data-col="{{ci}}" bindfocus="onTableCellFocus" bindinput="onTableCellChange" bindblur="onProductCellBlur" bindconfirm="onTableCellConfirm"/>
               </block>
               <block wx:else>
-                <input class="td-input" type="text" value="{{row[ci]}}" data-row="{{ri}}" data-col="{{ci}}" bindinput="onTableCellChange"/>
+                <input class="td-input" type="text" value="{{row[ci]}}" cursor-spacing="120" adjust-position hold-keyboard confirm-type="next" confirm-hold focus="{{tableFocusRow === ri && tableFocusCol === ci}}" data-row="{{ri}}" data-col="{{ci}}" bindfocus="onTableCellFocus" bindblur="onTableCellBlur" bindinput="onTableCellChange" bindconfirm="onTableCellConfirm"/>
               </block>
             </view>
             <view class="td td-del">

@@ -57,6 +57,128 @@ function preparationHarness(code) {
   });
 }
 
+for (const message of [
+  '企业体验签署额度已用完，请联系平台',
+  '本期体验赠额已领完，请联系平台',
+  '企业专属免费份额已用完，请联系平台补充额度',
+  '当前没有可用签署额度，请联系平台开通或补充'
+]) {
+  test(`a denied signing quote shows an actionable quota state: ${message}`, async () => {
+    const h = harness(async o => {
+      if (o.url === '/fadada/users/me/identity') return { status: 'VERIFIED' };
+      if (o.url.endsWith('/prerequisites')) return { status: 'READY' };
+      if (o.url.endsWith('/quote')) return { canSign: false, message };
+      throw Error('Signing must not start without quota');
+    });
+    const p = h.page('fadada-auth'); p.data.scene = 'contract'; p.data.options = { contractId: '12' };
+    await p.prepareService();
+    assert.equal(p.data.loading, false);
+    assert.equal(p.data.quotaNotice.title, '签署额度不足');
+    assert.equal(p.data.quotaNotice.message, '');
+    assert.equal(p.data.quotaNotice.supportRequired, false);
+    assert.equal(p.data.preparationAction, '');
+    assert.equal(p.data.serviceUrl, '');
+    assert.equal(h.requests.some(o => o.url.endsWith('/sign-url')), false);
+    assert.equal(h.modals.length, 0);
+    p.openVipPurchase();
+    assert.match(h.navigation[0], /^\/pages\/membership-purchase\/membership-purchase\?continuationId=/);
+    h.app.globalData.currentCompanyId = '4';
+    p._signingContext = { token: 'session', companyId: '3', generation: 0 };
+    p.openVipPurchase();
+    assert.equal(h.navigation.length, 1);
+  });
+}
+
+test('a provider quota failure from prerequisites directs the user to support', async () => {
+  const h = harness(async o => {
+    if (o.url === '/fadada/users/me/identity') return { status: 'VERIFIED' };
+    throw new Error('当前企业可用签署额度不足，请联系平台核对共享配置');
+  });
+  const p = h.page('fadada-auth'); p.data.scene = 'contract'; p.data.options = { contractId: '12' };
+  await p.prepareService();
+  assert.equal(p.data.quotaNotice.supportRequired, true);
+  assert.equal(p.data.quotaNotice.title, '签署服务额度待确认');
+  assert.doesNotMatch(p.data.quotaNotice.message, /共享配置/);
+  p.openIdentitySupport();
+  assert.equal(h.navigation[0], '/pages/help-center/help-center');
+  p.openVipPurchase();
+  assert.equal(h.navigation.length, 1);
+});
+
+test('returning from VIP purchase rechecks and continues the original contract without another continue button', async () => {
+  const h = preparationHarness();
+  const p = h.page('fadada-auth'); p.data.scene = 'contract'; p.data.options = { contractId: '12' };
+  p.showServiceError(new Error('企业体验签署额度已用完，请联系平台'));
+  assert.ok(p.data.quotaNotice);
+  p.openVipPurchase();
+  assert.equal(p._awaitingSigningPrerequisite.id, h.app._signingIdentityContinuation.id);
+  p.onHide();
+  await p.onShow();
+  assert.equal(p.data.quotaNotice, null);
+  assert.equal(p.data.errorMessage, '');
+  assert.equal(p.data.serviceUrl, 'https://provider.test/sign');
+  assert.equal(p.data.options.contractId, '12');
+  assert.equal(h.app._signingIdentityContinuation, undefined);
+});
+
+test('returning from an unpaid purchase remains on the simple quota notice', async () => {
+  const h = harness(async o => {
+    if (o.url === '/fadada/users/me/identity') return { status: 'VERIFIED' };
+    if (o.url.endsWith('/prerequisites')) return { status: 'READY' };
+    return { canSign: false, message: '企业体验签署额度已用完，请联系平台' };
+  });
+  const p = h.page('fadada-auth'); p.data.scene = 'contract'; p.data.options = { contractId: '12' };
+  p.showServiceError(new Error('企业体验签署额度已用完，请联系平台'));
+  p.openVipPurchase(); p.onHide(); await p.onShow();
+  assert.equal(p.data.quotaNotice.title, '签署额度不足');
+  assert.equal(p.data.serviceUrl, '');
+  assert.equal(h.requests.some(o => o.url.endsWith('/sign-url')), false);
+});
+
+test('an enterprise change during VIP purchase cannot resume the previous contract', async () => {
+  const h = preparationHarness();
+  const p = h.page('fadada-auth'); p.data.scene = 'contract'; p.data.options = { contractId: '12' };
+  p.showServiceError(new Error('企业体验签署额度已用完，请联系平台'));
+  p.openVipPurchase(); p.onHide();
+  h.app.globalData.currentCompanyId = '4';
+  await p.onShow();
+  assert.match(p.data.errorMessage, /登录或企业已变化/);
+  assert.equal(h.requests.length, 0);
+});
+
+test('a failed VIP purchase navigation retains the notice and allows another attempt', () => {
+  const h = preparationHarness();
+  const p = h.page('fadada-auth'); p.data.scene = 'contract'; p.data.options = { contractId: '12' };
+  p.showServiceError(new Error('企业体验签署额度已用完，请联系平台'));
+  h.wx.navigateTo = o => o.fail();
+  p.openVipPurchase();
+  assert.equal(p._openingPrerequisite, false);
+  assert.equal(p._awaitingSigningPrerequisite, null);
+  assert.equal(h.app._signingIdentityContinuation, undefined);
+  assert.equal(p.data.quotaNotice.title, '签署额度不足');
+});
+
+test('the quota card has one VIP action and no trial explanation or manual continue action', () => {
+  const markup = fs.readFileSync(path.join(__dirname, '..', 'pages/fadada-auth/fadada-auth.wxml'), 'utf8');
+  const quota = markup.split('<view class="quota-page"')[1].split('<view class="state-page"')[0];
+  assert.match(quota, /bindtap="openVipPurchase">开通 \/ 充值 VIP/);
+  assert.doesNotMatch(quota, /quota-guidance|quota-secondary|额度已补充|体验|继续签署|bindtap="retry"/);
+});
+
+test('non-quota errors and other service scenes retain their existing recovery behavior', () => {
+  const h = preparationHarness();
+  const p = h.page('fadada-auth'); p.data.scene = 'contract';
+  for (const message of ['网络请求失败', '当前企业已暂停新发起电子签，请联系平台',
+    '会员策略正在同步，请稍后再试', '签署任务确认中，请稍后再试']) {
+    p.showServiceError(new Error(message));
+    assert.equal(p.data.quotaNotice, null);
+    assert.equal(p.data.errorMessage, message);
+  }
+  p.data.scene = 'company';
+  p.showServiceError(new Error('当前企业可用签署额度不足，请联系平台核对共享配置'));
+  assert.equal(p.data.quotaNotice, null);
+});
+
 test('ready contract preparation runs through to signing without an additional local consent dialog', async () => {
   const h = preparationHarness();
   const p = h.page('fadada-auth'); p.data.scene = 'contract'; p.data.options = { contractId: '12' };

@@ -112,9 +112,9 @@ Page({
     });
     const warehouse = this.data.warehouses[this.data.warehouseIndex];
     if (!warehouse || !form.productName.trim() || !form.baseUnit.trim()
-        || !/^\d+(\.\d{1,4})?$/.test(form.quantity) || Number(form.quantity) <= 0
+        || !/^\d+(\.\d{1,4})?$/.test(form.quantity)
         || !/^\d+(\.\d{1,4})?$/.test(form.unitPrice)) {
-      wx.showToast({ title: '请填写商品、单位、正数数量和单价（最多四位小数）', icon: 'none' });
+      wx.showToast({ title: '请填写商品、单位，数量和单价须为非负数（最多四位小数）', icon: 'none' });
       return;
     }
     this.setData({ savingInbound: true });

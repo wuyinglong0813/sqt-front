@@ -71,6 +71,13 @@ Page({
     tableScrollbarVisible: false,
     tableScrollbarThumbWidth: 100,
     tableScrollbarThumbLeft: 0,
+    tableActiveRow: -1,
+    tableActiveCol: -1,
+    tableFocusRow: -1,
+    tableFocusCol: -1,
+    tableSelectionLabel: '',
+    tableKeyboardAvailable: false,
+    tableKeyboardMode: false,
     // 条款
     clauses: [],
     // 是否已选择模板
@@ -107,6 +114,37 @@ Page({
     });
     await Promise.all([this.loadTemplates(), this.loadInventoryProducts()]);
     if (editMode) await this.loadExistingContract();
+  },
+
+  onShow() {
+    this.tableViewVisible = true;
+    this.tableViewEpoch = (this.tableViewEpoch || 0) + 1;
+    // PC global key events are not dispatched while a native input is focused.
+    // Keep arrow-key selection as an explicit mode; Enter opens the selected cell.
+    if (typeof wx.onKeyDown !== 'function' || typeof wx.offKeyDown !== 'function') return;
+    const device = typeof wx.getDeviceInfo === 'function' ? wx.getDeviceInfo()
+      : typeof wx.getSystemInfoSync === 'function' ? wx.getSystemInfoSync() : {};
+    if (!['windows', 'mac'].includes(device.platform)) return;
+    this.setData({ tableKeyboardAvailable: true });
+    if (!this.tableKeyListener) {
+      this.tableKeyListener = event => this.onTableKeyDown(event);
+      wx.onKeyDown(this.tableKeyListener);
+    }
+  },
+
+  onHide() {
+    this.tableViewVisible = false;
+    this.tableViewEpoch = (this.tableViewEpoch || 0) + 1;
+    if (this.tableKeyListener) wx.offKeyDown(this.tableKeyListener);
+    this.tableKeyListener = null;
+    this.setData({ tableKeyboardMode: false, tableFocusRow: -1, tableFocusCol: -1 });
+  },
+
+  onUnload() {
+    this.tableViewVisible = false;
+    this.tableViewEpoch = (this.tableViewEpoch || 0) + 1;
+    if (this.tableKeyListener) wx.offKeyDown(this.tableKeyListener);
+    this.tableKeyListener = null;
   },
 
   async loadTemplates() {
@@ -169,6 +207,8 @@ Page({
         this.setData({ templates });
       }
       this.setData({
+        tableActiveRow: -1, tableActiveCol: -1, tableFocusRow: -1, tableFocusCol: -1,
+        tableSelectionLabel: '', tableKeyboardMode: false,
         counterpartyName: contract.viewerCounterpartyName || contract.counterpartyName || '',
         counterpartyCompanyId: String(contract.viewerCounterpartyCompanyId || contract.counterpartyCompanyId || ''),
         role: (contract.viewerDirection || contract.direction) === 'PURCHASE' ? 'buyer' : 'supplier',
@@ -236,6 +276,8 @@ Page({
 
     this.setData({
       templateIndex: idx,
+      tableActiveRow: -1, tableActiveCol: -1, tableFocusRow: -1, tableFocusCol: -1,
+      tableSelectionLabel: '', tableKeyboardMode: false,
       contractName: this.data.contractName || (content.title || '购销合同'),
       fields,
       tableSection: tableSection ? { title: tableSection.title, columns: normalizedTable.columns } : null,
@@ -340,6 +382,121 @@ Page({
   },
 
   // ======= 产品表格编辑 =======
+  editableTableColumns() {
+    return ((this.data.tableSection && this.data.tableSection.columns) || [])
+      .map((_, index) => index)
+      .filter(index => !this.data.amountAutoCalculated || index !== this.data.amountColumnIndex);
+  },
+
+  selectTableCell(row, col, edit) {
+    const columns = (this.data.tableSection && this.data.tableSection.columns) || [];
+    if (!this.data.tableRows[row] || !this.editableTableColumns().includes(col)) return;
+    this.setData({
+      tableActiveRow: row,
+      tableActiveCol: col,
+      tableFocusRow: edit ? row : -1,
+      tableFocusCol: edit ? col : -1,
+      tableSelectionLabel: `第 ${row + 1} 行 · ${columns[col]}`,
+      productSuggestions: [], specificationSuggestions: [], suggestionRow: -1
+    }, () => this.revealTableRow(row));
+    this.revealTableColumn(col);
+  },
+
+  onTableCellFocus(e) {
+    const { row, col } = e.currentTarget.dataset;
+    this.setData({ tableKeyboardMode: false });
+    this.selectTableCell(Number(row), Number(col), true);
+  },
+
+  onTableCellBlur(e) {
+    const { row, col } = e.currentTarget.dataset;
+    // A previous input may blur after the next input has already received focus.
+    if (Number(row) === this.data.tableFocusRow && Number(col) === this.data.tableFocusCol) {
+      this.setData({ tableFocusRow: -1, tableFocusCol: -1 });
+    }
+  },
+
+  onTableCellConfirm(e) {
+    // Confirm also carries the final value (some keyboards confirm before input).
+    this.onTableCellChange(e);
+    const row = Number(e.currentTarget.dataset.row);
+    const col = Number(e.currentTarget.dataset.col);
+    if (row === this.data.tableRows.length - 1) this.addTableRow();
+    this.selectTableCell(row + 1, col, true);
+  },
+
+  moveTableSelection(direction, edit) {
+    const columns = this.editableTableColumns();
+    if (!columns.length || !this.data.tableRows.length) return;
+    const valid = this.data.tableRows[this.data.tableActiveRow] && columns.includes(this.data.tableActiveCol);
+    let row = valid ? this.data.tableActiveRow : 0;
+    let colIndex = valid ? columns.indexOf(this.data.tableActiveCol) : 0;
+    if (valid) {
+      if (direction === 'up') row = Math.max(0, row - 1);
+      if (direction === 'down') row = Math.min(this.data.tableRows.length - 1, row + 1);
+      if (direction === 'left') colIndex = Math.max(0, colIndex - 1);
+      if (direction === 'right') colIndex = Math.min(columns.length - 1, colIndex + 1);
+    }
+    this.selectTableCell(row, columns[colIndex], edit);
+  },
+
+  onTableNavigate(e) {
+    this.setData({ tableKeyboardMode: false });
+    this.moveTableSelection(e.currentTarget.dataset.direction, true);
+  },
+
+  toggleTableKeyboardMode() {
+    const enabled = !this.data.tableKeyboardMode;
+    this.setData({ tableKeyboardMode: enabled });
+    this.moveTableSelection('', !enabled);
+  },
+
+  onTableKeyDown(e) {
+    // WeChat declares modifier values as strings; "false" must not block navigation.
+    const modifierPressed = value => value === true || value === 'true' || value === 1 || value === '1';
+    if (!this.data.tableKeyboardMode || [e.altKey, e.ctrlKey, e.metaKey].some(modifierPressed)) return;
+    const direction = { ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right' }[e.key];
+    if (direction) this.moveTableSelection(direction, false);
+    else if (e.key === 'Enter' || e.key === 'Escape') this.toggleTableKeyboardMode();
+  },
+
+  revealTableColumn(col) {
+    const metrics = this.tableScrollMetrics;
+    const columns = (this.data.tableSection && this.data.tableSection.columns) || [];
+    if (!metrics || !columns.length || metrics.contentWidth <= metrics.viewportWidth) return;
+    const width = metrics.contentWidth / (columns.length + 56 / 150);
+    const current = Number(this.tableScrollOffset || 0);
+    const left = Math.max(0, Math.min(metrics.contentWidth - metrics.viewportWidth,
+      col * width < current ? col * width
+        : (col + 1) * width > current + metrics.viewportWidth
+          ? (col + 1) * width - metrics.viewportWidth : current));
+    this.tableScrollOffset = left;
+    this.setData({ tableScrollLeft: left,
+      tableScrollbarThumbLeft: left / (metrics.contentWidth - metrics.viewportWidth)
+        * (100 - this.data.tableScrollbarThumbWidth) });
+  },
+
+  revealTableRow(row) {
+    if (!this.tableViewVisible || typeof wx.createSelectorQuery !== 'function' || typeof wx.pageScrollTo !== 'function') return;
+    const epoch = this.tableViewEpoch;
+    const query = wx.createSelectorQuery().in(this);
+    query.select(`#contract-table-row-${row}`).boundingClientRect();
+    query.selectViewport().scrollOffset();
+    query.select('.table-navigation').boundingClientRect();
+    query.exec(result => {
+      if (!this.tableViewVisible || this.tableViewEpoch !== epoch || this.data.tableActiveRow !== row) return;
+      const [rect, scroll, toolbar] = result || [];
+      if (!rect || !scroll) return;
+      const window = typeof wx.getWindowInfo === 'function' ? wx.getWindowInfo()
+        : typeof wx.getSystemInfoSync === 'function' ? wx.getSystemInfoSync() : {};
+      const top = (toolbar && toolbar.height || 0) + 12;
+      const bottom = Number(window.windowHeight || 0) - 90;
+      const delta = rect.top < top ? rect.top - top
+        : bottom > top && rect.bottom > bottom ? rect.bottom - bottom : 0;
+      if (delta) wx.pageScrollTo({ scrollTop: Math.max(0, scroll.scrollTop + delta), duration: 0 });
+    });
+  },
+
   onTableCellChange(e) {
     const { row, col } = e.currentTarget.dataset;
     const rowIndex = Number(row);
@@ -462,6 +619,7 @@ Page({
   },
 
   onNumberCellFocus(e) {
+    if (this.onTableCellFocus) this.onTableCellFocus(e);
     const { row, col } = e.currentTarget.dataset;
     const value = String((this.data.tableRows[row] || [])[col] || '').trim();
     if (/^0(?:\.0*)?$/.test(value)) {
@@ -470,10 +628,12 @@ Page({
   },
 
   onNumberCellBlur(e) {
+    this.onTableCellBlur(e);
     const { row, col } = e.currentTarget.dataset;
     if (String(e.detail.value || '').trim()) return;
+    // Ignore a late blur from a removed row or a cell whose value has since changed.
+    if (!this.data.tableRows[row] || String(this.data.tableRows[row][col] || '').trim()) return;
     const rows = [...this.data.tableRows];
-    if (!rows[row]) rows[row] = [];
     rows[row][col] = '0';
     this.recalcTable(rows);
   },
@@ -488,10 +648,15 @@ Page({
   },
 
   deleteTableRow(e) {
-    const index = e.currentTarget.dataset.index;
+    const index = Number(e.currentTarget.dataset.index);
     if (this.data.tableRows.length <= 1) return;
     const rows = this.data.tableRows.filter((_, i) => i !== index);
     this.recalcTable(rows);
+    if (this.data.tableActiveRow >= 0) {
+      const row = Math.min(rows.length - 1, this.data.tableActiveRow > index
+        ? this.data.tableActiveRow - 1 : this.data.tableActiveRow);
+      this.selectTableCell(row, this.data.tableActiveCol, false);
+    }
   },
 
   recalcTable(rows) {
@@ -552,6 +717,7 @@ Page({
   },
 
   onProductCellBlur(e) {
+    this.onTableCellBlur(e);
     const rowIndex = Number(e.currentTarget.dataset.row);
     const value = String(e.detail.value || '').trim();
     if (!['运费', '装卸费', '包装费', '服务费'].includes(value)) return;

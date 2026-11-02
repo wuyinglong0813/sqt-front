@@ -75,16 +75,16 @@
           <view class="inbound-section">
             <view class="inbound-section-title">入库信息</view>
             <view class="inbound-field-row">
-              <view class="inbound-field"><view class="field-label">入库数量<text class="field-required">*</text></view><input type="digit" value="{{inbound.quantity}}" data-field="quantity" bindinput="onInboundInput" placeholder="请输入数量" placeholder-class="inbound-placeholder" maxlength="19" cursor-spacing="24"/></view>
+              <view class="inbound-field"><view class="field-label">入库数量<text class="field-required">*</text></view><input type="digit" value="{{inbound.quantity}}" data-field="quantity" bindinput="onInboundInput" placeholder="请输入数量，可填 0" placeholder-class="inbound-placeholder" maxlength="19" cursor-spacing="24"/></view>
               <view class="inbound-field inbound-unit-field"><view class="field-label">单位<text class="field-required">*</text></view><input type="text" value="{{inbound.baseUnit}}" data-field="baseUnit" bindinput="onInboundInput" placeholder="如：米、件、吨" placeholder-class="inbound-placeholder" maxlength="32" cursor-spacing="24"/></view>
             </view>
             <view class="inbound-field"><view class="field-label">入库单价<text class="field-required">*</text><text class="field-optional">元 / 单位</text></view><view class="inbound-price-input"><text>¥</text><input type="digit" value="{{inbound.unitPrice}}" data-field="unitPrice" bindinput="onInboundInput" placeholder="请输入单价，可填 0" placeholder-class="inbound-placeholder" maxlength="19" cursor-spacing="24"/></view></view>
-            <view class="inbound-field-hint">数量和单价最多支持 4 位小数</view>
+            <view class="inbound-field-hint">数量和单价可填 0，最多支持 4 位小数；数量为 0 时保留商品信息</view>
             <view class="inbound-field"><view class="field-label">入库备注<text class="field-optional">选填</text></view><input type="text" value="{{inbound.remark}}" data-field="remark" bindinput="onInboundInput" placeholder="补充来源、批次等信息" placeholder-class="inbound-placeholder" maxlength="500" cursor-spacing="24"/></view>
           </view>
         </view>
       </scroll-view>
-      <view class="inbound-footer"><button loading="{{savingInbound}}" disabled="{{savingInbound}}" bindtap="saveInbound">{{savingInbound ? '正在入库…' : '确认入库'}}</button><view>确认后将增加所选仓库的库存数量</view></view>
+      <view class="inbound-footer"><button loading="{{savingInbound}}" disabled="{{savingInbound}}" bindtap="saveInbound">{{savingInbound ? '正在入库…' : '确认入库'}}</button><view>保存商品信息，并按录入数量增加所选仓库的库存</view></view>
     </view>
   </view>
 </view>

@@ -7,14 +7,6 @@ const { setTabBarHidden, syncTabBar } = require('../../utils/tabBar');
 const { startMemberIdentity, memberInvitePrerequisite } = require('../../utils/invitation');
 const app = getApp();
 
-function hasPerm(perm) {
-  const member = app.globalData.memberInfo;
-  if (!member || !member.permissions) return false;
-  const perms = member.permissions;
-  if (perms.includes('all')) return true;
-  return perms.includes(perm);
-}
-
 function companyAbbr(name) {
   const clean = (name || '企业').replace(/有限公司|有限责任公司|股份有限公司/g, '');
   return clean.slice(0, 2) || '企业';
@@ -25,6 +17,41 @@ function maskCreditCode(code) {
   if (!value) return '暂未录入';
   if (value.length <= 8) return value;
   return `${value.slice(0, 4)}••••${value.slice(-4)}`;
+}
+
+function emptyCompanyView() {
+  return {
+    companyReady: false, companySummaryOnly: false, companyLoadError: '',
+    hasCompany: false, company: {}, companyAbbr: '企业', maskedCreditCode: '暂未录入',
+    certBadge: { text: '', color: '' }, certCompleted: false, member: {},
+    canManage: false, canCompanyManage: false, canContractTemplate: false, canInventory: false,
+    signingReadiness: null, signingReadinessLoading: false,
+    memberCount: null, roleCount: null, templateCount: null,
+    companies: [], certificationApplications: [], onboardingCompanies: [], onboardingError: false,
+    companyDraft: null, currentCompanyId: '', todos: [],
+    showCompanySwitcher: false, switchingCompanyId: '', showJoinModal: false
+  };
+}
+
+function companyProfileView(payload, summaryOnly = false) {
+  const company = payload.company || {};
+  const member = payload.member || {};
+  const companies = payload.companies || [];
+  const permissions = member.permissions || [];
+  const allows = permission => permissions.includes('all') || permissions.includes(permission);
+  const certStatus = company.certificationStatus || '';
+  return {
+    companyReady: true, companySummaryOnly: summaryOnly, companyInitializing: false,
+    hasCompany: !!member.roleCode && member.roleCode !== 'GUEST' && companies.length > 0,
+    company, member, companyAbbr: companyAbbr(company.name),
+    maskedCreditCode: maskCreditCode(company.creditCode),
+    certBadge: dict.certification(certStatus), certCompleted: certStatus === 'VERIFIED',
+    canManage: allows('member_manage') || allows('auth_manage'),
+    canCompanyManage: allows('company_manage'), canContractTemplate: allows('contract_template'),
+    canInventory: allows('inventory_view'),
+    companies: companies.map(item => ({ ...item, initial: companyAbbr(item.companyName) })),
+    currentCompanyId: String(payload.user && payload.user.currentCompanyId || '')
+  };
 }
 
 function signingReadinessView(result, capabilities = {}) {
@@ -63,6 +90,11 @@ function signingReadinessView(result, capabilities = {}) {
 Page({
   data: {
     isLoggedIn: false,
+    companyInitializing: true,
+    companyReady: false,
+    companySummaryOnly: false,
+    companyRefreshing: false,
+    companyLoadError: '',
     isDesktopWechat: false,
     serviceRecoveryAvailable: false,
     hasCompany: false,
@@ -78,9 +110,9 @@ Page({
     signingReadinessLoading: false,
     canContractTemplate: false,
     canInventory: false,
-    memberCount: 0,
-    roleCount: 0,
-    templateCount: 0,
+    memberCount: null,
+    roleCount: null,
+    templateCount: null,
     companies: [],
     certificationApplications: [],
     onboardingCompanies: [],
@@ -95,14 +127,62 @@ Page({
     companySwitcherListHeight: 0
   },
 
-  onShow() {
+  async onShow() {
+    const showSequence = this._showSequence = (this._showSequence || 0) + 1;
     syncTabBar(this, 1);
-    const loggedIn = !!(app.globalData.token || wx.getStorageSync('tradepass_token'));
-    this.setData({ isLoggedIn: loggedIn, isDesktopWechat: !!app.globalData.isDesktopWechat });
+    if (typeof app.restoreStoredSession === 'function') app.restoreStoredSession();
+    const token = app.globalData.token || wx.getStorageSync('tradepass_token');
+    this.prepareCompanyView(!!token);
+    this.setData({ isDesktopWechat: !!app.globalData.isDesktopWechat });
     const recovery = serviceRecovery(app);
     this.setData({ serviceRecoveryAvailable: !!(recovery && recovery.target.scene === 'member') });
-    if (!loggedIn) { this.setData({ signingReadiness: null }); return; }
-    this.loadData();
+    if (!token) return;
+    const restorationContext = captureCompanyContext(app);
+    let restored;
+    try {
+      if (typeof app.ensureSessionReady === 'function') restored = await app.ensureSessionReady();
+    } catch (error) { /* The page request below provides a visible retry on failure. */ }
+    if (this._unloaded || showSequence !== this._showSequence) return;
+    this.prepareCompanyView(!!app.globalData.token);
+    if (!app.globalData.token) return;
+    const reusableProfile = restored && restored.user && isCompanyContextCurrent(app, restorationContext)
+      && String(restored.user.currentCompanyId || '') === String(app.globalData.currentCompanyId || '')
+      && this.companyViewIdentity(restored) === this.companyViewIdentity();
+    return this.loadData({ payload: reusableProfile ? restored : null });
+  },
+
+  companyViewIdentity(payload) {
+    const member = (payload ? payload.member : app.globalData.memberInfo) || {};
+    const user = (payload ? payload.user : app.globalData.userInfo) || {};
+    return JSON.stringify([captureCompanyContext(app), String(user.id || ''), member.userId || '',
+      member.roleCode || '', member.memberStatus || '', (member.roleCodes || []).slice().sort(),
+      (member.permissions || []).slice().sort()]);
+  },
+
+  prepareCompanyView(loggedIn = true) {
+    const identity = this.companyViewIdentity();
+    if (!loggedIn || identity !== this._viewIdentity) {
+      this._loadSequence = (this._loadSequence || 0) + 1;
+      this._readinessSequence = (this._readinessSequence || 0) + 1;
+      this.setData({ ...emptyCompanyView(), isLoggedIn: loggedIn, companyInitializing: loggedIn });
+      this._viewIdentity = identity;
+      this._readinessContext = null;
+      if (!loggedIn) return;
+    }
+    if (this.data.companyReady) return;
+    const data = app.globalData;
+    if (this._viewToken && this._viewToken !== data.token) return;
+    const companyId = String(data.currentCompanyId || '');
+    const member = data.memberInfo;
+    const summary = (data.companies || []).find(item => String(item.companyId) === companyId);
+    if (data.userInfo && member && member.roleCode && member.roleCode !== 'GUEST'
+        && String(data.userInfo.currentCompanyId || '') === companyId
+        && (!member.userId || String(member.userId) === String(data.userInfo.id))
+        && summary && summary.companyName) {
+      this.setData(companyProfileView({ user: { currentCompanyId: companyId }, member,
+        companies: data.companies, company: { id: companyId, name: summary.companyName } }, true));
+      this._viewToken = data.token;
+    }
   },
 
   onPullDownRefresh() {
@@ -113,65 +193,55 @@ Page({
     this.loadData().finally(() => wx.stopPullDownRefresh());
   },
 
-  onUnload() { this._unloaded = true; },
+  onUnload() { this._unloaded = true; this._loadSequence = (this._loadSequence || 0) + 1; },
 
-  async loadData() {
+  async loadData(options = {}) {
+    this.prepareCompanyView();
     const sequence = this._loadSequence = (this._loadSequence || 0) + 1;
     let context = captureCompanyContext(app);
     const current = () => !this._unloaded && sequence === this._loadSequence && isCompanyContextCurrent(app, context);
-    this.setData({ companyDraft: readDraft() });
+    this.setData({ companyDraft: readDraft(), companyRefreshing: true, companyLoadError: '' });
     try {
-      const payload = await request({ url: '/me', token: context.token, companyId: context.companyId });
+      const payload = options.payload || await request({ url: '/me', token: context.token, companyId: context.companyId });
       if (!current()) return;
       app.applyMePayload(payload);
       context = captureCompanyContext(app);
-      const certificationApplications = await request({ url: '/me/company-certification-applications',
-        token: context.token, withCompany: false }).catch(() => []);
-      if (!current()) return;
-      await this.loadOnboarding();
-      if (!current()) return;
-      const company = payload.company || {};
-      const member = payload.member || {};
-      const companies = payload.companies || [];
-      const hasCompany = !!(member && member.roleCode && member.roleCode !== 'GUEST') && companies.length > 0;
-      const certStatus = company.certificationStatus || '';
-      const permissions = member.permissions || [];
-      const canManage = permissions.includes('all') || permissions.includes('member_manage') || permissions.includes('auth_manage');
-      const canCompanyManage = permissions.includes('all') || permissions.includes('company_manage');
-      const canContractTemplate = permissions.includes('all') || permissions.includes('contract_template');
-      const canInventory = permissions.includes('all') || permissions.includes('inventory_view') || hasPerm('inventory_view');
-      const currentCompanyId = (payload.user && payload.user.currentCompanyId) || '';
-      const companyItems = companies.map(item => ({ ...item, initial: companyAbbr(item.companyName) }));
-
-      this.setData({
-        hasCompany,
-        company,
-        companyAbbr: companyAbbr(company.name),
-        maskedCreditCode: maskCreditCode(company.creditCode),
-        canContractTemplate,
-        canInventory,
-        certBadge: dict.certification(certStatus),
-        certCompleted: certStatus === 'VERIFIED',
-        member,
-        canManage,
-        canCompanyManage,
-        signingReadiness: null,
-        companies: companyItems,
-        certificationApplications: (certificationApplications || []).filter(item => item.status !== 'CANCELLED').map(item => ({
-          ...item,
-          statusText: item.status === 'APPROVED' ? '已通过' : item.status === 'REJECTED' ? '已驳回' : '审核中'
-        })),
-        currentCompanyId
-      });
-      await Promise.all([
-        this.loadTodos(),
-        this.loadEnterpriseMetrics(currentCompanyId || company.id, canManage, canContractTemplate),
-        this.loadSigningReadiness()
+      const identity = this.companyViewIdentity();
+      const profile = companyProfileView(payload);
+      this.setData({ ...(identity === this._viewIdentity ? {} : emptyCompanyView()), ...profile });
+      this._viewIdentity = identity;
+      this._viewToken = context.token;
+      const results = await Promise.all([
+        this.loadCertificationApplications(current),
+        this.loadOnboarding(current),
+        this.loadTodos(current),
+        this.loadEnterpriseMetrics(profile.currentCompanyId || profile.company.id, profile.canManage, profile.canContractTemplate, current),
+        this.loadSigningReadiness(current)
       ]);
-    } catch (e) {}
+      if (current() && results.some(result => result === false)) {
+        this.setData({ companyLoadError: '部分企业信息暂未更新，请重试' });
+      }
+    } catch (error) {
+      if (current()) this.setData({ companyLoadError: this.data.companyReady
+        ? '企业信息更新失败，点击重试' : '企业信息暂时无法加载，请重试' });
+    } finally {
+      if (current()) this.setData({ companyInitializing: false, companyRefreshing: false });
+    }
   },
 
-  async loadSigningReadiness() {
+  async loadCertificationApplications(isLoadCurrent) {
+    const context = captureCompanyContext(app);
+    try {
+      const applications = await request({ url: '/me/company-certification-applications', token: context.token, withCompany: false });
+      if (this._unloaded || !isCompanyContextCurrent(app, context) || !isLoadCurrent()) return;
+      this.setData({ certificationApplications: (applications || []).filter(item => item.status !== 'CANCELLED').map(item => ({
+        ...item, statusText: item.status === 'APPROVED' ? '已通过' : item.status === 'REJECTED' ? '已驳回' : '审核中'
+      })) });
+      return true;
+    } catch (error) { return false; }
+  },
+
+  async loadSigningReadiness(isLoadCurrent) {
     const sequence = this._readinessSequence = (this._readinessSequence || 0) + 1;
     const companyId = this.data.currentCompanyId;
     const permissions = (this.data.member || {}).permissions || [];
@@ -183,7 +253,8 @@ Page({
     }
     const context = captureCompanyContext(app);
     const current = () => !this._unloaded && sequence === this._readinessSequence
-      && String(this.data.currentCompanyId) === String(companyId) && isCompanyContextCurrent(app, context);
+      && String(this.data.currentCompanyId) === String(companyId) && isCompanyContextCurrent(app, context)
+      && (typeof isLoadCurrent !== 'function' || isLoadCurrent());
     this._readinessContext = context;
     this.setData({ signingReadinessLoading: true });
     try {
@@ -235,11 +306,13 @@ Page({
     }
   },
 
-  async loadOnboarding() {
+  async loadOnboarding(isLoadCurrent) {
     const context = captureCompanyContext(app);
+    const current = () => !this._unloaded && isCompanyContextCurrent(app, context)
+      && (typeof isLoadCurrent !== 'function' || isLoadCurrent());
     try {
       const companies = await request({ url: '/me/company-onboarding', token: context.token, withCompany: false });
-      if (!isCompanyContextCurrent(app, context)) return;
+      if (!current()) return;
       const draft = readDraft();
       this.setData({
         onboardingError: false,
@@ -249,8 +322,10 @@ Page({
             : item.certificationStatus === 'PENDING_REVIEW' ? '认证结果待确认，点击继续' : '企业资料已保存，点击继续认证'
         }))
       });
+      return true;
     } catch (error) {
-      if (isCompanyContextCurrent(app, context)) this.setData({ onboardingError: true });
+      if (current()) this.setData({ onboardingError: true });
+      return false;
     }
   },
 
@@ -322,31 +397,35 @@ Page({
     }
   },
 
-  async loadEnterpriseMetrics(companyId, canManage, canContractTemplate) {
+  async loadEnterpriseMetrics(companyId, canManage, canContractTemplate, isLoadCurrent) {
     const context = captureCompanyContext(app);
     if (!companyId) {
       this.setData({ memberCount: 0, roleCount: 0, templateCount: 0 });
       return;
     }
-    const safe = (promise, fallback) => promise.catch(() => fallback);
+    const safe = promise => promise.catch(() => null);
     const [members, roles, templates] = await Promise.all([
-      canManage ? safe(request({ url: `/authorizations?companyId=${companyId}&status=ACTIVE&page=1&size=1`, token: context.token, companyId }), { total: 0 }) : Promise.resolve({ total: 0 }),
-      canManage ? safe(request({ url: `/roles?companyId=${companyId}`, token: context.token, companyId }), []) : Promise.resolve([]),
-      canContractTemplate ? safe(request({ url: '/contract-templates?page=1&size=1', token: context.token, companyId }), { total: 0 }) : Promise.resolve({ total: 0 })
+      canManage ? safe(request({ url: `/authorizations?companyId=${companyId}&status=ACTIVE&page=1&size=1`, token: context.token, companyId })) : Promise.resolve(null),
+      canManage ? safe(request({ url: `/roles?companyId=${companyId}`, token: context.token, companyId })) : Promise.resolve(null),
+      canContractTemplate ? safe(request({ url: '/contract-templates?page=1&size=1', token: context.token, companyId })) : Promise.resolve(null)
     ]);
-    if (!isCompanyContextCurrent(app, context)) return;
+    if (this._unloaded || !isCompanyContextCurrent(app, context)
+        || typeof isLoadCurrent === 'function' && !isLoadCurrent()) return;
     this.setData({
-      memberCount: Number(members.total || 0),
-      roleCount: (roles || []).length,
-      templateCount: Number(templates.total || 0)
+      ...(members ? { memberCount: Number(members.total || 0) } : {}),
+      ...(roles ? { roleCount: roles.length } : {}),
+      ...(templates ? { templateCount: Number(templates.total || 0) } : {})
     });
+    return !(canManage && (!members || !roles) || canContractTemplate && !templates);
   },
 
-  async loadTodos() {
+  async loadTodos(isLoadCurrent) {
     const context = captureCompanyContext(app);
+    const current = () => !this._unloaded && isCompanyContextCurrent(app, context)
+      && (typeof isLoadCurrent !== 'function' || isLoadCurrent());
     try {
       const todos = await request({ url: '/me/todos', token: context.token, companyId: context.companyId });
-      if (!isCompanyContextCurrent(app, context)) return;
+      if (!current()) return;
       const iconMap = {
         APPROVAL: '/images/icons/team.svg',
         CERT: '/images/icons/company.svg',
@@ -355,8 +434,9 @@ Page({
       };
       const enhanced = (todos || []).map(t => ({ ...t, iconPath: iconMap[t.type] || '/images/icons/contracts.svg' }));
       this.setData({ todos: enhanced });
+      return true;
     } catch (e) {
-      if (isCompanyContextCurrent(app, context)) this.setData({ todos: [] });
+      return false;
     }
   },
 

@@ -36,13 +36,36 @@ Page({
   },
 
   onShow() {
+    this._unloaded = false;
     syncTabBar(this, 2);
     const loggedIn = !!(app.globalData.token || wx.getStorageSync('tradepass_token'));
     const isDev = !!app.globalData.isLocalDevelopment;
     this.setData({ isLoggedIn: loggedIn, isDev });
-    if (!loggedIn) return;
-    this.loadMe();
+    if (!loggedIn) {
+      this._loadSequence = (this._loadSequence || 0) + 1;
+      this._profileToken = '';
+      this._profileUserId = '';
+      this.clearProfile();
+      return;
+    }
+    const loading = this.loadMe();
     if (isDev) this.loadDevUsers();
+    return loading;
+  },
+
+  onUnload() {
+    this._unloaded = true;
+    this._loadSequence = (this._loadSequence || 0) + 1;
+    this._verifiedProfileIdentity = null;
+  },
+
+  clearProfile() {
+    this._verifiedProfileIdentity = null;
+    this.setData({ user: {}, userDisplayName: '用户', userNameFirst: '用', maskedPhone: '',
+      memberRoleText: '加载中', company: {}, companyAbbr: '企业', companyVerified: false,
+      companyStatusText: '未认证', realNameVerified: false, personalIdentityStatusText: '待认证',
+      canManageAuth: false, companies: [], hasOnboarding: false, onboardingName: '',
+      onboardingStatus: '', currentCompanyId: '' });
   },
 
   onPullDownRefresh() {
@@ -64,14 +87,32 @@ Page({
   async loadMe() {
     const sequence = this._loadSequence = (this._loadSequence || 0) + 1;
     let context = captureCompanyContext(app);
-    const current = () => sequence === this._loadSequence && isCompanyContextCurrent(app, context);
+    let userId = String((app.globalData.userInfo || {}).id || '');
+    if (this._profileToken !== context.token || this._profileUserId !== userId) {
+      this.clearProfile();
+      this._profileToken = context.token;
+      this._profileUserId = userId;
+    }
+    const current = () => !this._unloaded && sequence === this._loadSequence
+      && isCompanyContextCurrent(app, context)
+      && (!userId || !app.globalData.userInfo || String(app.globalData.userInfo.id || '') === userId);
     try {
       const payload = await request({ url: '/me', token: context.token, companyId: context.companyId });
       if (!current()) return;
       app.applyMePayload(payload);
       context = captureCompanyContext(app);
+      userId = String((payload.user || {}).id || '');
+      this._profileUserId = userId;
       const personalIdentity = await request({ url: '/fadada/users/me/identity', token: context.token, withCompany: false }).catch(() => null);
       if (!current()) return;
+      if (personalIdentity) {
+        // Cache only confirmed personal display fields within this account session.
+        this._verifiedProfileIdentity = personalIdentity.status === 'VERIFIED' ? {
+          status: 'VERIFIED', statusText: personalIdentity.statusText,
+          verifiedName: String(personalIdentity.verifiedName || '').trim()
+        } : null;
+      }
+      const identity = personalIdentity || this._verifiedProfileIdentity;
       const company = payload.company || {};
       const member = payload.member || {};
       const canManage = member.roleCode === 'LEGAL' || member.roleCode === 'ADMIN';
@@ -79,7 +120,9 @@ Page({
       const onboarding = companies.length ? { hasOnboarding: false } : await loadSummary();
       if (!current()) return;
       const user = payload.user || {};
-      const nickname = user.nickname || '用户';
+      const verifiedName = identity && identity.status === 'VERIFIED'
+        ? String(identity.verifiedName || '').trim() : '';
+      const displayName = verifiedName || String(user.nickname || '').trim() || '用户';
       const phone = user.phone || '';
 
       // 手机号掩码：188****0001
@@ -93,17 +136,17 @@ Page({
       this.setData({
         ...onboarding,
         user,
-        userDisplayName: nickname,
-        userNameFirst: nickname[0] || '用',
+        userDisplayName: displayName,
+        userNameFirst: Array.from(displayName)[0] || '用',
         maskedPhone: maskedPhone || '未绑定手机号',
         memberRoleText: member.roleText || '未分配角色',
         company,
         companyAbbr: companyAbbr(company.name),
         companyVerified: company.certificationStatus === 'VERIFIED',
         companyStatusText: dict.certification(company.certificationStatus).text,
-        realNameVerified: !!(personalIdentity && personalIdentity.status === 'VERIFIED'),
-        personalIdentityStatusText: personalIdentity
-          ? (personalIdentity.statusText || '待认证')
+        realNameVerified: !!(identity && identity.status === 'VERIFIED'),
+        personalIdentityStatusText: identity
+          ? (identity.statusText || (identity.status === 'VERIFIED' ? '已认证' : '待认证'))
           : '待认证',
         companies,
         currentCompanyId: user.currentCompanyId || '',

@@ -1,5 +1,20 @@
 <view class="company-page">
-  <view class="enterprise-shell guest-enterprise-shell" wx:if="{{!isLoggedIn}}">
+  <view class="enterprise-shell company-loading-shell" wx:if="{{companyInitializing || (isLoggedIn && !companyReady && !companyLoadError)}}" aria-label="正在加载企业信息">
+    <view class="identity-card loading-identity">
+      <view class="identity-top"><view class="loading-block loading-avatar"></view><view class="identity-copy"><view class="loading-block loading-name"></view><view class="loading-block loading-code"></view></view></view>
+      <view class="loading-block loading-status"></view>
+    </view>
+    <view class="metrics-card loading-metrics"><view class="loading-block"></view><view class="loading-block"></view><view class="loading-block"></view></view>
+    <view class="company-loading-caption">正在加载企业信息</view>
+    <view class="brand-list"><view class="list-row loading-row" wx:for="{{[1, 2, 3, 4]}}" wx:key="*this"><view class="loading-block loading-icon"></view><view class="row-copy"><view class="loading-block loading-row-title"></view><view class="loading-block loading-row-desc"></view></view></view></view>
+  </view>
+  <view class="enterprise-shell company-load-error" wx:elif="{{isLoggedIn && !companyReady && companyLoadError}}">
+    <image src="/images/icons/company.svg" mode="aspectFit"/>
+    <view class="load-error-title">企业信息暂时无法加载</view>
+    <view class="load-error-description">请检查网络后重试</view>
+    <button class="primary-button" bindtap="loadData" loading="{{companyRefreshing}}" disabled="{{companyRefreshing}}">重新加载</button>
+  </view>
+  <view class="enterprise-shell guest-enterprise-shell" wx:elif="{{!isLoggedIn}}">
     <view class="identity-card guest-identity-card" bindtap="goPhoneLogin">
       <image class="identity-watermark" src="/images/brand-logo.svg" mode="aspectFit"/>
       <view class="identity-top">
@@ -56,6 +71,7 @@
   </view>
 
   <block wx:else>
+    <view class="company-refresh-error" wx:if="{{companyLoadError}}" bindtap="loadData"><text>{{companyLoadError}}</text><text class="refresh-retry">重新加载 ›</text></view>
     <view class="onboarding-panel" wx:if="{{onboardingCompanies.length || companyDraft || onboardingError}}">
       <view class="section-title">待完成企业认证</view>
       <view class="brand-list">
@@ -105,22 +121,22 @@
             <view class="identity-avatar">{{companyAbbr}}</view>
             <view class="identity-copy">
               <view class="identity-name">{{company.name}}</view>
-              <view class="identity-code">统一社会信用代码 {{maskedCreditCode}}</view>
+              <view class="identity-code">统一社会信用代码 {{companySummaryOnly ? '加载中' : maskedCreditCode}}</view>
             </view>
             <view class="identity-arrow">⌄</view>
           </view>
           <view class="trust-row">
-            <view class="trust-state"><view class="trust-dot">{{certCompleted ? '✓' : '·'}}</view>{{certCompleted ? '已完成企业认证' : certBadge.text}}</view>
+            <view class="trust-state"><view class="trust-dot">{{certCompleted ? '✓' : '·'}}</view>{{companySummaryOnly ? '认证信息加载中' : certCompleted ? '已完成企业认证' : certBadge.text}}</view>
             <view class="role-badge">{{member.roleText}}</view>
           </view>
         </view>
 
         <view class="metrics-card">
-          <view class="metric-item"><view class="metric-value">{{memberCount}}</view><view class="metric-label">企业成员</view></view>
+          <view class="metric-item"><view class="metric-value">{{memberCount === null ? '—' : memberCount}}</view><view class="metric-label">企业成员</view></view>
           <view class="metric-divider"></view>
-          <view class="metric-item"><view class="metric-value">{{roleCount}}</view><view class="metric-label">角色权限</view></view>
+          <view class="metric-item"><view class="metric-value">{{roleCount === null ? '—' : roleCount}}</view><view class="metric-label">角色权限</view></view>
           <view class="metric-divider"></view>
-          <view class="metric-item"><view class="metric-value">{{templateCount}}</view><view class="metric-label">合同模板</view></view>
+          <view class="metric-item"><view class="metric-value">{{templateCount === null ? '—' : templateCount}}</view><view class="metric-label">合同模板</view></view>
         </view>
 
         <view class="brand-list membership-entry">
@@ -164,12 +180,12 @@
             <view class="list-row" wx:if="{{canCompanyManage}}" bindtap="goCert">
               <view class="row-icon"><image src="/images/icons/company.svg" mode="aspectFit"/></view>
               <view class="row-copy"><view class="row-title">企业认证</view><view class="row-desc">主体信息、实名与电子签章</view></view>
-              <view class="state-pill {{certCompleted ? '' : 'pending'}}">{{certBadge.text}}</view><view class="row-arrow">›</view>
+              <view class="state-pill {{certCompleted ? '' : 'pending'}}">{{companySummaryOnly ? '加载中' : certBadge.text}}</view><view class="row-arrow">›</view>
             </view>
             <view class="list-row" wx:if="{{canManage}}" bindtap="goAuthManage">
               <view class="row-icon"><image src="/images/icons/team.svg" mode="aspectFit"/></view>
               <view class="row-copy"><view class="row-title">组织成员</view><view class="row-desc">成员审批、部门与邀请管理</view></view>
-              <view class="state-pill muted">{{memberCount}}</view><view class="row-arrow">›</view>
+              <view class="state-pill muted">{{memberCount === null ? '—' : memberCount}}</view><view class="row-arrow">›</view>
             </view>
             <view class="list-row" wx:if="{{canManage && isDesktopWechat}}" bindtap="goSigningOrganization">
               <view class="row-icon"><image src="/images/icons/team.svg" mode="aspectFit"/></view>
@@ -184,12 +200,12 @@
             <view class="list-row" wx:if="{{canManage}}" bindtap="goRoleManage">
               <view class="row-icon"><image src="/images/icons/role.svg" mode="aspectFit"/></view>
               <view class="row-copy"><view class="row-title">角色权限</view><view class="row-desc">角色配置与数据访问范围</view></view>
-              <view class="state-pill muted">{{roleCount}}</view><view class="row-arrow">›</view>
+              <view class="state-pill muted">{{roleCount === null ? '—' : roleCount}}</view><view class="row-arrow">›</view>
             </view>
             <view class="list-row" wx:if="{{canContractTemplate}}" bindtap="goDocumentTemplate">
               <view class="row-icon"><image src="/images/icons/template.svg" mode="aspectFit"/></view>
               <view class="row-copy"><view class="row-title">模板中心</view><view class="row-desc">合同、销售单与退货单统一管理</view></view>
-              <view class="state-pill muted">{{templateCount}}</view><view class="row-arrow">›</view>
+              <view class="state-pill muted">{{templateCount === null ? '—' : templateCount}}</view><view class="row-arrow">›</view>
             </view>
           <view class="list-row" wx:if="{{canInventory}}" bindtap="goInventory">
             <view class="row-icon"><image src="/images/icons/inventory.svg" mode="aspectFit"/></view>

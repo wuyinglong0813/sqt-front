@@ -136,3 +136,35 @@ test('manual inbound accepts optional model and specification while keeping deci
   assert.equal(inbound.data.quantity, '0.0001');
   assert.equal(inbound.data.unitPrice, '0');
 });
+
+test('manual inbound accepts zero quantity and keeps zero stock visible after refreshing and filtering', async () => {
+  const h = harness();
+  await h.page.loadData();
+  h.page.openInbound();
+  h.page.data.inbound = { ...h.page.data.inbound, productName: '包装箱', model: 'A', baseUnit: '件', quantity: '0', unitPrice: '0' };
+  h.records.overview.balances.push({ id: '4', warehouseId: '101', warehouseName: '电线电缆',
+    productName: '包装箱', model: 'A', baseUnit: '件', quantity: '0', unitPrice: '0', inventoryAmount: '0' });
+  await h.page.saveInbound();
+  const inbound = h.calls.find(options => options.method === 'POST');
+  assert.equal(inbound.data.quantity, '0');
+  assert.equal(inbound.data.unitPrice, '0');
+  assert.equal(h.page.data.visibleBalances.length, 4);
+  h.page.selectFilterWarehouse({ currentTarget: { dataset: { id: '101' } } });
+  h.page.onSearchInput({ detail: { value: '包装箱' } });
+  assert.equal(h.page.data.visibleBalances.length, 1);
+  assert.equal(h.page.data.visibleBalances[0].quantity, '0');
+  h.page.showBalanceDetail({ currentTarget: { dataset: { index: 0 } } });
+  assert.match(h.modals[0].content, /库存数量：0 件/);
+});
+
+test('manual inbound still rejects blank, negative and overprecision quantities or prices', async () => {
+  for (const [quantity, unitPrice] of [['', '0'], ['-1', '0'], ['0.00001', '0'], ['0', ''], ['0', '-1'], ['0', '0.00001']]) {
+    const h = harness();
+    await h.page.loadData();
+    h.page.openInbound();
+    h.page.data.inbound = { ...h.page.data.inbound, productName: '包装箱', baseUnit: '件', quantity, unitPrice };
+    await h.page.saveInbound();
+    assert.equal(h.calls.some(options => options.method === 'POST'), false, `${quantity} / ${unitPrice}`);
+    assert.equal(h.page.data.showInbound, true);
+  }
+});

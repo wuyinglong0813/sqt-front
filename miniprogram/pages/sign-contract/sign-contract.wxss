@@ -67,6 +67,14 @@ page { background: #f4f8fd; }
 
 /* 产品表格 */
 .table-scroll-hint { color: #94a2b2; font-size: 21rpx; margin: -6rpx 0 10rpx; text-align: right; }
+.table-navigation { background: #fff; border-bottom: 1rpx solid #e8eff7; margin-bottom: 10rpx; padding: 10rpx 0 14rpx; position: sticky; top: 0; z-index: 2; }
+.table-navigation-head { align-items: center; display: flex; justify-content: space-between; gap: 12rpx; margin-bottom: 12rpx; }
+.table-selection { color: #536b84; font-size: 22rpx; }
+.table-keyboard-toggle { background: #f1f6fc; border-radius: 8rpx; color: #3288d8; flex-shrink: 0; font-size: 22rpx; padding: 9rpx 13rpx; }
+.table-keyboard-toggle.selected { background: #e5f2ff; color: #1675ca; }
+.table-navigation-actions { display: flex; gap: 9rpx; }
+.table-nav-button { align-items: center; background: #f0f7ff; border: 1rpx solid #dbeaff; border-radius: 8rpx; color: #307dca; display: flex; flex: 1; font-size: 21rpx; justify-content: center; min-height: 58rpx; }
+.table-navigation-hint { color: #90a0b3; font-size: 20rpx; line-height: 1.5; margin-top: 10rpx; }
 .table-scroll { width: 100%; }
 .table-wrap { min-width: 100%; }
 .table-scrollbar { align-items: center; display: flex; height: 34rpx; margin: 7rpx 5rpx 1rpx; position: relative; }
@@ -88,6 +96,7 @@ page { background: #f4f8fd; }
 }
 .td-input.num { text-align: right; }
 .td-input.auto { background: #eaf4ff; color: #3498ff; font-weight: 600; }
+.active-cell .td-input { background: #f0f7ff; box-shadow: inset 0 0 0 2rpx #3498ff; }
 .del-btn {
   width: 40rpx; height: 40rpx; display: flex; align-items: center; justify-content: center;
   font-size: 20rpx; color: #e53e3e; background: #fff5f5; border-radius: 50%;

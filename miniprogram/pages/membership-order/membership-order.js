@@ -1,10 +1,11 @@
 const { request } = require('../../utils/request');
 const { captureCompanyContext, isCompanyContextCurrent } = require('../../utils/companyContext');
 const { paymentPlatform, presentOrder } = require('../../utils/membership');
+const { signingContinuation, resumeSigningContinuation, clearSigningContinuation } = require('../../utils/signingContinuation');
 const app = getApp();
 Page({
   data: { loading: true, order: null, errorMessage: '', paying: false, updating: false },
-  onLoad(options) { this._orderNo = options.orderNo || ''; },
+  onLoad(options) { this._orderNo = options.orderNo || ''; this._signingContinuationId = options.continuationId || ''; },
   onShow() { this._unloaded = false; this.loadOrder(); },
   onUnload() {
     this._unloaded = true;
@@ -16,6 +17,24 @@ Page({
     if (this.data.order && this.data.order.orderNo === order.orderNo
         && this.data.order.status === 'PAID' && order.status !== 'PAID') return;
     this.setData({ loading: false, order: presentOrder(order) });
+    this.resumePaidSigning(order);
+  },
+  resumePaidSigning(order) {
+    if (order.status !== 'PAID' || this._returningToSigning || !this._signingContinuationId
+        || String(order.companyId) !== captureCompanyContext(app).companyId || this._unloaded) return;
+    const id = this._signingContinuationId, pending = signingContinuation(app, id);
+    if (!pending || pending.target.scene !== 'contract') return;
+    const pages = typeof getCurrentPages === 'function' ? getCurrentPages() : [];
+    const destination = resumeSigningContinuation(app, id, pages);
+    if (!destination) return;
+    this._returningToSigning = true;
+    const fail = () => { this._returningToSigning = false; };
+    const redirect = () => {
+      if (this._unloaded || !signingContinuation(app, id)) { fail(); return; }
+      wx.redirectTo({ url: destination.url, success: () => clearSigningContinuation(app, id), fail });
+    };
+    if (destination.delta > 0) wx.navigateBack({ delta: destination.delta, fail: redirect });
+    else redirect();
   },
   endpoint(action = '') { return '/membership/orders/' + encodeURIComponent(this._orderNo) + action + '?platform=' + paymentPlatform(); },
   async loadOrder() {

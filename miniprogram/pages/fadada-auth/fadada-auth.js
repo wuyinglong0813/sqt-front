@@ -9,6 +9,17 @@ const DESKTOP_SIGN_WIDTH = 1280;
 const WEB_VIEW_LOAD_TIMEOUT = 30000;
 const SHORT_TICKET_LIFETIME = 10 * 60 * 1000;
 
+function signingQuotaNotice(message) {
+  const reason = String(message || '');
+  if (!/(?:签署额度|免费份额|体验赠额).*(?:已用完|已领完|不足)|(?:没有|暂无)可用签署额度/.test(reason)) return null;
+  const supportRequired = /核对共享配置/.test(reason);
+  return {
+    title: supportRequired ? '签署服务额度待确认' : '签署额度不足',
+    message: supportRequired ? '请联系平台支持确认企业签署服务额度。' : '',
+    supportRequired
+  };
+}
+
 function contractSigningReturned(result) {
   if (!result) return false;
   const status = String(result.status || '').toLowerCase();
@@ -37,6 +48,7 @@ Page({
     loading: true,
     serviceUrl: '',
     errorMessage: '',
+    quotaNotice: null,
     serviceCancelled: false,
     serviceResultReady: false,
     serviceResultTitle: '',
@@ -205,6 +217,7 @@ Page({
         preparationActionText: '重新检查', preparationCanProceed: false };
     }
     this.setData({ loading: false, serviceUrl: '', preparationAction: '',
+      quotaNotice: this.data.scene === 'contract' ? signingQuotaNotice(error.message) : null,
       errorMessage: error.message || '签署状态暂未确认，请重新检查后继续', ...(view || {}) });
   },
 
@@ -220,6 +233,22 @@ Page({
   openIdentitySupport() {
     if (!this.isPageContextCurrent()) return;
     wx.navigateTo({ url: '/pages/help-center/help-center' });
+  },
+
+  openVipPurchase() {
+    if (this._openingPrerequisite || !this.isPageContextCurrent() || !this.data.quotaNotice
+        || this.data.quotaNotice.supportRequired) return;
+    const id = createSigningContinuation(getApp(), this.data.scene, this.data.options);
+    if (!id) return this.showServiceError(new Error('原签署会话已失效，请返回当前企业重新发起'));
+    this._awaitingSigningPrerequisite = { id, context: captureCompanyContext(getApp()) };
+    this._openingPrerequisite = true;
+    wx.navigateTo({ url: '/pages/membership-purchase/membership-purchase?continuationId=' + encodeURIComponent(id),
+      fail: () => {
+        this._openingPrerequisite = false;
+        this._awaitingSigningPrerequisite = null;
+        if (this.data.options.continuationId !== id) clearSigningContinuation(getApp(), id);
+        wx.showToast({ title: '充值页面暂未打开，请重试', icon: 'none' });
+      } });
   },
 
   continueSigningPreparation() {
@@ -333,7 +362,7 @@ Page({
     if (this.data.scene === 'abolish') return this.showLocalVoidNotice();
     if (this._preparing || this._unloaded) return;
     this._preparing = true;
-    this.setData({ loading: true, errorMessage: '', serviceCancelled: false, preparationAction: '', canRecoverPersonalIdentity: false });
+    this.setData({ loading: true, errorMessage: '', quotaNotice: null, serviceCancelled: false, preparationAction: '', canRecoverPersonalIdentity: false });
     const token = getApp().globalData.token;
     const context = captureCompanyContext(getApp());
     try {
@@ -516,7 +545,7 @@ Page({
     const config = SCENES[scene];
     this.pauseWebViewWatchdog();
     this._webViewSession = null;
-    this.setData({ loading: true, serviceUrl: '', errorMessage: '', serviceCancelled: false,
+    this.setData({ loading: true, serviceUrl: '', errorMessage: '', quotaNotice: null, serviceCancelled: false,
       serviceResultReady: false, serviceResultTitle: '', serviceResultMessage: '', preparationAction: '' });
     try {
       if (!this.isPageContextCurrent()) throw new Error('登录或企业已变化，请返回当前企业重新发起');

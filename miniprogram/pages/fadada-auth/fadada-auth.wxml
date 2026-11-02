@@ -25,6 +25,23 @@
   <view class="back-link" bindtap="goBack">返回</view>
 </view>
 
+<view class="quota-page" wx:elif="{{quotaNotice}}">
+  <view class="quota-card">
+    <view class="quota-service-label">企业电子签服务</view>
+    <view class="quota-illustration">
+      <view class="quota-document"><view class="quota-document-line long"></view><view class="quota-document-line"></view><view class="quota-document-line short"></view></view>
+      <view class="quota-status-mark">i</view>
+    </view>
+    <view class="quota-title">{{quotaNotice.title}}</view>
+    <view class="quota-description" wx:if="{{quotaNotice.supportRequired}}">{{quotaNotice.message}}</view>
+    <button class="primary-button quota-primary" wx:if="{{quotaNotice.supportRequired}}" bindtap="openIdentitySupport">联系平台支持</button>
+    <button class="primary-button quota-primary" wx:else bindtap="openVipPurchase">开通 / 充值 VIP</button>
+  </view>
+  <view class="quota-footer">
+    <view class="quota-footer-link" bindtap="goBack">返回上一页</view>
+  </view>
+</view>
+
 <view class="state-page" wx:elif="{{errorMessage || serviceCancelled}}">
   <view class="state-icon error">!</view>
   <view class="state-title">{{serviceCancelled ? pageTitle + '已取消' : pageTitle + '暂时无法打开'}}</view>

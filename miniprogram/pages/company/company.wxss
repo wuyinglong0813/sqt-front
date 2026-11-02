@@ -10,6 +10,26 @@ page { background: #f4f8fd; }
 }
 
 .enterprise-shell { padding: 24rpx; }
+.loading-block { animation: companyLoadingPulse 1.4s ease-in-out infinite; background: #e5edf7; border-radius: 10rpx; }
+.loading-identity .loading-block { background: rgba(255,255,255,.23); }
+.loading-avatar { flex-shrink: 0; height: 94rpx; width: 94rpx; border-radius: 25rpx; }
+.loading-name { height: 30rpx; width: 68%; }
+.loading-code { height: 20rpx; margin-top: 17rpx; width: 88%; }
+.loading-status { height: 24rpx; margin-top: 35rpx; width: 42%; }
+.loading-metrics { justify-content: space-around; padding: 34rpx 20rpx; }
+.loading-metrics .loading-block { height: 67rpx; width: 100rpx; }
+.company-loading-caption { color: #8b9aad; font-size: 23rpx; margin: 28rpx 0 18rpx; }
+.loading-icon { border-radius: 21rpx; height: 76rpx; width: 76rpx; }
+.loading-row-title { height: 24rpx; width: 42%; }
+.loading-row-desc { height: 18rpx; margin-top: 14rpx; width: 78%; }
+@keyframes companyLoadingPulse { 0%, 100% { opacity: .65; } 50% { opacity: 1; } }
+.company-load-error { align-items: center; display: flex; flex-direction: column; padding-top: 150rpx; text-align: center; }
+.company-load-error image { height: 100rpx; width: 100rpx; }
+.load-error-title { color: #24364b; font-size: 31rpx; font-weight: 600; margin-top: 30rpx; }
+.load-error-description { color: #8d9caf; font-size: 25rpx; margin: 18rpx 0 35rpx; }
+.company-load-error .primary-button { width: 360rpx; }
+.company-refresh-error { align-items: center; background: #fff7e9; border: 1rpx solid #f4e2c5; border-radius: 16rpx; color: #967343; display: flex; font-size: 22rpx; justify-content: space-between; margin: 24rpx 24rpx 0; padding: 18rpx 22rpx; }
+.refresh-retry { flex-shrink: 0; margin-left: 15rpx; }
 .guest-enterprise-shell { min-height: 100vh; }
 .guest-identity-card { cursor: pointer; }
 .guest-metrics .metric-value { color: #a4b0be; }
