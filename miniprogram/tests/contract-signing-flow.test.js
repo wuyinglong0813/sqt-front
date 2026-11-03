@@ -50,7 +50,7 @@ function listHarness(file, records) {
   let page;
   const requests = [], toasts = [];
   vm.runInNewContext(fs.readFileSync(path.join(__dirname, `../pages/${file}/${file}.js`), 'utf8'), {
-    Page: value => { page = value; }, getApp: () => ({ globalData: {} }),
+    Page: value => { page = value; }, getApp: () => ({ globalData: {}, getCurrentCompanyId: () => '3' }),
     wx: { showToast: options => toasts.push(options) },
     require: id => {
       if (id.endsWith('/contractStatus')) return require('../utils/contractStatus');

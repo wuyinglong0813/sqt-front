@@ -18,6 +18,8 @@ function saveDraft(data) {
   if (key) wx.setStorageSync(key, {
     companyName: data.companyName, creditCode: data.creditCode,
     legalPersonName: data.legalPersonName, agreed: !!data.agreed,
+    registeredAddress: data.registeredAddress || '', contactPhone: data.contactPhone || '',
+    bankName: data.bankName || '', bankAccount: data.bankAccount || '',
     companyId: data.companyId ? String(data.companyId) : ''
   });
 }

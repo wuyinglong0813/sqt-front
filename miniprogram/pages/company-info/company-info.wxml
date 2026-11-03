@@ -14,6 +14,25 @@
       <view class="info-row"><text class="info-label">企业认证状态</text><text class="info-value">{{certificationText}}</text></view>
     </view>
 
+    <view class="info-heading">合同联系与银行信息</view>
+    <view class="info-card">
+      <block wx:if="{{editing}}">
+        <view class="info-field"><view class="info-label">企业地址</view><input class="info-input" maxlength="256" value="{{businessInfo.registeredAddress}}" placeholder="请按营业执照填写地址" data-field="registeredAddress" bindinput="onBusinessInfoInput" /></view>
+        <view class="info-field"><view class="info-label">联系电话</view><input class="info-input" maxlength="32" value="{{businessInfo.contactPhone}}" placeholder="企业联系电话" data-field="contactPhone" bindinput="onBusinessInfoInput" /></view>
+        <view class="info-field"><view class="info-label">开户银行（选填）</view><input class="info-input" maxlength="128" value="{{businessInfo.bankName}}" placeholder="请输入开户银行" data-field="bankName" bindinput="onBusinessInfoInput" /></view>
+        <view class="info-field"><view class="info-label">银行账号（选填）</view><input class="info-input" maxlength="64" value="{{businessInfo.bankAccount}}" placeholder="请输入银行账号" data-field="bankAccount" bindinput="onBusinessInfoInput" /></view>
+        <button class="info-button" bindtap="saveBusinessInfo" loading="{{saving}}" disabled="{{saving}}">保存资料</button>
+        <button class="info-button" bindtap="cancelBusinessInfo" disabled="{{saving}}">取消</button>
+      </block>
+      <block wx:else>
+        <view class="info-row"><text class="info-label">企业地址</text><text class="info-value">{{company.registeredAddress || '暂未录入'}}</text></view>
+        <view class="info-row"><text class="info-label">联系电话</text><text class="info-value">{{company.contactPhone || '暂未录入'}}</text></view>
+        <view class="info-row"><text class="info-label">开户银行</text><text class="info-value">{{company.bankName || '暂未录入'}}</text></view>
+        <view class="info-row"><text class="info-label">银行账号</text><text class="info-value">{{company.bankAccount || '暂未录入'}}</text></view>
+        <button class="info-button" wx:if="{{canEditCompany}}" bindtap="editBusinessInfo">补充或修改资料</button>
+      </block>
+    </view>
+
     <view class="info-heading">我的企业身份</view>
     <view class="info-card">
       <view class="info-row"><text class="info-label">当前角色</text><text class="info-value">{{member.roleText || '企业成员'}}</text></view>

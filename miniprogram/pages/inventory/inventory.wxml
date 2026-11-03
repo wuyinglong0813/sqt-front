@@ -28,7 +28,7 @@
     <view class="inventory-table-shell">
       <view class="product-column">
         <view class="table-cell table-header">商品名称</view>
-        <view class="table-cell product-cell" wx:for="{{visibleBalances}}" wx:key="id" data-index="{{index}}" bindtap="showBalanceDetail"><text>{{item.productName}}</text></view>
+        <view class="table-cell product-cell" wx:for="{{visibleBalances}}" wx:key="id" data-index="{{index}}" bindtap="showBalanceDetail"><text>{{item.productName}}</text><button class="delete-product" wx:if="{{overview.canDeleteInventory}}" data-index="{{index}}" catchtap="deleteBalance" disabled="{{deletingBalanceId !== ''}}">删除</button></view>
       </view>
       <scroll-view class="inventory-table-scroll" scroll-x enhanced show-scrollbar="{{true}}">
         <view class="inventory-table">
@@ -40,6 +40,7 @@
       </scroll-view>
     </view>
     <view class="table-footer">共 {{visibleBalances.length}} 条库存记录</view>
+    <view class="delete-hint" wx:if="{{overview.canDeleteInventory}}">数量和金额均为 0 的商品可删除，历史流水保留</view>
   </view>
   <view class="empty" wx:if="{{!loading && overview.balances.length > 0 && visibleBalances.length === 0}}"><view>没有匹配的库存</view><text>试试其他商品、型号、规格或仓库</text><button class="reset-filters" bindtap="clearFilters">查看全部库存</button></view>
   <view class="empty" wx:if="{{!loading && overview.balances.length === 0}}"><image src="/images/icons/inventory.svg" mode="aspectFit"/><view>暂无库存</view><text>点击“手动入库”添加库存，或从销售单接收入库</text></view>

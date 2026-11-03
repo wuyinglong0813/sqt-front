@@ -13,9 +13,12 @@ function deferred() {
 function harness(handler) {
   let definition;
   const calls = [], titles = [], toasts = [], updates = [], modals = [], previews = [];
+  const app = { globalData: { token: 'session-1', currentCompanyId: 'company-1',
+    userInfo: { id: 'user-1', nickname: '微信用户' }, memberInfo: { userName: '成员昵称' } } };
   vm.runInNewContext(fs.readFileSync(path.join(__dirname,
     '../pages/sales-order-detail/sales-order-detail.js'), 'utf8'), {
     Page: value => { definition = value; },
+    getApp: () => app,
     wx: { setNavigationBarTitle: value => titles.push(value.title),
       showToast: value => toasts.push(value.title), showModal: value => modals.push(value) },
     require: id => id.endsWith('/request') ? {
@@ -30,12 +33,52 @@ function harness(handler) {
   const page = { ...definition, data: structuredClone(definition.data) };
   page.setData = update => { updates.push(update); Object.assign(page.data, update); };
   page.data.id = '2098123456789012345';
-  return { page, calls, titles, toasts, updates, modals, previews };
+  return { page, app, calls, titles, toasts, updates, modals, previews };
 }
 
 const detail = (title = '销售单') => ({ documentNo: 'XS-001', documentType: 'SALES_ORDER',
   content: { title, companyName: '供方', counterpartyName: '需方' }, items: [{ id: '1' }] });
 const tick = () => new Promise(resolve => setImmediate(resolve));
+
+test('customer signature displays the verified personal name rather than account nicknames', async () => {
+  const env = harness(() => ({ status: 'VERIFIED', verifiedName: '张采购' }));
+  let initialized = 0;
+  env.page.initializeSignatureCanvas = () => initialized++;
+  const setData = env.page.setData;
+  env.page.setData = (update, callback) => { setData(update); if (callback) callback(); };
+  await env.page.openSignatureEditor('INBOUND', 'warehouse-1');
+  assert.equal(env.calls[0].url, '/fadada/users/me/identity');
+  assert.equal(env.calls[0].withCompany, false);
+  assert.equal(env.page.data.signatureSignerName, '张采购');
+  assert.equal(env.page.data.signatureWarehouseId, 'warehouse-1');
+  assert.equal(env.page.data.showSignatureEditor, true);
+  assert.equal(initialized, 1);
+});
+
+test('unverified users cannot open the customer signature editor', async () => {
+  const env = harness(() => ({ status: 'UNVERIFIED', verifiedName: '微信用户' }));
+  await env.page.openSignatureEditor('RECEIVE_ONLY');
+  assert.equal(env.page.data.showSignatureEditor, false);
+  assert.equal(env.page.data.signatureSignerName, '');
+  assert.match(env.toasts[0], /实名认证/);
+});
+
+test('identity lookup failures and stale account responses do not show a signature for the wrong user', async () => {
+  const pending = deferred();
+  const env = harness(() => pending.promise);
+  const opening = env.page.openSignatureEditor('INBOUND', 'warehouse-1');
+  await env.page.openSignatureEditor('RECEIVE_ONLY');
+  await tick();
+  assert.equal(env.calls.length, 1);
+  env.app.globalData.userInfo = { id: 'user-2', nickname: '另一个用户' };
+  pending.resolve({ status: 'VERIFIED', verifiedName: '张采购' });
+  await opening;
+  assert.equal(env.page.data.showSignatureEditor, false);
+  const failure = harness(() => { throw new Error('实名服务暂不可用'); });
+  await failure.page.openSignatureEditor('RECEIVE_ONLY');
+  assert.equal(failure.page.data.showSignatureEditor, false);
+  assert.equal(failure.toasts[0], '实名服务暂不可用');
+});
 
 test('renders the document without waiting for memo, warehouses or active actions', async () => {
   const pending = deferred();

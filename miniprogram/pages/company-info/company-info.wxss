@@ -12,3 +12,5 @@ page { background: #f4f8fd; }
 .info-button { background: #eef6ff; border: none; border-radius: 17rpx; color: #2478df; font-size: 25rpx; line-height: 1.5; margin: 25rpx 0 0; padding: 20rpx 18rpx; }
 .info-button::after { border: none; }
 .info-state { color: #8a98aa; font-size: 25rpx; padding: 80rpx 0; text-align: center; }
+.info-field { margin-bottom: 24rpx; }
+.info-input { background: #f5f8fc; border: 1rpx solid #dfeaf6; border-radius: 14rpx; box-sizing: border-box; color: #25364b; font-size: 26rpx; height: 84rpx; margin-top: 10rpx; padding: 0 20rpx; width: 100%; }

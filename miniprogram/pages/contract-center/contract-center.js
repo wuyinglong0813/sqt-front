@@ -135,26 +135,30 @@ Page({
     if (selectedCompanyId && !seen.has(String(selectedCompanyId))) selectedCompanyId = '';
     const companyIndex = Math.max(0,
       companyOptions.findIndex(item => String(item.id) === String(selectedCompanyId)));
-    const grouped = new Map();
+    const grouped = [];
     visibleContracts
       .filter(item => !selectedCompanyId || item.companyId === String(selectedCompanyId))
       .forEach(item => {
-        if (!grouped.has(item.companyId)) {
-          grouped.set(item.companyId, {
+        // Keep the API's signing-date order even when companies are interleaved.
+        let group = grouped[grouped.length - 1];
+        if (!group || group.companyId !== item.companyId) {
+          group = {
+            groupId: item.id,
             companyId: item.companyId,
             companyName: item.counterpartyName || '往来公司',
             initial: String(item.counterpartyName || '企').substring(0, 1),
             items: []
-          });
+          };
+          grouped.push(group);
         }
-        grouped.get(item.companyId).items.push(item);
+        group.items.push(item);
       });
     this.setData({
       visibleContracts,
       companyOptions,
       companyIndex,
       selectedCompanyId,
-      contractGroups: Array.from(grouped.values())
+      contractGroups: grouped
     });
   },
 

@@ -8,6 +8,10 @@ Page({
     companyName: '',
     creditCode: '',
     legalPersonName: '',
+    registeredAddress: '',
+    contactPhone: '',
+    bankName: '',
+    bankAccount: '',
     legalOnlyOnboardingEnabled: false,
     companyVerified: false,
     hasCompany: false,
@@ -38,11 +42,16 @@ Page({
       return;
     }
     if (options.name) {
+      const creditCode = decodeURIComponent(options.creditCode || '');
+      const draft = readDraft();
+      const details = draft && draft.creditCode === creditCode && !draft.companyId ? draft : {};
       this.setData({
         hasCompany: false,
         companyName: decodeURIComponent(options.name),
-        creditCode: decodeURIComponent(options.creditCode || ''),
-        legalPersonName: decodeURIComponent(options.legalPersonName || '')
+        creditCode,
+        legalPersonName: decodeURIComponent(options.legalPersonName || ''),
+        registeredAddress: details.registeredAddress || '', contactPhone: details.contactPhone || '',
+        bankName: details.bankName || '', bankAccount: details.bankAccount || ''
       });
       return;
     }
@@ -139,6 +148,8 @@ Page({
         companyName: company.name || '',
         creditCode: company.creditCode || '',
         legalPersonName: company.legalPersonName || '',
+        registeredAddress: company.registeredAddress || '', contactPhone: company.contactPhone || '',
+        bankName: company.bankName || '', bankAccount: company.bankAccount || '',
         companyVerified: company.certificationStatus === 'VERIFIED' || companyDone === true,
         identity,
         actions: [
@@ -214,7 +225,11 @@ Page({
         data: {
           name: this.data.companyName,
           creditCode: this.data.creditCode,
-          legalPersonName: this.data.legalPersonName
+          legalPersonName: this.data.legalPersonName,
+          registeredAddress: this.data.registeredAddress.trim(),
+          contactPhone: this.data.contactPhone.trim(),
+          bankName: this.data.bankName.trim(),
+          bankAccount: this.data.bankAccount.trim()
         }
       });
       if (this._unloaded || token !== app.globalData.token) return;

@@ -16,7 +16,8 @@ Page({
     showCreate: false,
     warehouseName: '',
     warehouseAddress: '',
-    creating: false
+    creating: false,
+    deletingBalanceId: ''
   },
 
   onShow() {
@@ -85,6 +86,32 @@ Page({
     if (!item) return;
     wx.showModal({ title: '库存明细', showCancel: false, confirmText: '知道了',
       content: `商品：${item.productName}\n型号：${item.model || '无型号'}\n规格：${item.specification || '无规格'}\n仓库：${item.warehouseName}\n库存数量：${item.quantity} ${item.baseUnit}\n库存单价：¥${item.unitPriceText} / ${item.baseUnit}\n库存金额：¥${item.inventoryAmountText}\n备注：${item.remark || '—'}` });
+  },
+
+  async deleteBalance(e) {
+    if (!this.data.overview.canDeleteInventory || this.data.deletingBalanceId) return;
+    const item = this.data.visibleBalances[Number(e.currentTarget.dataset.index)];
+    if (!item) return;
+    if (Number(item.quantity) !== 0 || Number(item.inventoryAmount) !== 0) {
+      wx.showToast({ title: '仅可删除数量和金额均为 0 的库存商品', icon: 'none' });
+      return;
+    }
+    const answer = await new Promise(resolve => wx.showModal({
+      title: '删除库存商品',
+      content: `确认从“${item.warehouseName}”移除“${item.productName} ${item.model || ''} ${item.specification || ''}”？历史入出库流水会保留。`,
+      confirmText: '删除', confirmColor: '#df5656', success: resolve, fail: () => resolve({ confirm: false })
+    }));
+    if (!answer.confirm || this.data.deletingBalanceId) return;
+    this.setData({ deletingBalanceId: String(item.id) });
+    try {
+      await request({ url: `/inventory/balances/${item.id}`, method: 'DELETE' });
+      wx.showToast({ title: '已删除', icon: 'success' });
+      await this.loadData();
+    } catch (error) {
+      wx.showToast({ title: error.message || '删除失败，请重试', icon: 'none' });
+    } finally {
+      this.setData({ deletingBalanceId: '' });
+    }
   },
 
   openInbound() {

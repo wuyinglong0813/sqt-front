@@ -34,6 +34,9 @@ button::after { border: 0; }
 .table-header { background: #eaf4ff; color: #3976af; font-size: 21rpx; font-weight: 600; height: 68rpx; }
 .table-row.table-header .table-cell { color: #3976af; font-size: 21rpx; height: 68rpx; }
 .product-cell { justify-content: flex-start; text-align: left; }
+.product-cell > text { flex: 1; min-width: 0; }
+.delete-product { background: #fff1f0; border-radius: 7rpx; color: #d85d56; flex-shrink: 0; font-size: 19rpx; line-height: 40rpx; margin: 0 0 0 7rpx; padding: 0 7rpx; }
+.delete-hint { color: #8c9aac; font-size: 20rpx; margin-top: 10rpx; text-align: center; }
 .product-cell text { display: -webkit-box; font-weight: 600; line-height: 1.4; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 2; word-break: break-all; }
 .product-cell:nth-child(odd), .table-row:nth-child(odd) { background: #f7faff; }
 .quantity-cell { color: #2586e2; font-weight: 600; width: 150rpx; word-break: break-all; }

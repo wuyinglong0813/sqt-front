@@ -304,33 +304,41 @@ test('new company onboarding validates input and reaches confirmation without a 
   assert.strictEqual(page.data.mode, 'create');
   let navigation;
   let toast;
+  const storage = new Map();
+  const oldGet = wx.getStorageSync, oldSet = wx.setStorageSync;
+  wx.getStorageSync = key => key === 'tradepass_user_id' ? 'test-user' : storage.get(key);
+  wx.setStorageSync = (key, value) => storage.set(key, value);
   wx.navigateTo = options => { navigation = options.url; };
   wx.showToast = options => { toast = options.title; };
-  const context = {
-    data: { companyName: '', creditCode: '', legalPersonName: '' },
-    setData(values) { Object.assign(this.data, values); }
-  };
-  page.continueCreate.call(context);
-  assert.strictEqual(navigation, undefined);
-  assert.strictEqual(toast, '请完整填写企业信息');
-  context.data = { companyName: ' 测试企业 & 商贸 ', creditCode: '123', legalPersonName: ' 张三 ' };
-  page.continueCreate.call(context);
-  assert.strictEqual(navigation, undefined);
-  context.data.creditCode = ' 91130100ma12345678 ';
-  page.continueCreate.call(context);
-  const query = new URL(navigation, 'https://example.test').searchParams;
-  assert.strictEqual(query.get('name'), '测试企业 & 商贸');
-  assert.strictEqual(query.get('creditCode'), '91130100MA12345678');
-  assert.strictEqual(query.get('legalPersonName'), '张三');
-  const cert = loadPage('../pages/company-cert/company-cert');
-  const confirmation = { data: {}, loadOnboardingPolicy() {}, setData(values) { Object.assign(this.data, values); } };
-  cert.onLoad.call(confirmation, {
-    name: encodeURIComponent(query.get('name')),
-    creditCode: query.get('creditCode'),
-    legalPersonName: encodeURIComponent(query.get('legalPersonName'))
-  });
-  assert.strictEqual(confirmation.data.hasCompany, false);
-  assert.strictEqual(confirmation.data.companyName, '测试企业 & 商贸');
+  try {
+    const context = {
+      data: { companyName: '', creditCode: '', legalPersonName: '', registeredAddress: '' },
+      setData(values) { Object.assign(this.data, values); }
+    };
+    page.continueCreate.call(context);
+    assert.strictEqual(navigation, undefined);
+    assert.strictEqual(toast, '请完整填写企业信息');
+    context.data = { companyName: ' 测试企业 & 商贸 ', creditCode: '123', legalPersonName: ' 张三 ', registeredAddress: ' 河北省测试路 1 号 ' };
+    page.continueCreate.call(context);
+    assert.strictEqual(navigation, undefined);
+    context.data.creditCode = ' 91130100ma12345678 ';
+    page.continueCreate.call(context);
+    const query = new URL(navigation, 'https://example.test').searchParams;
+    assert.strictEqual(query.get('name'), '测试企业 & 商贸');
+    assert.strictEqual(query.get('creditCode'), '91130100MA12345678');
+    assert.strictEqual(query.get('legalPersonName'), '张三');
+    const cert = loadPage('../pages/company-cert/company-cert');
+    const confirmation = { data: {}, loadOnboardingPolicy() {}, setData(values) { Object.assign(this.data, values); } };
+    cert.onLoad.call(confirmation, {
+      name: encodeURIComponent(query.get('name')),
+      creditCode: query.get('creditCode'),
+      legalPersonName: encodeURIComponent(query.get('legalPersonName'))
+    });
+    assert.strictEqual(confirmation.data.hasCompany, false);
+    assert.strictEqual(confirmation.data.companyName, '测试企业 & 商贸');
+    assert.strictEqual(confirmation.data.registeredAddress, '河北省测试路 1 号');
+    assert.strictEqual(confirmation.data.bankAccount, '');
+  } finally { wx.getStorageSync = oldGet; wx.setStorageSync = oldSet; }
 });
 
 test('company search confirmation does not depend on sensitive company fields', () => {
@@ -1659,7 +1667,8 @@ test('live reconciliation and sales-order confirmation pages are wired', () => {
     path.join(__dirname, '..', 'pages', 'sales-order-detail', 'sales-order-detail.wxml'), 'utf8'
   );
   assert.ok(template.includes('id="salesOrderSignatureCanvas"'));
-  assert.ok(template.includes('签名会自动填写到{{documentLabel}} PDF'));
+  assert.ok(template.includes('实名姓名填入“客户确认”'));
+  assert.ok(template.includes('手写签名填入{{documentLabel}} PDF 的“客户签字”位置'));
   const reconciliationTemplate = fs.readFileSync(
     path.join(__dirname, '..', 'pages', 'reconciliation', 'reconciliation.wxml'), 'utf8'
   );
@@ -1724,7 +1733,7 @@ test('home partner list is driven only by bound enterprise relations', () => {
   assert.ok(detail.includes("this.data.role === 'buyer' ? 'PURCHASE' : 'SALE'"));
 });
 
-test('home partner companies sort by sales document amounts and distinguish equally named companies', () => {
+test('home partner companies sort by net sales and distinguish equally named companies', () => {
   for (const role of ['buyer', 'supplier']) {
     const page = pageInstance(loadPage('../pages/index/index'));
     page.data.role = role;
@@ -1747,17 +1756,24 @@ test('home partner companies sort by sales document amounts and distinguish equa
       { counterpartyCompanyId: ids[3], counterpartyName: '公司3', amount: 100, orderCount: 1 }
     ];
 
+    page.data.partnerNetSales = [
+      { counterpartyCompanyId: ids[0], netAmount: 30 },
+      { counterpartyCompanyId: ids[1], netAmount: -10 },
+      { counterpartyCompanyId: ids[2], netAmount: 0 },
+      { counterpartyCompanyId: ids[3], netAmount: 40 }
+    ];
     page.refreshPartnerCompanies();
 
+    assert.deepStrictEqual(page.data.partnerCompanies.map(item => item.netAmountText), ['40.00', '30.00', '0.00', '-10.00']);
     assert.deepStrictEqual(page.data.partnerCompanies.map(item => item.counterpartyCompanyId),
-      [ids[3], ids[0], ids[1], ids[2]]);
+      [ids[3], ids[0], ids[2], ids[1]]);
     assert.deepStrictEqual(page.data.partnerCompanies.map(item => item.contractCount), [0, 1, 3, 3]);
     assert.strictEqual(page.data['stats.counterpartyCount'], 4);
     assert.deepStrictEqual(page.data.relationCounterparties.map(item => item.counterpartyCompanyId), ids);
     page.data.period = 'year';
     page.refreshPartnerCompanies();
     assert.deepStrictEqual(page.data.partnerCompanies.map(item => item.counterpartyCompanyId),
-      [ids[3], ids[0], ids[1], ids[2]]);
+      [ids[3], ids[0], ids[2], ids[1]]);
   }
 });
 

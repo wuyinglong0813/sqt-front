@@ -30,15 +30,15 @@
     </picker>
   </view>
 
-  <view class="loading-hint" wx:if="{{loading}}">审批中心加载中...</view>
-  <view class="empty-hint" wx:elif="{{visibleGroups.length === 0}}">
+  <view class="loading-hint" wx:if="{{loading && visibleGroups.length === 0}}">审批中心加载中...</view>
+  <view class="empty-hint" wx:if="{{!loading && visibleGroups.length === 0}}">
     <image src="/images/icons/approval.svg" mode="aspectFit"/>
     <view class="empty-title" wx:if="{{activeSection === 'RESULT'}}">暂无处理记录</view>
     <view class="empty-title" wx:elif="{{activeTab === 'CONTRACT'}}">暂无待审批合同</view>
     <view class="empty-title" wx:else>暂无待审批履约资料</view>
   </view>
 
-  <view class="approval-groups" wx:else>
+  <view class="approval-groups" wx:if="{{visibleGroups.length > 0}}">
     <view class="company-group" wx:for="{{visibleGroups}}" wx:key="companyId" wx:for-item="group">
       <view class="group-head">
         <view class="group-avatar">{{group.initial}}</view>

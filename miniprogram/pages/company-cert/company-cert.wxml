@@ -66,6 +66,23 @@
         <view class="agree-key">法定代表人/负责人姓名</view>
         <view class="agree-val">{{legalPersonName}}</view>
       </view>
+      <view class="agree-row">
+        <view class="agree-key">企业地址</view>
+        <view class="agree-val">{{registeredAddress || '未填写'}}</view>
+      </view>
+      <view class="agree-row">
+        <view class="agree-key">联系电话</view>
+        <view class="agree-val">{{contactPhone || '未填写'}}</view>
+      </view>
+      <view class="agree-row">
+        <view class="agree-key">开户银行（选填）</view>
+        <view class="agree-val">{{bankName || '未填写'}}</view>
+      </view>
+      <view class="agree-row">
+        <view class="agree-key">银行账号（选填）</view>
+        <view class="agree-val">{{bankAccount || '未填写'}}</view>
+      </view>
+      <view class="cert-step-desc">如需修改，请返回上一步；认证后也可在企业资料中补充。</view>
     </view>
 
     <view class="agree-bottom">

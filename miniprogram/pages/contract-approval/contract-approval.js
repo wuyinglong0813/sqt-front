@@ -58,23 +58,56 @@ Page({
   },
 
   onShow() {
-    this.setData({ currentCompanyName: currentCompanyName() });
-    this.loadPending();
+    const visit = this._approvalVisit = (this._approvalVisit || 0) + 1;
+    const companyId = String(app.getCurrentCompanyId() || '');
+    const changedCompany = this._approvalCompanyId !== companyId;
+    this._approvalCompanyId = companyId;
+    if (changedCompany) this._approvalScrollTop = 0;
+    const scrollTop = this._approvalScrollTop || 0;
+    this._approvalVisible = true;
+    this.setData({ currentCompanyName: currentCompanyName(), ...(changedCompany ? {
+      contracts: [], fulfillmentItems: [], results: [], visibleGroups: [],
+      selectedCompanyId: '', companyIndex: 0
+    } : {}) });
+    return this.loadPending().finally(() => {
+      if (!this._approvalVisible || this._approvalVisit !== visit
+        || this._approvalCompanyId !== companyId || scrollTop <= 0) return;
+      const restore = () => {
+        if (this._approvalVisible && this._approvalVisit === visit && this._approvalCompanyId === companyId) {
+          wx.pageScrollTo({ scrollTop, duration: 0 });
+        }
+      };
+      if (wx.nextTick) wx.nextTick(restore);
+      else restore();
+    });
   },
+
+  onHide() { this._approvalVisible = false; },
+
+  onUnload() { this._approvalVisible = false; this._approvalUnloaded = true; },
+
+  onPageScroll(event) { this._approvalScrollTop = event.scrollTop || 0; },
 
   onPullDownRefresh() {
     this.loadPending().finally(() => wx.stopPullDownRefresh());
   },
 
-  async loadPending() {
-    if (this.data.loading) return;
+  loadPending() {
+    const companyId = String(app.getCurrentCompanyId() || '');
+    if (this._pendingLoad && this._pendingLoad.companyId === companyId) return this._pendingLoad.promise;
+    const pending = { companyId };
+    this._pendingLoad = pending;
+    const current = () => !this._approvalUnloaded && this._pendingLoad === pending
+      && String(app.getCurrentCompanyId() || '') === companyId;
     this.setData({ loading: true });
+    pending.promise = (async () => {
     try {
       const [contractList, fulfillmentList, resultList] = await Promise.all([
         request({ url: '/contracts/pending' }),
         request({ url: '/approvals/fulfillment' }),
         request({ url: '/approvals/results' })
       ]);
+      if (!current()) return;
       const contracts = (contractList || []).map(item => ({
         ...item,
         id: String(item.id),
@@ -129,10 +162,13 @@ Page({
       });
       this.rebuildGroups(false);
     } catch (error) {
-      wx.showToast({ title: error.message || '审批中心加载失败', icon: 'none' });
+      if (current()) wx.showToast({ title: error.message || '审批中心加载失败', icon: 'none' });
     } finally {
-      this.setData({ loading: false });
+      if (current()) this.setData({ loading: false });
+      if (this._pendingLoad === pending) this._pendingLoad = null;
     }
+    })();
+    return pending.promise;
   },
 
   switchSection(e) {

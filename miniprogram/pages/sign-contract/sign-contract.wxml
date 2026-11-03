@@ -130,8 +130,8 @@
         <view class="suggestion-title">选择对应型号及规格</view>
         <view class="suggestion-item" wx:for="{{specificationSuggestions}}" wx:key="id"
           data-row="{{suggestionRow}}" data-id="{{item.id}}" bindtap="selectInventorySpecification">
-          <text class="suggestion-name">{{item.model || '无型号'}} · {{item.specification || '无规格'}}</text>
-          <text class="suggestion-spec">单位：{{item.baseUnit || '件'}}</text>
+          <view class="suggestion-copy"><text class="suggestion-name">{{item.model || '无型号'}} · {{item.specification || '无规格'}}</text><text class="suggestion-product">{{item.productName}}</text></view>
+          <text class="suggestion-stock">库存：{{item.quantity == null ? 0 : item.quantity}} {{item.baseUnit || '件'}}</text>
         </view>
       </view>
       <view class="table-add" bindtap="addTableRow">＋ 添加产品行</view>

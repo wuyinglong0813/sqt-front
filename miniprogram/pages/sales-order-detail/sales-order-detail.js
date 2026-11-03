@@ -793,11 +793,33 @@ Page({
     }
   },
 
-  openSignatureEditor(decision, warehouseId = '') {
+  async openSignatureEditor(decision, warehouseId = '') {
+    if (this._signatureIdentityLoading || this._unloaded) return;
     const app = getApp();
-    const member = app.globalData.memberInfo || {};
-    const user = app.globalData.userInfo || {};
-    const signerName = user.nickname || member.userName || '当前用户';
+    const token = app.globalData.token;
+    const companyId = app.globalData.currentCompanyId;
+    const userId = (app.globalData.userInfo || {}).id;
+    const documentId = this.data.id;
+    const current = () => !this._unloaded && documentId === this.data.id
+      && token === app.globalData.token && companyId === app.globalData.currentCompanyId
+      && userId === (app.globalData.userInfo || {}).id;
+    this._signatureIdentityLoading = true;
+    let signerName;
+    try {
+      const identity = await request({ url: '/fadada/users/me/identity', token, withCompany: false });
+      if (!current()) return;
+      signerName = identity && identity.status === 'VERIFIED'
+        ? String(identity.verifiedName || '').trim() : '';
+      if (!signerName) {
+        wx.showToast({ title: '请先完成个人实名认证后再签字确认', icon: 'none' });
+        return;
+      }
+    } catch (error) {
+      if (current()) wx.showToast({ title: error.message || '实名认证信息加载失败，请重试', icon: 'none' });
+      return;
+    } finally {
+      this._signatureIdentityLoading = false;
+    }
     this.signatureHasInk = false;
     this.signatureStrokeLength = 0;
     this.signatureLastPoint = null;

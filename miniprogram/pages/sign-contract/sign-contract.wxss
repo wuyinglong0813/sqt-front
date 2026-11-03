@@ -117,6 +117,9 @@ page { background: #f4f8fd; }
 }
 .suggestion-name { color: #27364a; font-size: 26rpx; font-weight: 600; }
 .suggestion-spec { color: #8795a7; font-size: 22rpx; margin-left: 16rpx; }
+.suggestion-copy { display: flex; flex: 1; flex-direction: column; min-width: 0; }
+.suggestion-product { color: #8795a7; font-size: 22rpx; margin-top: 6rpx; }
+.suggestion-stock { color: #3288d8; flex-shrink: 0; font-size: 22rpx; margin-left: 16rpx; }
 .table-summary {
   margin-top: 16rpx; padding: 20rpx; background: #fafafa; border-radius: 10rpx;
 }

@@ -82,7 +82,7 @@
         ></canvas>
         <view class="signature-placeholder">请在此区域签名</view>
       </view>
-      <view class="signature-notice">签名会自动填写到{{documentLabel}} PDF 的“客户确认”位置</view>
+      <view class="signature-notice">实名姓名填入“客户确认”，手写签名填入{{documentLabel}} PDF 的“客户签字”位置</view>
       <view class="signature-actions">
         <button class="signature-clear" disabled="{{receiving}}" bindtap="clearSignature">清除重签</button>
         <button class="signature-confirm" loading="{{receiving}}" disabled="{{receiving}}" bindtap="confirmSignature">{{signatureActionText}}</button>

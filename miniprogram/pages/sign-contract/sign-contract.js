@@ -542,7 +542,8 @@ Page({
       changes.suggestionRow = rowIndex;
       changes.productSuggestions = [];
       changes.specificationSuggestions = (this.data.inventoryProducts || [])
-        .filter(item => item.productName === productName
+        .filter(item => (!productName || item.productName === productName)
+          && (productName || keyword)
           && (!keyword || String(item[columnIndex === modelIndex ? 'model' : 'specification'] || '').toLowerCase().includes(keyword)))
         .slice(0, 8);
     }

@@ -178,6 +178,42 @@ test('inventory selection distinguishes models with the same specification and s
   assert.deepEqual(saved.rows[0], ['闸阀', 'Z42H', 'DN100', '台', '2', '3', '6']);
 });
 
+test('typing a model or specification before product name finds stock and selecting it fills the product fields', () => {
+  const h = harness('sign-contract');
+  h.page.data.templates = [{ content: JSON.stringify(template(
+    ['品名', '型号', '规格', '单位', '数量', '单价', '金额'], [['', '', '', '', '2', '3', '6']]
+  )) }];
+  h.page.selectTemplate(0);
+  h.page.data.inventoryProducts = [
+    { id: '11', productName: '电缆', model: 'RVVP', specification: '2×1.5', baseUnit: '米', quantity: '2500.1250' },
+    { id: '12', productName: '控制线', model: 'RVVP', specification: '4×1.5', baseUnit: '盘', quantity: '0' }
+  ];
+  h.page.onTableCellChange(event({ row: 0, col: 1 }, 'rvv'));
+  assert.deepEqual(plain(h.page.data.specificationSuggestions).map(item => item.id), ['11', '12']);
+  assert.equal(h.page.data.specificationSuggestions[0].quantity, '2500.1250');
+  assert.equal(h.page.data.specificationSuggestions[1].quantity, '0');
+  h.page.onTableCellChange(event({ row: 0, col: 2 }, '2×'));
+  assert.deepEqual(plain(h.page.data.specificationSuggestions).map(item => item.id), ['11']);
+  h.page.selectInventorySpecification(event({ row: 0, id: '11' }));
+  assert.deepEqual(plain(h.page.data.tableRows[0]), ['电缆', 'RVVP', '2×1.5', '米', '2', '3', '6']);
+});
+
+test('model lookup respects an entered product name and an empty row does not show unrelated stock', () => {
+  const h = harness('sign-contract');
+  h.page.data.templates = [{ content: JSON.stringify(template(
+    ['品名', '型号', '规格'], [['电缆', '', ''], ['', '', '']]
+  )) }];
+  h.page.selectTemplate(0);
+  h.page.data.inventoryProducts = [
+    { id: '11', productName: '电缆', model: 'RVVP' },
+    { id: '12', productName: '控制线', model: 'RVVP' }
+  ];
+  h.page.onTableCellChange(event({ row: 0, col: 1 }, 'rvv'));
+  assert.deepEqual(plain(h.page.data.specificationSuggestions).map(item => item.id), ['11']);
+  h.page.onTableCellChange(event({ row: 1, col: 1 }, ''));
+  assert.equal(h.page.data.specificationSuggestions.length, 0);
+});
+
 test('selecting inventory with a model adds a separate column without reinterpreting legacy combined specifications', () => {
   const h = harness('sign-contract');
   const content = template(['产品名称', '规格型号', '单位', '数量', '单价', '金额'], [

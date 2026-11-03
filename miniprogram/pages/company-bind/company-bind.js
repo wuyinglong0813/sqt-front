@@ -1,4 +1,8 @@
 const { request } = require('../../utils/request');
+const { readDraft, saveDraft } = require('../../utils/companyOnboarding');
+
+const COMPANY_FIELDS = ['companyName', 'creditCode', 'legalPersonName',
+  'registeredAddress', 'contactPhone', 'bankName', 'bankAccount'];
 
 Page({
   data: {
@@ -7,6 +11,10 @@ Page({
     companyName: '',
     creditCode: '',
     legalPersonName: '',
+    registeredAddress: '',
+    contactPhone: '',
+    bankName: '',
+    bankAccount: '',
     keyword: '',
     results: [],
     searched: false,
@@ -14,6 +22,10 @@ Page({
   },
 
   onLoad() {
+    const draft = readDraft();
+    if (draft && !draft.companyId) {
+      this.setData(Object.fromEntries(COMPANY_FIELDS.map(field => [field, draft[field] || ''])));
+    }
     return this.loadOnboardingPolicy();
   },
 
@@ -34,7 +46,7 @@ Page({
 
   onCompanyInput(e) {
     const field = e.currentTarget.dataset.field;
-    if (!['companyName', 'creditCode', 'legalPersonName'].includes(field)) return;
+    if (!COMPANY_FIELDS.includes(field)) return;
     this.setData({ [field]: e.detail.value });
   },
 
@@ -50,7 +62,15 @@ Page({
       wx.showToast({ title: '请检查信用代码或工商注册号', icon: 'none' });
       return;
     }
-    this.setData({ companyName, creditCode, legalPersonName });
+    const businessInfo = Object.fromEntries(COMPANY_FIELDS.slice(3)
+      .map(field => [field, String(this.data[field] || '').trim()]));
+    if (!businessInfo.registeredAddress) {
+      wx.showToast({ title: '请填写企业地址', icon: 'none' });
+      return;
+    }
+    const details = { companyName, creditCode, legalPersonName, ...businessInfo };
+    this.setData(details);
+    saveDraft(details);
     wx.navigateTo({
       url: `/pages/company-cert/company-cert?name=${encodeURIComponent(companyName)}&creditCode=${encodeURIComponent(creditCode)}&legalPersonName=${encodeURIComponent(legalPersonName)}`
     });

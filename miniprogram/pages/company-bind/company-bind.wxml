@@ -20,6 +20,14 @@
     <input class="company-input" placeholder="18 位信用代码或 15 位注册号" maxlength="18" value="{{creditCode}}" data-field="creditCode" bindinput="onCompanyInput" />
     <view class="field-label">法定代表人 / 负责人姓名</view>
     <input class="company-input" placeholder="与营业执照上的姓名一致" maxlength="64" value="{{legalPersonName}}" data-field="legalPersonName" bindinput="onCompanyInput" />
+    <view class="field-label">企业地址</view>
+    <input class="company-input" placeholder="请按营业执照填写地址" maxlength="256" value="{{registeredAddress}}" data-field="registeredAddress" bindinput="onCompanyInput" />
+    <view class="field-label">联系电话（选填）</view>
+    <input class="company-input" placeholder="请输入企业联系电话" maxlength="32" value="{{contactPhone}}" data-field="contactPhone" bindinput="onCompanyInput" />
+    <view class="field-label">开户银行（选填）</view>
+    <input class="company-input" placeholder="请输入开户银行" maxlength="128" value="{{bankName}}" data-field="bankName" bindinput="onCompanyInput" />
+    <view class="field-label">银行账号（选填）</view>
+    <input class="company-input" type="text" placeholder="请输入银行账号" maxlength="64" value="{{bankAccount}}" data-field="bankAccount" bindinput="onCompanyInput" />
     <button class="confirm-btn" bindtap="continueCreate">下一步，确认信息</button>
     <view class="form-hint form-footer">员工加入企业，请联系管理员获取邀请。</view>
   </view>

@@ -44,6 +44,7 @@ Page({
     relationCounterparties: [],
     partnerCompanies: [],
     partnerContractCounts: [],
+    partnerNetSales: [],
     counterpartiesLoading: false,
     counterpartiesLoaded: false,
     counterpartiesError: '',
@@ -270,6 +271,7 @@ Page({
           relationCounterparties: [],
           partnerCompanies: [],
           partnerContractCounts: [],
+          partnerNetSales: [],
           retailCustomers: [],
           retailCanCreate: false,
           retailError: '',
@@ -299,8 +301,10 @@ Page({
       counterparties: Array.isArray(payload.counterparties) ? payload.counterparties : [],
       relationCounterparties: Array.isArray(payload.relationCounterparties)
         ? payload.relationCounterparties : [],
-      partnerCompanies: Array.isArray(payload.partnerCompanies) ? payload.partnerCompanies : [],
+      partnerCompanies: (Array.isArray(payload.partnerCompanies) ? payload.partnerCompanies : [])
+        .map(item => ({ ...item, netAmountText: item.netAmountText || '—' })),
       partnerContractCounts: Array.isArray(payload.partnerContractCounts) ? payload.partnerContractCounts : [],
+      partnerNetSales: Array.isArray(payload.partnerNetSales) ? payload.partnerNetSales : [],
       retailCustomers: [],
       retailCanCreate: false,
       retailError: '',
@@ -328,6 +332,7 @@ Page({
       relationCounterparties: this.data.relationCounterparties || [],
       partnerCompanies: this.data.partnerCompanies || [],
       partnerContractCounts: this.data.partnerContractCounts || [],
+      partnerNetSales: this.data.partnerNetSales || [],
       approvalHasMessage: !!this.data.approvalHasMessage
     });
     if (!snapshot) return;
@@ -625,6 +630,7 @@ Page({
         companyDisplayName: payload.companyName || '企业信息加载中',
         ranking,
         partnerContractCounts: payload.partnerContractCounts || [],
+        partnerNetSales: (payload.stats && payload.stats.partnerNetSales) || [],
         rankingTitle: role === 'supplier' ? '客户销售业绩排名' : '采购业绩排名',
         stats: {
           totalAmount: money(payload.stats && payload.stats.totalAmount !== undefined ? payload.stats.totalAmount : totalAmount.toFixed(2)),
@@ -723,6 +729,8 @@ Page({
   refreshPartnerCompanies() {
     const ranking = this.data.ranking || [];
     const relations = this.data.relationCounterparties || [];
+    const netSales = new Map((this.data.partnerNetSales || [])
+      .map(item => [String(item.counterpartyCompanyId), item.netAmount]));
     const contractCounts = new Map((this.data.partnerContractCounts || [])
       .map(item => [String(item.counterpartyCompanyId), Number(item.contractCount) || 0]));
     const seen = new Set();
@@ -742,11 +750,12 @@ Page({
         status: item.status || 'ACTIVE',
         contractCount: contractCounts.get(String(counterpartyCompanyId)) || 0,
         orderCount: rankItem.orderCount || 0,
-        amount: rankItem.amount || 0
+        amount: rankItem.amount || 0,
+        netAmount: netSales.get(String(counterpartyCompanyId)) || 0
       });
     });
-    partnerCompanies.sort((a, b) => Number(b.amount) - Number(a.amount));
-    partnerCompanies.forEach(item => { item.amountText = money(item.amount); });
+    partnerCompanies.sort((a, b) => Number(b.netAmount) - Number(a.netAmount));
+    partnerCompanies.forEach(item => { item.netAmountText = money(item.netAmount); });
     this.setData({
       partnerCompanies,
       'stats.counterpartyCount': partnerCompanies.length

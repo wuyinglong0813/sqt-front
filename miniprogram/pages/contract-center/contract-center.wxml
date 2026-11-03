@@ -13,7 +13,7 @@
 
   <view class="current-company">
     <image src="/images/icons/company.svg" mode="aspectFit"/>
-    <view class="current-company-copy"><view class="current-company-name">{{currentCompanyName}}</view><view class="current-company-desc">按已生效销售单累计金额从高到低排列</view></view>
+    <view class="current-company-copy"><view class="current-company-name">{{currentCompanyName}}</view><view class="current-company-desc">按签订时间从新到旧排列</view></view>
     <view class="current-company-badge">当前企业</view>
   </view>
 
@@ -34,7 +34,7 @@
       <view class="empty-title">当前分类暂无合同</view>
       <view class="empty-desc">从合作企业详情发起第一份合同</view>
     </view>
-    <view class="company-group" wx:for="{{contractGroups}}" wx:key="companyId" wx:for-item="group">
+    <view class="company-group" wx:for="{{contractGroups}}" wx:key="groupId" wx:for-item="group">
       <view class="company-group-head">
         <view class="company-avatar">{{group.initial}}</view>
         <view class="company-group-copy"><view class="company-group-name">{{group.companyName}}</view><view class="company-group-count">{{group.items.length}} 份合同</view></view>

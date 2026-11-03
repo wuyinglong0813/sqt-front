@@ -46,6 +46,16 @@ test('finance filters show only permitted categories and preserve exact record I
   assert.equal(record.dateText, '2026-10-29');
 });
 
+test('sales and return lists show their own amount including zero', () => {
+  const { page } = harness();
+  page.data.salesDocuments = [{ id: 'sale', documentNo: 'XS-1', totalAmount: 125.5 }];
+  page.data.returnDocuments = [{ id: 'return', documentNo: 'TH-1', totalAmount: 0 }];
+  page.updateFulfillmentCount();
+  const groups = page.data.visibleFulfillmentGroups;
+  assert.equal(groups.find(group => group.key === 'SALES_ORDER').items[0].amountText, '¥125.50');
+  assert.equal(groups.find(group => group.key === 'RETURN_ORDER').items[0].amountText, '¥0.00');
+});
+
 test('sales and return rows go directly to details and no longer offer a duplicate outer menu', () => {
   const { page, navigation } = harness();
   page.data.salesDocuments = [{ id: '9007199254740993', documentNo: 'XS-一号', status: 'DRAFT', canDeleteDraft: true }];

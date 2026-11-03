@@ -8,7 +8,7 @@ const vm = require('node:vm');
 
 function harness() {
   let page;
-  const calls = [], modals = [];
+  const calls = [], modals = [], answers = [], notices = [];
   const records = {
     warehouses: [{ id: '101', name: '电线电缆', address: '一号库区' }, { id: 102, name: '阀门', address: '二号库区' }],
     overview: { warehouseCount: 2, productCount: 3, canManualInbound: true, balances: [
@@ -19,9 +19,17 @@ function harness() {
   };
   vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../pages/inventory/inventory.js'), 'utf8'), {
     Page: definition => { page = definition; },
-    wx: { showToast() {}, showModal: options => modals.push(options) },
+    wx: { showToast: options => notices.push(options.title), showModal: options => {
+      modals.push(options);
+      if (options.success) options.success(answers.shift() || { confirm: true });
+    } },
     require: () => ({ request: async options => {
       calls.push(options);
+      if (options.method === 'DELETE') {
+        if (records.deleteError) throw new Error(records.deleteError);
+        records.overview.balances = records.overview.balances.filter(item => `/inventory/balances/${item.id}` !== options.url);
+        return true;
+      }
       if (options.method === 'POST') return {};
       return options.url === '/warehouses' ? records.warehouses : records.overview;
     } })
@@ -34,7 +42,7 @@ function harness() {
       target[last] = value;
     });
   };
-  return { page, records, calls, modals };
+  return { page, records, calls, modals, answers, notices };
 }
 
 test('inventory search combines with warehouse filtering without losing decimal quantities or original records', async () => {
@@ -167,4 +175,47 @@ test('manual inbound still rejects blank, negative and overprecision quantities 
     assert.equal(h.calls.some(options => options.method === 'POST'), false, `${quantity} / ${unitPrice}`);
     assert.equal(h.page.data.showInbound, true);
   }
+});
+
+test('deleting a filtered zero-stock item targets its balance and refreshes while preserving the selected warehouse', async () => {
+  const h = harness();
+  h.records.overview.canDeleteInventory = true;
+  h.records.overview.balances[1].quantity = '0.0000';
+  h.records.overview.balances[1].inventoryAmount = '0.00';
+  await h.page.loadData();
+  h.page.selectFilterWarehouse({ currentTarget: { dataset: { id: '102' } } });
+  h.page.onSearchInput({ detail: { value: 'dn100' } });
+  await h.page.deleteBalance({ currentTarget: { dataset: { index: 0 } } });
+  assert.equal(h.calls.find(call => call.method === 'DELETE').url, '/inventory/balances/2');
+  assert.equal(h.page.data.visibleBalances.length, 0);
+  assert.equal(h.page.data.filterWarehouseId, '102');
+  assert.equal(h.page.data.deletingBalanceId, '');
+  assert.match(h.modals[0].content, /历史入出库流水会保留/);
+});
+
+test('stock deletion refuses remaining quantity or amount, cancellation, and missing permission', async () => {
+  for (const [quantity, amount, permitted, answer] of [
+    ['1', '0', true, true], ['0', '1', true, true], ['0', '0', false, true], ['0', '0', true, false]
+  ]) {
+    const h = harness();
+    h.records.overview.canDeleteInventory = permitted;
+    Object.assign(h.records.overview.balances[0], { quantity, inventoryAmount: amount });
+    await h.page.loadData();
+    h.answers.push({ confirm: answer });
+    await h.page.deleteBalance({ currentTarget: { dataset: { index: 0 } } });
+    assert.equal(h.calls.some(call => call.method === 'DELETE'), false);
+    assert.equal(h.page.data.visibleBalances.length, 3);
+  }
+});
+
+test('server rejection preserves stock and restores the delete action for retry', async () => {
+  const h = harness();
+  h.records.overview.canDeleteInventory = true;
+  Object.assign(h.records.overview.balances[0], { quantity: '0', inventoryAmount: '0' });
+  h.records.deleteError = '库存已变化，请刷新';
+  await h.page.loadData();
+  await h.page.deleteBalance({ currentTarget: { dataset: { index: 0 } } });
+  assert.equal(h.page.data.visibleBalances.length, 3);
+  assert.equal(h.page.data.deletingBalanceId, '');
+  assert.equal(h.notices.at(-1), '库存已变化，请刷新');
 });

@@ -238,7 +238,7 @@
             <view class="partner-avatar">{{item.initial}}</view>
             <view class="partner-main">
               <view class="partner-name-row"><view class="partner-name">{{item.counterpartyName}}</view><view class="status-pill">{{item.status === 'ACTIVE' ? '合作中' : item.status}}</view></view>
-              <view class="partner-meta">{{periodText}}{{role === 'supplier' ? '销售' : '采购'}}单金额 ¥{{item.amountText}}</view>
+              <view class="partner-meta">{{periodText}}净{{role === 'supplier' ? '销售' : '采购'}}额 ¥{{item.netAmountText}}</view>
             </view>
             <view class="row-arrow">›</view>
           </view>
