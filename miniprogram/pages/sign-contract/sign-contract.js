@@ -75,9 +75,7 @@ Page({
     tableActiveCol: -1,
     tableFocusRow: -1,
     tableFocusCol: -1,
-    tableSelectionLabel: '',
     tableKeyboardAvailable: false,
-    tableKeyboardMode: false,
     // 条款
     clauses: [],
     // 是否已选择模板
@@ -119,8 +117,8 @@ Page({
   onShow() {
     this.tableViewVisible = true;
     this.tableViewEpoch = (this.tableViewEpoch || 0) + 1;
-    // PC global key events are not dispatched while a native input is focused.
-    // Keep arrow-key selection as an explicit mode; Enter opens the selected cell.
+    // Native inputs consume PC key events. Render selected cells as text until
+    // editing starts, so ordinary clicks leave arrow-key navigation available.
     if (typeof wx.onKeyDown !== 'function' || typeof wx.offKeyDown !== 'function') return;
     const device = typeof wx.getDeviceInfo === 'function' ? wx.getDeviceInfo()
       : typeof wx.getSystemInfoSync === 'function' ? wx.getSystemInfoSync() : {};
@@ -137,7 +135,7 @@ Page({
     this.tableViewEpoch = (this.tableViewEpoch || 0) + 1;
     if (this.tableKeyListener) wx.offKeyDown(this.tableKeyListener);
     this.tableKeyListener = null;
-    this.setData({ tableKeyboardMode: false, tableFocusRow: -1, tableFocusCol: -1 });
+    this.clearTableSelection();
   },
 
   onUnload() {
@@ -208,7 +206,6 @@ Page({
       }
       this.setData({
         tableActiveRow: -1, tableActiveCol: -1, tableFocusRow: -1, tableFocusCol: -1,
-        tableSelectionLabel: '', tableKeyboardMode: false,
         counterpartyName: contract.viewerCounterpartyName || contract.counterpartyName || '',
         counterpartyCompanyId: String(contract.viewerCounterpartyCompanyId || contract.counterpartyCompanyId || ''),
         role: (contract.viewerDirection || contract.direction) === 'PURCHASE' ? 'buyer' : 'supplier',
@@ -277,7 +274,6 @@ Page({
     this.setData({
       templateIndex: idx,
       tableActiveRow: -1, tableActiveCol: -1, tableFocusRow: -1, tableFocusCol: -1,
-      tableSelectionLabel: '', tableKeyboardMode: false,
       contractName: this.data.contractName || (content.title || '购销合同'),
       fields,
       tableSection: tableSection ? { title: tableSection.title, columns: normalizedTable.columns } : null,
@@ -389,14 +385,12 @@ Page({
   },
 
   selectTableCell(row, col, edit) {
-    const columns = (this.data.tableSection && this.data.tableSection.columns) || [];
     if (!this.data.tableRows[row] || !this.editableTableColumns().includes(col)) return;
     this.setData({
       tableActiveRow: row,
       tableActiveCol: col,
       tableFocusRow: edit ? row : -1,
       tableFocusCol: edit ? col : -1,
-      tableSelectionLabel: `第 ${row + 1} 行 · ${columns[col]}`,
       productSuggestions: [], specificationSuggestions: [], suggestionRow: -1
     }, () => this.revealTableRow(row));
     this.revealTableColumn(col);
@@ -404,8 +398,30 @@ Page({
 
   onTableCellFocus(e) {
     const { row, col } = e.currentTarget.dataset;
-    this.setData({ tableKeyboardMode: false });
     this.selectTableCell(Number(row), Number(col), true);
+  },
+
+  onTableCellTap(e) {
+    if (!this.data.tableKeyboardAvailable) return;
+    const row = Number(e.currentTarget.dataset.row);
+    const col = Number(e.currentTarget.dataset.col);
+    const previous = this.lastTableCellTap;
+    const now = Date.now();
+    const edit = !!previous && previous.row === row && previous.col === col
+      && now - previous.time < 300
+      && this.data.tableActiveRow === row && this.data.tableActiveCol === col;
+    this.selectTableCell(row, col, edit);
+    this.lastTableCellTap = edit ? null : { row, col, time: now };
+  },
+
+  clearTableSelection() {
+    this.lastTableCellTap = null;
+    this.setData({ tableActiveRow: -1, tableActiveCol: -1, tableFocusRow: -1, tableFocusCol: -1,
+      productSuggestions: [], specificationSuggestions: [], suggestionRow: -1 });
+  },
+
+  onTableAreaTap() {
+    // Keep clicks inside the table from clearing the selected cell on the page.
   },
 
   onTableCellBlur(e) {
@@ -422,7 +438,7 @@ Page({
     const row = Number(e.currentTarget.dataset.row);
     const col = Number(e.currentTarget.dataset.col);
     if (row === this.data.tableRows.length - 1) this.addTableRow();
-    this.selectTableCell(row + 1, col, true);
+    this.selectTableCell(row + 1, col, !this.data.tableKeyboardAvailable);
   },
 
   moveTableSelection(direction, edit) {
@@ -440,24 +456,19 @@ Page({
     this.selectTableCell(row, columns[colIndex], edit);
   },
 
-  onTableNavigate(e) {
-    this.setData({ tableKeyboardMode: false });
-    this.moveTableSelection(e.currentTarget.dataset.direction, true);
-  },
-
-  toggleTableKeyboardMode() {
-    const enabled = !this.data.tableKeyboardMode;
-    this.setData({ tableKeyboardMode: enabled });
-    this.moveTableSelection('', !enabled);
-  },
-
   onTableKeyDown(e) {
     // WeChat declares modifier values as strings; "false" must not block navigation.
     const modifierPressed = value => value === true || value === 'true' || value === 1 || value === '1';
-    if (!this.data.tableKeyboardMode || [e.altKey, e.ctrlKey, e.metaKey].some(modifierPressed)) return;
+    const row = this.data.tableActiveRow;
+    const col = this.data.tableActiveCol;
+    if (!this.tableViewVisible || !this.data.tableKeyboardAvailable || this.data.tableFocusRow >= 0
+      || !this.data.tableRows[row] || !this.editableTableColumns().includes(col)
+      || [e.altKey, e.ctrlKey, e.metaKey].some(modifierPressed)) return;
+    this.lastTableCellTap = null;
     const direction = { ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right' }[e.key];
     if (direction) this.moveTableSelection(direction, false);
-    else if (e.key === 'Enter' || e.key === 'Escape') this.toggleTableKeyboardMode();
+    else if (e.key === 'Enter' || e.key === 'F2') this.selectTableCell(row, col, true);
+    else if (e.key === 'Escape') this.clearTableSelection();
   },
 
   revealTableColumn(col) {
@@ -482,14 +493,13 @@ Page({
     const query = wx.createSelectorQuery().in(this);
     query.select(`#contract-table-row-${row}`).boundingClientRect();
     query.selectViewport().scrollOffset();
-    query.select('.table-navigation').boundingClientRect();
     query.exec(result => {
       if (!this.tableViewVisible || this.tableViewEpoch !== epoch || this.data.tableActiveRow !== row) return;
-      const [rect, scroll, toolbar] = result || [];
+      const [rect, scroll] = result || [];
       if (!rect || !scroll) return;
       const window = typeof wx.getWindowInfo === 'function' ? wx.getWindowInfo()
         : typeof wx.getSystemInfoSync === 'function' ? wx.getSystemInfoSync() : {};
-      const top = (toolbar && toolbar.height || 0) + 12;
+      const top = 12;
       const bottom = Number(window.windowHeight || 0) - 90;
       const delta = rect.top < top ? rect.top - top
         : bottom > top && rect.bottom > bottom ? rect.bottom - bottom : 0;
