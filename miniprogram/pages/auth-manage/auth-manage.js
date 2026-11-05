@@ -445,6 +445,16 @@ Page({
     }
   },
 
+  manageMemberInvite() {
+    const load = { code: this.data.inviteCode, context: captureCompanyContext(app) };
+    if (!load.code || !this._inviteContext || !isCompanyContextCurrent(app, this._inviteContext)
+        || !this.memberInviteCurrent(load)) return;
+    wx.showActionSheet({ itemList: ['作废当前邀请'], itemColor: '#b65b53',
+      success: result => {
+        if (result.tapIndex === 0 && this.memberInviteCurrent(load)) return this.revokeMemberInvite();
+      } });
+  },
+
   async revokeMemberInvite() {
     const load = { code: this.data.inviteCode, context: captureCompanyContext(app) };
     if (!load.code || !this._inviteContext || !isCompanyContextCurrent(app, this._inviteContext)) return;

@@ -22,25 +22,52 @@
   <view class="modal-mask" wx:if="{{showInviteModal}}" bindtap="closeMemberInvite">
     <view class="invite-sheet" catchtap="noop">
       <view class="sheet-handle"></view>
-      <view class="sheet-heading"><view><view class="sheet-title">邀请成员</view><view class="sheet-desc">{{companyName}}</view></view><view class="sheet-close" bindtap="closeMemberInvite">×</view></view>
-      <view class="invite-phone-note">将邀请发给同事。对方需完成实名认证并通过管理员审核，才能使用企业功能。</view>
-      <view class="invite-code-card" wx:if="{{inviteCode}}">
-        <view class="invite-field-label">企业邀请码</view>
-        <view class="invite-code-value" bindtap="copyMemberInviteCode">{{inviteCode}}</view>
-        <view class="invite-expiry">{{inviteExpiresAt ? '有效期至 ' + inviteExpiresAt : '24 小时内有效'}} · 点击邀请码可复制</view>
+      <view class="sheet-heading invite-heading">
+        <view class="sheet-title">邀请成员</view>
+        <button class="sheet-close" bindtap="closeMemberInvite" aria-label="关闭邀请">×</button>
       </view>
-      <button class="invite-send" wx:if="{{inviteCode && !preparingInvite}}" open-type="share" data-invite-type="member">发送邀请给微信好友</button>
+      <view class="invite-company">
+        <image class="invite-company-icon" src="/images/icons/company.svg" mode="aspectFit"/>
+        <view class="invite-company-copy">
+          <view class="invite-company-name">{{companyName}}</view>
+          <view class="invite-company-desc">邀请同事加入企业，共同管理业务</view>
+        </view>
+      </view>
+      <view class="invite-safety">
+        <image src="/images/icons/invite-shield.svg" mode="aspectFit"/>
+        <view>
+          <view class="invite-safety-title">安全加入</view>
+          <view class="invite-safety-desc">完成个人实名认证并通过管理员审核后，才可获得企业业务权限。</view>
+        </view>
+      </view>
+      <button class="invite-send" wx:if="{{inviteCode && !preparingInvite}}" open-type="share" data-invite-type="member">
+        <image src="/images/icons/invite-send.svg" mode="aspectFit"/>发送给微信好友
+      </button>
       <button class="invite-send" wx:else loading="{{preparingInvite}}" disabled="{{preparingInvite}}" bindtap="shareInvite">{{preparingInvite ? '正在准备邀请' : '重新准备邀请'}}</button>
-      <view class="invite-methods" wx:if="{{inviteCode}}">
-        <button bindtap="showMemberInviteQr" loading="{{inviteQrLoading}}" disabled="{{inviteQrLoading}}">显示二维码</button>
-        <button bindtap="copyMemberInviteLink" loading="{{inviteLinkLoading}}" disabled="{{inviteLinkLoading}}">复制邀请链接</button>
+      <view class="invite-other-title">其他邀请方式</view>
+      <view class="invite-methods">
+        <button bindtap="showMemberInviteQr" loading="{{inviteQrLoading}}" disabled="{{!inviteCode || preparingInvite || inviteQrLoading}}">
+          <image src="/images/icons/invite-qr.svg" mode="aspectFit"/>
+          <text>{{inviteQrLoading ? '正在准备二维码' : '展示二维码'}}</text>
+        </button>
+        <button bindtap="copyMemberInviteLink" loading="{{inviteLinkLoading}}" disabled="{{!inviteCode || preparingInvite || inviteLinkLoading}}">
+          <image src="/images/icons/invite-link.svg" mode="aspectFit"/>
+          <text>{{inviteLinkLoading ? '正在准备链接' : '复制邀请链接'}}</text>
+        </button>
       </view>
       <view class="invite-qr" wx:if="{{inviteQrPath}}" bindtap="previewMemberInviteQr">
         <image src="{{inviteQrPath}}" mode="aspectFit"/>
-        <view>微信扫码申请加入 · 点击可放大保存</view>
+        <view>微信扫码申请加入 · 点击放大保存</view>
       </view>
-      <view class="invite-phone-note secondary">同一邀请可供多位同事申请；实名和审核通过前不开放企业业务权限。</view>
-      <view class="invite-revoke" wx:if="{{inviteCode}}" bindtap="revokeMemberInvite">作废此邀请</view>
+      <button class="invite-code-card" wx:if="{{inviteCode}}" bindtap="copyMemberInviteCode" aria-label="复制企业邀请码 {{inviteCode}}">
+        <view class="invite-code-heading"><text>企业邀请码</text><text class="invite-code-copy">点击复制</text></view>
+        <view class="invite-code-row"><text class="invite-code-value">{{inviteCode}}</text><image src="/images/icons/invite-copy.svg" mode="aspectFit"/></view>
+        <view class="invite-expiry">{{inviteExpiresAt ? '有效期至 ' + inviteExpiresAt : '24 小时内有效'}}</view>
+      </button>
+      <view class="invite-footer">
+        <view>邀请可供多位同事提交申请</view>
+        <button bindtap="manageMemberInvite" disabled="{{!inviteCode || preparingInvite}}" aria-label="管理当前邀请">管理邀请 <text>›</text></button>
+      </view>
     </view>
   </view>
 

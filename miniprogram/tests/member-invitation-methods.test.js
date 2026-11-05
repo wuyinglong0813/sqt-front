@@ -94,3 +94,40 @@ test('unverified applicants are shown separately and cannot open role approval',
   assert.equal(env.page.data.showApproveModal, false);
   assert.match(env.toasts[0], /实名认证/);
 });
+
+test('invitation management keeps revocation behind a menu and the existing confirmation', async () => {
+  const env = harness();
+  const menus = [], confirmations = [];
+  env.wx.showActionSheet = options => menus.push(options);
+  env.wx.showModal = options => confirmations.push(options);
+  await env.page.openMemberInvite();
+  env.page.manageMemberInvite();
+  assert.deepEqual(Array.from(menus[0].itemList), ['作废当前邀请']);
+  assert.equal(env.requests.filter(item => item.method === 'DELETE').length, 0);
+  const revoking = menus[0].success({ tapIndex: 0 });
+  assert.equal(confirmations[0].confirmText, '确认作废');
+  assert.equal(env.requests.filter(item => item.method === 'DELETE').length, 0);
+  confirmations[0].success({ confirm: true });
+  await revoking;
+  assert.equal(env.requests.at(-1).method, 'DELETE');
+  assert.match(env.requests.at(-1).url, /invitations\/ABCD2345$/);
+  assert.equal(env.page.data.showInviteModal, false);
+});
+
+test('an old invitation management menu cannot revoke a new invitation or a different company', async () => {
+  for (const change of ['code', 'company', 'close']) {
+    const env = harness();
+    let menu;
+    const confirmations = [];
+    env.wx.showActionSheet = options => { menu = options; };
+    env.wx.showModal = options => confirmations.push(options);
+    await env.page.openMemberInvite();
+    env.page.manageMemberInvite();
+    if (change === 'code') env.page.setData({ inviteCode: 'NEXT2345' });
+    else if (change === 'company') env.app.globalData.currentCompanyId = 'company-2';
+    else env.page.closeMemberInvite();
+    await menu.success({ tapIndex: 0 });
+    assert.equal(confirmations.length, 0);
+    assert.equal(env.requests.filter(item => item.method === 'DELETE').length, 0);
+  }
+});
