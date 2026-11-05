@@ -1,0 +1,9 @@
+page { background: #f4f8fd; }
+.invitation-page { padding: 120rpx 40rpx; }
+.invitation-card { padding: 56rpx 36rpx; border-radius: 28rpx; background: #fff; text-align: center; }
+.invitation-logo { width: 100rpx; height: 100rpx; }
+.invitation-title { margin-top: 28rpx; color: #162336; font-size: 36rpx; font-weight: 600; }
+.invitation-desc { margin-top: 20rpx; color: #657e98; font-size: 28rpx; line-height: 1.6; overflow-wrap: break-word; }
+.invitation-retry, .invitation-home { margin-top: 32rpx; border-radius: 16rpx; font-size: 30rpx; }
+.invitation-retry { color: #fff; background: #3498ff; }
+.invitation-home { color: #3498ff; background: #f4f8fd; }

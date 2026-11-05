@@ -1,6 +1,7 @@
 const { request } = require('../../utils/request');
 const { captureCompanyContext, isCompanyContextCurrent } = require('../../utils/companyContext');
 const { serviceRecovery, serviceRecoveryUrl } = require('../../utils/signingContinuation');
+const { runPrivacyAction } = require('../../utils/privacy');
 const app = getApp();
 
 const ROLE_META = {
@@ -74,7 +75,7 @@ function decorateMembers(list) {
     const roles = (member.roles && member.roles.length ? member.roles
       : [{ code: member.roleCode, name: member.roleText || meta.label }])
       .map(role => ({ code: role.code, label: role.name || roleMeta(role.code).label, tone: roleMeta(role.code).tone }));
-    const pending = member.status === 'PENDING';
+    const pending = member.status === 'PENDING' || member.status === 'PENDING_IDENTITY';
     return {
       ...member,
       ...signingStatusView(member),
@@ -84,7 +85,7 @@ function decorateMembers(list) {
       roleLabel: roles.map(role => role.label).join('、'),
       roles,
       roleTone: meta.tone,
-      statusText: pending ? '待审批' : '正常',
+      statusText: member.status === 'PENDING_IDENTITY' ? '待实名认证' : pending ? '待审批' : '正常',
       canAuthorizeSigning: member.status === 'ACTIVE' && !!member.userId
         && (member.permissions || []).some(code => code === 'all' || code === 'contract_sign'),
       canRemove: !pending && member.roleCode !== 'LEGAL'
@@ -122,9 +123,10 @@ Page({
     inviteCode: '',
     inviteCompanyId: '',
     showInviteModal: false,
-    targetPhone: '',
-    invitePhone: '',
-    invitePhoneMasked: '',
+    inviteExpiresAt: '',
+    inviteQrPath: '',
+    inviteQrLoading: false,
+    inviteLinkLoading: false,
     preparingInvite: false,
     loading: false,
     page: 1,
@@ -289,6 +291,7 @@ Page({
     const normalizedKeyword = String(keyword || '').trim().toLowerCase();
     const active = authorizations.filter(member => member.status === 'ACTIVE').length;
     const pending = authorizations.filter(member => member.status === 'PENDING').length;
+    const waitingIdentity = authorizations.filter(member => member.status === 'PENDING_IDENTITY').length;
     const managers = authorizations.filter(member => (member.roles || [{ code: member.roleCode }])
       .some(role => role.code === 'LEGAL' || role.code === 'ADMIN')).length;
     const filtered = authorizations.filter(member => {
@@ -303,11 +306,12 @@ Page({
       authorizations,
       filtered,
       hasPendingSigning: authorizations.some(member => member.canAuthorizeSigning && !member.signingReady),
-      memberStats: { total: authorizations.length, active, pending, managers },
+      memberStats: { total: authorizations.length, active, pending, waitingIdentity, managers },
       statusFilters: [
         { key: 'ALL', label: '全部成员', count: authorizations.length },
         { key: 'ACTIVE', label: '正常', count: active },
-        { key: 'PENDING', label: '待审批', count: pending }
+        { key: 'PENDING', label: '待审批', count: pending },
+        { key: 'PENDING_IDENTITY', label: '待实名', count: waitingIdentity }
       ]
     });
   },
@@ -315,7 +319,10 @@ Page({
   clearMemberInvite() {
     this._inviteLoad = null;
     this._inviteContext = null;
-    this.setData({ showInviteModal: false, targetPhone: '', invitePhone: '', invitePhoneMasked: '',
+    this._inviteQrLoad = null;
+    this._inviteLinkLoad = null;
+    this.setData({ showInviteModal: false, inviteExpiresAt: '', inviteQrPath: '',
+      inviteQrLoading: false, inviteLinkLoading: false,
       inviteCode: '', inviteCompanyId: '', preparingInvite: false });
   },
 
@@ -324,37 +331,30 @@ Page({
     this.clearMemberInvite();
     this._inviteContext = captureCompanyContext(app);
     this.setData({ showInviteModal: true });
+    return this.shareInvite();
   },
 
   closeMemberInvite() {
     this.clearMemberInvite();
   },
 
-  onInvitePhoneInput(e) {
-    this._inviteLoad = null;
-    this.setData({ targetPhone: String(e.detail.value || '').replace(/\D/g, '').slice(0, 11),
-      inviteCode: '', inviteCompanyId: '', invitePhone: '', invitePhoneMasked: '', preparingInvite: false });
-  },
-
   async shareInvite() {
     if (this.data.preparingInvite) return;
     const cid = currentCompanyId();
     if (!cid) return;
-    const phone = String(this.data.targetPhone || '').trim();
-    if (!/^1[3-9]\d{9}$/.test(phone)) {
-      wx.showToast({ title: '请输入受邀人的11位手机号', icon: 'none' });
-      return;
-    }
-    const load = this._inviteLoad = { context: captureCompanyContext(app), phone };
+    const load = this._inviteLoad = { context: captureCompanyContext(app) };
     this._inviteContext = load.context;
-    this.setData({ preparingInvite: true, inviteCode: '', inviteCompanyId: '' });
+    this._inviteQrLoad = null;
+    this._inviteLinkLoad = null;
+    this.setData({ preparingInvite: true, inviteCode: '', inviteCompanyId: '',
+      inviteExpiresAt: '', inviteQrPath: '', inviteQrLoading: false, inviteLinkLoading: false });
     try {
-      const result = await request({ url: '/companies/invite', method: 'POST', data: { companyId: cid, targetPhone: phone } });
+      const result = await request({ url: '/companies/invite', method: 'POST', data: { companyId: cid } });
       if (this._unloaded || this._inviteLoad !== load || !isCompanyContextCurrent(app, load.context)
           || String(cid) !== String(app.getCurrentCompanyId())) return;
       if (!result || !result.code) throw new Error('邀请生成失败，请重试');
-      this.setData({ inviteCode: result.code, inviteCompanyId: String(cid), invitePhone: phone,
-        invitePhoneMasked: maskPhone(phone) });
+      this.setData({ inviteCode: result.code, inviteCompanyId: String(cid),
+        inviteExpiresAt: result.expiresAt ? String(result.expiresAt).replace('T', ' ').slice(0, 16) : '' });
     } catch (e) {
       if (!this._unloaded && this._inviteLoad === load && isCompanyContextCurrent(app, load.context)) {
         wx.showToast({ title: e.message || '邀请生成失败', icon: 'none' });
@@ -367,22 +367,108 @@ Page({
   onShareAppMessage(event) {
     const code = this.data.inviteCode;
     if (!code || !event || event.from !== 'button'
-        || !event.target || event.target.dataset.inviteType !== 'member'
+        || !event.target || !event.target.dataset || event.target.dataset.inviteType !== 'member'
         || this.data.inviteCompanyId !== String(app.getCurrentCompanyId())
-        || !this._inviteContext || !isCompanyContextCurrent(app, this._inviteContext)
-        || this.data.targetPhone !== this.data.invitePhone) {
+        || !this._inviteContext || !isCompanyContextCurrent(app, this._inviteContext)) {
       return { title: '商签通', imageUrl: '/images/member-invite-cover.png', path: '/pages/index/index' };
     }
     return {
       title: '邀请你加入商签通企业组织',
       imageUrl: '/images/member-invite-cover.png',
-      path: `/pages/index/index?inviteCode=${encodeURIComponent(code)}&type=member`
+      path: `/pages/invitation/invitation?inviteCode=${encodeURIComponent(code)}&type=member`
     };
+  },
+
+  memberInviteCurrent(load) {
+    return !this._unloaded && this.data.showInviteModal && load.code === this.data.inviteCode
+      && isCompanyContextCurrent(app, load.context);
+  },
+
+  copyMemberInviteCode() {
+    const code = this.data.inviteCode;
+    if (!code || !this._inviteContext || !isCompanyContextCurrent(app, this._inviteContext)) return;
+    return runPrivacyAction(() => {
+      if (code !== this.data.inviteCode || !isCompanyContextCurrent(app, this._inviteContext)) return;
+      wx.setClipboardData({ data: code });
+    });
+  },
+
+  async showMemberInviteQr() {
+    if (!this.data.inviteCode || this.data.inviteQrLoading) return;
+    if (this.data.inviteQrPath) return this.previewMemberInviteQr();
+    const load = this._inviteQrLoad = { code: this.data.inviteCode, context: captureCompanyContext(app) };
+    if (!this._inviteContext || !isCompanyContextCurrent(app, this._inviteContext)) return;
+    this.setData({ inviteQrLoading: true });
+    try {
+      const result = await request({ url: `/companies/invitations/${encodeURIComponent(load.code)}/qrcode` });
+      if (this._inviteQrLoad !== load || !this.memberInviteCurrent(load)) return;
+      if (!result || !result.imageBase64 || !['image/png', 'image/jpeg'].includes(result.mimeType)) {
+        throw new Error('邀请二维码生成失败，请重试');
+      }
+      const path = `${wx.env.USER_DATA_PATH}/member-invite-${load.code}.${result.mimeType === 'image/png' ? 'png' : 'jpg'}`;
+      await new Promise((resolve, reject) => wx.getFileSystemManager().writeFile({
+        filePath: path, data: result.imageBase64, encoding: 'base64', success: resolve,
+        fail: () => reject(new Error('邀请二维码保存失败，请重试'))
+      }));
+      if (this._inviteQrLoad === load && this.memberInviteCurrent(load)) this.setData({ inviteQrPath: path });
+    } catch (error) {
+      if (this._inviteQrLoad === load && this.memberInviteCurrent(load)) {
+        wx.showToast({ title: error.message || '邀请二维码生成失败', icon: 'none' });
+      }
+    } finally {
+      if (this._inviteQrLoad === load && this.memberInviteCurrent(load)) this.setData({ inviteQrLoading: false });
+    }
+  },
+
+  previewMemberInviteQr() {
+    if (this.data.inviteQrPath) wx.previewImage({ urls: [this.data.inviteQrPath], current: this.data.inviteQrPath });
+  },
+
+  async copyMemberInviteLink() {
+    if (!this.data.inviteCode || this.data.inviteLinkLoading) return;
+    const load = this._inviteLinkLoad = { code: this.data.inviteCode, context: captureCompanyContext(app) };
+    if (!this._inviteContext || !isCompanyContextCurrent(app, this._inviteContext)) return;
+    this.setData({ inviteLinkLoading: true });
+    try {
+      const result = await request({ url: `/companies/invitations/${encodeURIComponent(load.code)}/share-link`, method: 'POST' });
+      if (this._inviteLinkLoad !== load || !this.memberInviteCurrent(load)) return;
+      if (!result || !/^https:\/\//.test(result.url || '')) throw new Error('邀请链接生成失败，请重试');
+      await runPrivacyAction(() => {
+        if (this._inviteLinkLoad === load && this.memberInviteCurrent(load)) wx.setClipboardData({ data: result.url });
+      });
+    } catch (error) {
+      if (this._inviteLinkLoad === load && this.memberInviteCurrent(load)) {
+        wx.showToast({ title: error.message || '邀请链接生成失败', icon: 'none' });
+      }
+    } finally {
+      if (this._inviteLinkLoad === load && this.memberInviteCurrent(load)) this.setData({ inviteLinkLoading: false });
+    }
+  },
+
+  async revokeMemberInvite() {
+    const load = { code: this.data.inviteCode, context: captureCompanyContext(app) };
+    if (!load.code || !this._inviteContext || !isCompanyContextCurrent(app, this._inviteContext)) return;
+    const answer = await new Promise(resolve => wx.showModal({ title: '作废当前邀请',
+      content: '作废后，此邀请码、二维码、分享卡片和链接都不能再用于提交新申请。已提交的申请仍可继续认证和审核。',
+      confirmText: '确认作废', success: resolve, fail: () => resolve({ confirm: false }) }));
+    if (!answer.confirm || !this.memberInviteCurrent(load)) return;
+    try {
+      await request({ url: `/companies/invitations/${encodeURIComponent(load.code)}`, method: 'DELETE' });
+      if (!this.memberInviteCurrent(load)) return;
+      this.clearMemberInvite();
+      wx.showToast({ title: '邀请已作废', icon: 'success' });
+    } catch (error) {
+      if (this.memberInviteCurrent(load)) wx.showToast({ title: error.message || '邀请作废失败', icon: 'none' });
+    }
   },
 
   showApproveModal(e) {
     const member = this.data.authorizations.find(item => String(item.id) === String(e.currentTarget.dataset.id));
     const editingMember = !!member && member.status === 'ACTIVE';
+    if (!member || !editingMember && (member.status !== 'PENDING' || member.realNameVerified === false)) {
+      wx.showToast({ title: '申请人需先完成实名认证', icon: 'none' });
+      return;
+    }
     const selectedRoleCodes = editingMember
       ? (member.roles && member.roles.length ? member.roles.map(role => role.code) : [member.roleCode]) : [];
     this.setData({

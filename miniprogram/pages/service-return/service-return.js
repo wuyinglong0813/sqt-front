@@ -75,6 +75,8 @@ Page({
           companyId: (source._returnOptions || {}).companyId || '' };
       } else if (source && source._legalClaimCompanyId && source._flowToken === app.globalData.token) {
         options = { ...options, flow: 'legal-claim', companyId: source._legalClaimCompanyId };
+      } else if (source && source._memberJoinFlow && source._flowToken === app.globalData.token) {
+        options = { ...options, flow: 'member-join', applicationId: source._memberApplicationId || '' };
       }
       if (source && source._identityContinuationId
           && signingContinuation(getApp(), source._identityContinuationId)) {
@@ -286,6 +288,11 @@ Page({
         await getApp().loadMe();
         if (!current()) return;
       }
+      if (options.scene === 'personal' && options.flow === 'member-join' && options.applicationId) {
+        await request({ url: `/me/member-applications/${encodeURIComponent(options.applicationId)}/identity-ready`,
+          method: 'POST', withCompany: false, token });
+        if (!current()) return;
+      }
       if (options.scene === 'contract' && result
           && ['task_finished', 'revoked'].includes(result.status)) clearServiceRecovery(getApp(), options.scene, options);
       this.setData({
@@ -294,7 +301,8 @@ Page({
         title: options.scene === 'personal' ? '个人认证成功' : '处理结果已同步',
         message: options.scene === 'personal' ? (options.flow === 'company-create'
           ? '实名身份已确认，即将继续企业开通流程' : options.flow === 'legal-claim'
-            ? '实名身份已确认，即将继续法人认领' : '实名身份已确认，即将进入首页') : (result && (result.statusText || result.status)) || '你可以返回业务页面继续操作'
+            ? '实名身份已确认，即将继续法人认领' : options.flow === 'member-join'
+              ? '实名身份已确认，入企申请等待管理员审核' : '实名身份已确认，即将进入首页') : (result && (result.statusText || result.status)) || '你可以返回业务页面继续操作'
       });
       if (current()) this.startCountdown();
     } catch (error) {
@@ -368,8 +376,9 @@ Page({
         returnToCompany(options);
         return;
       }
-      const query = ['company-create', 'legal-claim'].includes(options.flow)
+      const query = ['company-create', 'legal-claim', 'member-join'].includes(options.flow)
         ? `?flow=${options.flow}${options.companyId ? '&companyId=' + encodeURIComponent(options.companyId) : ''}`
+          + (options.flow === 'member-join' && options.applicationId ? '&applicationId=' + encodeURIComponent(options.applicationId) : '')
         : options.continuationId && signingContinuation(getApp(), options.continuationId)
           ? `?continuationId=${encodeURIComponent(options.continuationId)}` : '';
       wx.redirectTo({ url: `/pages/personal-cert/personal-cert${query}` });

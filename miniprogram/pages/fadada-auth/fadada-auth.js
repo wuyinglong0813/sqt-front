@@ -827,7 +827,8 @@ Page({
     const { scene, options } = this.data;
     const query = [`scene=${scene}`];
     if (this.supplementaryOrganizationScene()) query.push('renewOrganization=1');
-    if (['company-create', 'legal-claim'].includes(options.flow)) query.push(`flow=${options.flow}`);
+    if (['company-create', 'legal-claim', 'member-join'].includes(options.flow)) query.push(`flow=${options.flow}`);
+    if (options.flow === 'member-join' && options.applicationId) query.push(`applicationId=${encodeURIComponent(options.applicationId)}`);
     if (options.companyId) query.push(`companyId=${encodeURIComponent(options.companyId)}`);
     if (options.contractId) query.push(`contractId=${encodeURIComponent(options.contractId)}`);
     if (options.continuationId) query.push(`continuationId=${encodeURIComponent(options.continuationId)}`);

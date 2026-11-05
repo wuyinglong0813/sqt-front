@@ -23,13 +23,24 @@
     <view class="invite-sheet" catchtap="noop">
       <view class="sheet-handle"></view>
       <view class="sheet-heading"><view><view class="sheet-title">邀请成员</view><view class="sheet-desc">{{companyName}}</view></view><view class="sheet-close" bindtap="closeMemberInvite">×</view></view>
-      <view class="invite-field-label">受邀人手机号</view>
-      <input class="invite-phone-input" type="number" maxlength="11" value="{{targetPhone}}" bindinput="onInvitePhoneInput" placeholder="填写对方的11位手机号"/>
-      <view class="invite-phone-note">仅绑定此手机号并完成实名认证的账号可以申请加入。转发给其他人或自己打开，都无法领取。</view>
-      <view class="invite-ready" wx:if="{{inviteCode}}">邀请已准备好 · {{invitePhoneMasked}}</view>
+      <view class="invite-phone-note">将邀请发给同事。对方需完成实名认证并通过管理员审核，才能使用企业功能。</view>
+      <view class="invite-code-card" wx:if="{{inviteCode}}">
+        <view class="invite-field-label">企业邀请码</view>
+        <view class="invite-code-value" bindtap="copyMemberInviteCode">{{inviteCode}}</view>
+        <view class="invite-expiry">{{inviteExpiresAt ? '有效期至 ' + inviteExpiresAt : '24 小时内有效'}} · 点击邀请码可复制</view>
+      </view>
       <button class="invite-send" wx:if="{{inviteCode && !preparingInvite}}" open-type="share" data-invite-type="member">发送邀请给微信好友</button>
-      <button class="invite-send" wx:else loading="{{preparingInvite}}" disabled="{{preparingInvite || targetPhone.length !== 11}}" bindtap="shareInvite">{{preparingInvite ? '正在准备邀请' : '准备邀请'}}</button>
-      <view class="invite-phone-note secondary">对方申请后，仍需企业管理员审核并分配角色。</view>
+      <button class="invite-send" wx:else loading="{{preparingInvite}}" disabled="{{preparingInvite}}" bindtap="shareInvite">{{preparingInvite ? '正在准备邀请' : '重新准备邀请'}}</button>
+      <view class="invite-methods" wx:if="{{inviteCode}}">
+        <button bindtap="showMemberInviteQr" loading="{{inviteQrLoading}}" disabled="{{inviteQrLoading}}">显示二维码</button>
+        <button bindtap="copyMemberInviteLink" loading="{{inviteLinkLoading}}" disabled="{{inviteLinkLoading}}">复制邀请链接</button>
+      </view>
+      <view class="invite-qr" wx:if="{{inviteQrPath}}" bindtap="previewMemberInviteQr">
+        <image src="{{inviteQrPath}}" mode="aspectFit"/>
+        <view>微信扫码申请加入 · 点击可放大保存</view>
+      </view>
+      <view class="invite-phone-note secondary">同一邀请可供多位同事申请；实名和审核通过前不开放企业业务权限。</view>
+      <view class="invite-revoke" wx:if="{{inviteCode}}" bindtap="revokeMemberInvite">作废此邀请</view>
     </view>
   </view>
 
@@ -95,7 +106,7 @@
     </view>
 
     <view
-      class="member-card {{item.status === 'PENDING' ? 'pending-card' : ''}}"
+      class="member-card {{item.status !== 'ACTIVE' ? 'pending-card' : ''}}"
       wx:for="{{filtered}}"
       wx:key="id">
       <view class="member-main">
@@ -108,7 +119,7 @@
           <view class="member-subline">
             <text>{{item.maskedPhone}}</text>
             <text class="sub-divider">·</text>
-            <text class="member-status {{item.status === 'PENDING' ? 'pending' : ''}}">
+            <text class="member-status {{item.status !== 'ACTIVE' ? 'pending' : ''}}">
               <text class="status-dot"></text>{{item.statusText}}
             </text>
           </view>
@@ -135,6 +146,15 @@
           移除
         </view>
         <view wx:elif="{{item.roleCode === 'LEGAL'}}" class="owner-mark">主体负责人</view>
+      </view>
+
+      <view class="invite-phone-note" wx:if="{{item.inviterName}}">邀请人：{{item.inviterName}}</view>
+      <view class="approval-zone" wx:if="{{item.status === 'PENDING_IDENTITY'}}">
+        <view class="approval-copy">
+          <view class="approval-title">等待申请人完成实名认证</view>
+          <view class="approval-desc">实名完成后才能审核；当前没有企业业务权限</view>
+        </view>
+        <view class="reject-button" data-id="{{item.id}}" bindtap="rejectMember">拒绝</view>
       </view>
 
       <view class="approval-zone" wx:if="{{item.status === 'PENDING'}}">

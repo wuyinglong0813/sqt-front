@@ -1,0 +1,14 @@
+<template name="member-applications">
+  <view class="member-applications" wx:if="{{memberApplications.length || memberApplicationsError || memberApplicationsLoading}}">
+    <view class="member-applications-head"><view class="member-applications-title">我的入企申请</view><view class="member-applications-refresh" bindtap="refreshMemberApplications">刷新进度</view></view>
+    <view class="member-application" wx:for="{{memberApplications}}" wx:key="id">
+      <view class="member-application-name">{{item.companyName}}</view>
+      <view class="member-application-status">{{item.statusText}}</view>
+      <view class="member-application-description">{{item.description}}</view>
+      <button wx:if="{{item.status === 'PENDING_IDENTITY'}}" class="member-application-verify" data-id="{{item.id}}" bindtap="continueMemberApplication">去实名认证</button>
+    </view>
+    <view class="member-application-description" wx:if="{{memberApplicationsLoading}}">正在读取入企进度…</view>
+    <view class="member-application-error" wx:if="{{memberApplicationsError}}" bindtap="loadMemberApplications">{{memberApplicationsError}} · 点击重试</view>
+    <view class="member-application-notice" wx:if="{{memberApplications.length}}">个人实名和管理员审核通过前，无法访问申请企业的业务数据。</view>
+  </view>
+</template>

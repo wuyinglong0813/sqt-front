@@ -1,0 +1,9 @@
+<view class="invitation-page">
+  <view class="invitation-card">
+    <image class="invitation-logo" src="/images/logo.png" mode="aspectFit"/>
+    <view class="invitation-title">{{error ? '邀请暂未打开' : '正在打开企业邀请'}}</view>
+    <view class="invitation-desc">{{error || '正在读取邀请，请稍候…'}}</view>
+    <button wx:if="{{canRetry}}" class="invitation-retry" bindtap="openInvite">重新打开邀请</button>
+    <button wx:if="{{error}}" class="invitation-home" bindtap="goHome">返回首页</button>
+  </view>
+</view>

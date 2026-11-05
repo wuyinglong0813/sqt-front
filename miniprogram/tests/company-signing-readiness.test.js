@@ -18,7 +18,8 @@ function harness(handler) {
       require: id => {
         if (id.endsWith('/request')) return { request: async options => { calls.push(options); return handler(options); } };
         if (id.endsWith('/companyContext')) return require('../utils/companyContext');
-        if (id.endsWith('/invitation')) return require('../utils/invitation');
+        if (id.endsWith('/memberApplications')) return require('./member-applications-fixture');
+      if (id.endsWith('/invitation')) return require('../utils/invitation');
         if (id.endsWith('/signingContinuation')) return require('../utils/signingContinuation');
         if (id.endsWith('/companyOnboarding')) return { readDraft: () => null };
         if (id.endsWith('/dict')) return { certification: status => ({ text: status === 'VERIFIED' ? '已认证' : '待认证' }) };

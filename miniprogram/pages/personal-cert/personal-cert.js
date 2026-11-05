@@ -53,18 +53,21 @@ Page({
     maskedPhone: '',
     bindingPhone: false,
     desktopMode: false,
-    memberJoinFlow: false
+    memberJoinFlow: false,
+    memberApplicationFlow: false
   },
 
   onLoad(options = {}) {
     this._flowToken = getApp().globalData.token;
     this._companyFlow = options.flow === 'company-create';
     this._memberJoinFlow = options.flow === 'member-join';
+    this._memberApplicationId = this._memberJoinFlow ? String(options.applicationId || '') : '';
     this._legalClaimCompanyId = options.flow === 'legal-claim' ? String(options.companyId || '') : '';
     this._returnOptions = options;
     this._identityContinuationId = options.continuationId && signingContinuation(getApp(), options.continuationId)
       ? options.continuationId : '';
-    this.setData({ desktopMode: !!getApp().globalData.isDesktopWechat, memberJoinFlow: this._memberJoinFlow });
+    this.setData({ desktopMode: !!getApp().globalData.isDesktopWechat, memberJoinFlow: this._memberJoinFlow,
+      memberApplicationFlow: !!this._memberApplicationId });
     this.loadPhoneStatus();
     this.loadIdentity(!!this._identityContinuationId);
   },
@@ -109,7 +112,7 @@ Page({
     } finally {
       this._phoneLoading = false;
       if (!this._unloaded) this.setData({ phoneLoading: false });
-      this.resumeMemberJoinIfReady();
+      await this.resumeMemberJoinIfReady();
     }
   },
 
@@ -128,7 +131,7 @@ Page({
         withCompany: false, data: { phoneCode: detail.code } });
       if (this.applyPhoneProfile(user, token)) {
         wx.showToast({ title: '手机号已绑定，可继续认证', icon: 'success' });
-        this.resumeMemberJoinIfReady();
+        await this.resumeMemberJoinIfReady();
       }
     } catch (error) {
       wx.showToast({ title: error.message || '手机号绑定失败，请重试', icon: 'none' });
@@ -161,7 +164,7 @@ Page({
         statusView: STATUS_VIEW[status]
       });
       if (this._memberJoinFlow) {
-        this.resumeMemberJoinIfReady();
+        await this.resumeMemberJoinIfReady();
         return;
       }
       if (status === 'VERIFIED' && this._legalClaimCompanyId && !this._unloaded && !this._returning
@@ -208,11 +211,24 @@ Page({
     }
   },
 
-  resumeMemberJoinIfReady() {
+  async resumeMemberJoinIfReady() {
     if (!this._memberJoinFlow || this._unloaded || this._returning || this.data.phoneLoading
         || !this.data.phoneBound || !this.data.identity || this.data.identity.status !== 'VERIFIED'
         || this._flowToken !== getApp().globalData.token) return false;
     this._returning = true;
+    if (this._memberApplicationId) {
+      try {
+        await request({ url: `/me/member-applications/${encodeURIComponent(this._memberApplicationId)}/identity-ready`,
+          method: 'POST', withCompany: false, token: this._flowToken });
+        if (this._unloaded || this._flowToken !== getApp().globalData.token) return false;
+      } catch (error) {
+        if (!this._unloaded && this._flowToken === getApp().globalData.token) {
+          this._returning = false;
+          wx.showToast({ title: error.message || '实名结果已保留，请重试入企审核', icon: 'none' });
+        }
+        return false;
+      }
+    }
     restoreMemberIdentityInvite(getApp());
     wx.switchTab({ url: '/pages/index/index', fail: () => { this._returning = false; } });
     return true;
@@ -232,8 +248,10 @@ Page({
       return;
     }
     this.setData({ refreshAfterAuth: true });
-    const flow = this._companyFlow ? 'company-create' : this._legalClaimCompanyId ? 'legal-claim' : '';
-    const query = flow ? `&flow=${flow}${this._returnOptions.companyId ? '&companyId=' + encodeURIComponent(this._returnOptions.companyId) : ''}` : '';
+    const flow = this._companyFlow ? 'company-create' : this._legalClaimCompanyId ? 'legal-claim'
+      : this._memberJoinFlow ? 'member-join' : '';
+    const query = flow ? `&flow=${flow}${this._returnOptions.companyId ? '&companyId=' + encodeURIComponent(this._returnOptions.companyId) : ''}`
+      + (this._memberApplicationId ? '&applicationId=' + encodeURIComponent(this._memberApplicationId) : '') : '';
     const continuation = this._identityContinuationId ? '&continuationId=' + encodeURIComponent(this._identityContinuationId) : '';
     wx.navigateTo({ url: `/pages/fadada-auth/fadada-auth?scene=personal${query}${continuation}` });
   },

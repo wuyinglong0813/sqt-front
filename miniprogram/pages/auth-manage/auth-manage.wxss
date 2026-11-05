@@ -84,7 +84,17 @@ page {
   margin-right: 3rpx;
 }
 
-.invite-sheet { background: #fff; border-radius: 32rpx 32rpx 0 0; box-sizing: border-box; padding: 16rpx 30rpx calc(28rpx + env(safe-area-inset-bottom)); width: 100%; }
+.invite-sheet { background: #fff; border-radius: 32rpx 32rpx 0 0; box-sizing: border-box; padding: 16rpx 30rpx calc(28rpx + env(safe-area-inset-bottom)); width: 100%; max-height: 88vh; overflow-y: auto; }
+.invite-code-card { background: #f4f8fd; border-radius: 18rpx; margin-top: 24rpx; padding: 20rpx; text-align: center; }
+.invite-code-card .invite-field-label { margin-top: 0; }
+.invite-code-value { color: #2478df; font-size: 44rpx; font-weight: 700; letter-spacing: 5rpx; padding: 18rpx 0; }
+.invite-expiry { color: #8293a6; font-size: 22rpx; }
+.invite-methods { display: flex; gap: 16rpx; margin-top: 18rpx; }
+.invite-methods button { flex: 1; min-width: 0; margin: 0; padding: 0 8rpx; color: #2478df; background: #eef5ff; font-size: 24rpx; border-radius: 14rpx; }
+.invite-methods button::after { border: 0; }
+.invite-qr { margin-top: 24rpx; text-align: center; color: #8293a6; font-size: 22rpx; }
+.invite-qr image { display: block; width: 320rpx; height: 320rpx; max-width: 100%; margin: 0 auto 14rpx; }
+.invite-revoke { margin-top: 20rpx; padding: 12rpx 0; color: #b65b53; font-size: 24rpx; text-align: center; }
 .invite-field-label { color: #30465e; font-size: 25rpx; margin-top: 28rpx; }
 .invite-phone-input { background: #f5f8fc; border: 1rpx solid #e4edf7; border-radius: 16rpx; box-sizing: border-box; color: #20364e; font-size: 30rpx; height: 92rpx; margin-top: 14rpx; padding: 0 22rpx; width: 100%; }
 .invite-phone-note { color: #8293a6; font-size: 22rpx; line-height: 1.7; margin-top: 16rpx; }

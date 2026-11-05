@@ -6,6 +6,7 @@ const { captureInviteEntry, dismissInvite, markInviteProcessed, processedInviteK
   wasInviteProcessed, restoreMemberIdentityInvite, startMemberIdentity,
   isMemberInviteRejected, memberInvitePrerequisite } = require('../../utils/invitation');
 const { captureCompanyContext, isCompanyContextCurrent } = require('../../utils/companyContext');
+const { memberApplicationData, memberApplicationMethods, startMemberApplicationIdentity } = require('../../utils/memberApplications');
 const {
   USER_ID_KEY,
   readHomeSnapshot,
@@ -16,7 +17,9 @@ const app = getApp();
 const { context: retailContext, retailRequest, customerView, money } = require('../../utils/retail');
 
 Page({
+  ...memberApplicationMethods,
   data: {
+    ...memberApplicationData,
     role: 'supplier',
     businessMode: 'partner',
     retailCustomers: [],
@@ -96,21 +99,27 @@ Page({
   },
 
   async onShow() {
+    this._unloaded = false;
     this.startApprovalPolling();
     syncTabBar(this, 0);
     app.restoreStoredSession();
+    this.resetMemberApplicationContext();
     const locallyLoggedIn = !!app.globalData.token;
     if (locallyLoggedIn) {
       this.setData({
         isLoggedIn: true,
-        currentCompanyId: String(app.getCurrentCompanyId() || '')
+        currentCompanyId: String(app.getCurrentCompanyId() || ''),
+        sessionRestoring: true,
+        homeHasSnapshot: false,
+        homeUsingSnapshot: false,
+        showJoinForm: false
       });
-      this.restoreHomeSnapshot();
     }
-    await app.ensureSessionReady();
+    const awaitingRefresh = !!app._sessionRefresh;
+    const restoredSession = await app.ensureSessionReady();
     const loggedIn = !!app.globalData.token;
     const user = app.globalData.userInfo;
-    if (loggedIn && !user) {
+    if (loggedIn && !user || loggedIn && awaitingRefresh && !restoredSession) {
       this.setData({
         isLoggedIn: true,
         sessionRestoring: true,
@@ -129,18 +138,30 @@ Page({
       currentCompanyId: String(app.getCurrentCompanyId() || ''),
       userName: (user && user.nickname) || ''
     });
-    if (!loggedIn) return;
+    if (!loggedIn) {
+      this.loadMemberApplications();
+      return;
+    }
+    this.loadMemberApplications();
     this.checkMemberStatus();
     this.initRoleFromMember();
     if (this.data.showJoinForm) this.loadOnboardingSummary();
-    this.restoreHomeSnapshot({ resetWhenMissing: true });
+    this.restoreHomeSnapshot({ resetWhenMissing: true, disabled: this.data.showJoinForm });
     this.setData({
       showHomeGuide: !this.data.showJoinForm && !wx.getStorageSync('tradepass_home_guide_done')
     });
 
     restoreMemberIdentityInvite(app);
     if (wasInviteProcessed(app, app.globalData.pendingInvite)) {
-      dismissInvite(app, app.globalData.pendingInvite);
+      const invite = app.globalData.pendingInvite;
+      dismissInvite(app, invite);
+      if (invite.explicitEntry) wx.showModal({
+        title: '邀请已处理',
+        content: invite.type === 'member'
+          ? '你已处理过此邀请。如已提交加入申请，请等待企业管理员审核。'
+          : '你已处理过此邀请，可在首页查看企业合作关系。',
+        showCancel: false
+      });
     }
     if (!this._processingInvite && loggedIn && user && app.globalData.pendingInvite
         && (app.globalData.pendingInvite.type === 'member' || !this.data.showJoinForm)) {
@@ -159,48 +180,56 @@ Page({
         }
       }
       if (invite.type === 'counterparty') {
-        if (this._confirmingInvite) return;
-        this._confirmingInvite = true;
+        if (this._confirmingInvite === invite) return;
+        this._confirmingInvite = invite;
         const company = (app.globalData.companies || []).find(c => String(c.companyId) === String(app.getCurrentCompanyId()));
         wx.showModal({
           title: '接受企业合作邀请',
           content: `是否以“${company && company.companyName || '当前企业'}”建立合作关系？如需使用其他企业，请先取消并切换企业，再打开邀请。`,
           confirmText: '接受邀请',
           success: result => {
+            if (app.globalData.pendingInvite !== invite) return;
             if (result.confirm && isCompanyContextCurrent(app, context)) this.processInvite(invite.code, invite);
             else dismissInvite(app, invite);
           },
-          complete: () => { this._confirmingInvite = false; }
+          fail: () => this.inviteModalFailed(invite, context),
+          complete: () => { if (this._confirmingInvite === invite) this._confirmingInvite = null; }
         });
       } else {
-        if (this._confirmingInvite) return;
-        this._confirmingInvite = true;
+        if (this._confirmingInvite === invite) return;
+        this._confirmingInvite = invite;
         try {
           const preview = await request({ url: `/companies/invitations/${encodeURIComponent(invite.code)}`, withCompany: false });
           if (!isCompanyContextCurrent(app, context) || app.globalData.pendingInvite !== invite) {
-            this._confirmingInvite = false;
+            if (this._confirmingInvite === invite) this._confirmingInvite = null;
             return;
           }
           if (!preview || !preview.companyName || preview.type !== 'member') throw new Error('邀请信息已变化，请联系邀请人重新发送邀请');
           wx.showModal({
             title: '申请加入企业组织',
-            content: preview.phoneBindingRequired
+            content: preview.invitationMode === 'OPEN'
+              ? `申请加入“${preview.companyName}”。提交后请完成个人实名认证，管理员审核并分配角色后才能访问企业业务。`
+              : preview.phoneBindingRequired
               ? `此邀请仅供绑定手机号 ${preview.targetPhoneMasked || '受邀号码'} 的账号使用。请先通过微信核验手机号，完成实名后继续申请加入“${preview.companyName}”。`
               : preview.personalIdentityRequired
               ? `加入“${preview.companyName}”前需要完成个人实名认证。邀请码已保留，认证后可继续提交加入申请。`
               : `是否使用当前账号（${preview.targetPhoneMasked || '已核验的受邀手机号'}）申请加入“${preview.companyName}”？提交后需等待该企业管理员审核并分配角色。`,
-            confirmText: preview.phoneBindingRequired ? '核验手机号' : preview.personalIdentityRequired ? '去实名认证' : '申请加入',
+            confirmText: preview.invitationMode === 'OPEN' ? '提交申请'
+              : preview.phoneBindingRequired ? '核验号码' : preview.personalIdentityRequired ? '实名认证' : '申请加入',
             success: result => {
+              if (app.globalData.pendingInvite !== invite) return;
               if (result.confirm && isCompanyContextCurrent(app, context)) {
-                if (preview.personalIdentityRequired || preview.phoneBindingRequired) startMemberIdentity(app, invite.code);
+                if (preview.invitationMode === 'OPEN') this.processInvite(invite.code, invite);
+                else if (preview.personalIdentityRequired || preview.phoneBindingRequired) startMemberIdentity(app, invite.code);
                 else this.processInvite(invite.code, invite);
               }
               else dismissInvite(app, invite);
             },
-            complete: () => { this._confirmingInvite = false; }
+            fail: () => this.inviteModalFailed(invite, context),
+            complete: () => { if (this._confirmingInvite === invite) this._confirmingInvite = null; }
           });
         } catch (error) {
-          this._confirmingInvite = false;
+          if (this._confirmingInvite === invite) this._confirmingInvite = null;
           if (!isCompanyContextCurrent(app, context) || app.globalData.pendingInvite !== invite) return;
           if (isMemberInviteRejected(error) || ['邀请码无效', '邀请码已被使用', '邀请码已过期'].includes(error.message)) dismissInvite(app, invite);
           if (isMemberInviteRejected(error)) {
@@ -257,7 +286,7 @@ Page({
 
   restoreHomeSnapshot(options = {}) {
     const context = this.homeSnapshotContext(options);
-    const snapshot = readHomeSnapshot(context);
+    const snapshot = options.disabled ? null : readHomeSnapshot(context);
     if (!snapshot) {
       if (options.resetWhenMissing) {
         this.homeSnapshotIdentity = null;
@@ -266,6 +295,7 @@ Page({
           period: context.period,
           periodText: this.periodLabel(context.period),
           companyName: '',
+          companyDisplayName: '企业信息加载中',
           ranking: [],
           counterparties: [],
           relationCounterparties: [],
@@ -404,6 +434,7 @@ Page({
   },
 
   onUnload() {
+    this._unloaded = true;
     this.stopApprovalPolling();
     this.clearSessionRestoreTimer();
   },
@@ -421,6 +452,13 @@ Page({
     }
   },
 
+  inviteModalFailed(invite, context) {
+    if (this._confirmingInvite === invite) this._confirmingInvite = null;
+    if (app.globalData.pendingInvite === invite && isCompanyContextCurrent(app, context)) {
+      wx.showToast({ title: '邀请提示未打开，请重试', icon: 'none' });
+    }
+  },
+
   async processInvite(code, invite = app.globalData.pendingInvite) {
     if (this._processingInvite) return;
     const user = app.globalData.userInfo;
@@ -432,10 +470,16 @@ Page({
       const result = await request({
         url: '/companies/join',
         method: 'POST',
+        withCompany: !invite || invite.type !== 'member',
         data: { code }
       });
       markInviteProcessed(app, invite, historyKey);
       if (!isCompanyContextCurrent(app, context)) return;
+      if (result.status === 'PENDING_IDENTITY' && result.applicationId) {
+        this.loadMemberApplications();
+        startMemberApplicationIdentity(app, result.applicationId);
+        return;
+      }
       wx.showToast({ title: result.message || '加入成功', icon: 'success' });
       await app.loadMe();
       await this.onShow();
@@ -549,7 +593,7 @@ Page({
     this.setData({ isLegalPerson: !!isLegal, counterpartyEmptyBtn: isLegal ? '邀请供方' : '' });
     if (!member || member.memberStatus === 'NONE' || !member.roleCode || member.roleCode === 'GUEST') {
       this.setData({ showJoinForm: true });
-    } else if (member.memberStatus === 'PENDING') {
+    } else if (member.memberStatus === 'PENDING' || member.memberStatus === 'PENDING_IDENTITY') {
       this.setData({ showJoinForm: true });
     } else {
       this.setData({ showJoinForm: false });
@@ -577,9 +621,15 @@ Page({
         method: 'POST',
         data: { code: companyId }
       });
+      if (joinToken !== app.globalData.token) return;
       wx.showToast({ title: result.message, icon: 'success' });
       setTabBarHidden(this, false);
       this.setData({ showJoinModal: false });
+      if (result.status === 'PENDING_IDENTITY' && result.applicationId) {
+        this.loadMemberApplications();
+        startMemberApplicationIdentity(app, result.applicationId);
+        return;
+      }
       await app.loadMe();
       await this.onShow();
     } catch (e) {
@@ -689,7 +739,7 @@ Page({
     const generation = this.approvalPollGeneration;
     const tick = async () => {
       if (!this.approvalPageVisible || generation !== this.approvalPollGeneration) return;
-      if (app.globalData.token && app.getCurrentCompanyId() && !this.data.showJoinForm) {
+      if (app.globalData.token && app.getCurrentCompanyId() && !this.data.showJoinForm && !this.data.sessionRestoring) {
         await this.loadApprovalIndicator();
       }
       if (this.approvalPageVisible && generation === this.approvalPollGeneration) this.approvalTimer = setTimeout(tick, 10000);
@@ -899,7 +949,7 @@ Page({
     return {
       title: '邀请你在商签通建立企业合作关系',
       imageUrl: '/images/company-invite-cover.png',
-      path: `/pages/index/index?inviteCode=${encodeURIComponent(code)}&type=counterparty`
+      path: `/pages/invitation/invitation?inviteCode=${encodeURIComponent(code)}&type=counterparty`
     };
   }
 });

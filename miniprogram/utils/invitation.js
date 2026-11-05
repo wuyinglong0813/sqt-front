@@ -16,11 +16,28 @@ function sameInvite(first, second) {
   return !!first && !!second && first.code === second.code && first.type === second.type;
 }
 
+function inviteFromQuery(query = {}) {
+  let scene = '';
+  try { scene = query.scene ? decodeURIComponent(String(query.scene)) : ''; } catch (error) { return null; }
+  const code = query.inviteCode || (scene.startsWith('i=') ? scene.slice(2) : scene);
+  return code ? { code: String(code), type: query.type === 'counterparty' ? 'counterparty' : 'member' } : null;
+}
+
+// The non-tab invitation page loads only when a link is explicitly opened.
+// Unlike App.onShow, this is fresh entry evidence even for the same card.
+function captureInviteLink(app, query = {}) {
+  const invite = inviteFromQuery(query);
+  if (!invite) return null;
+  // A newly opened card must not inherit another account's certification
+  // binding or an earlier entry's in-flight preview, even for the same code.
+  app.globalData.pendingInvite = { ...invite, explicitEntry: true };
+  return app.globalData.pendingInvite;
+}
+
 function captureInviteEntry(app, options = {}, pageEntry = false) {
   const query = pageEntry ? options : (options.query || {});
   const scene = pageEntry ? (app._lastInviteEntry && app._lastInviteEntry.scene) || 0 : Number(options.scene || 0);
-  const invite = query.inviteCode
-    ? { code: String(query.inviteCode), type: query.type === 'counterparty' ? 'counterparty' : 'member' } : null;
+  const invite = inviteFromQuery(query);
   const previous = app._lastInviteEntry;
   const entry = { scene, invite };
   if (!pageEntry) app._lastInviteEntry = entry;
@@ -97,6 +114,6 @@ function markInviteProcessed(app, invite, key = processedInviteKey(app, invite))
   dismissInvite(app, invite);
 }
 
-module.exports = { captureInviteEntry, dismissInvite, markInviteProcessed, processedInviteKey, wasInviteProcessed,
+module.exports = { captureInviteEntry, captureInviteLink, dismissInvite, markInviteProcessed, processedInviteKey, wasInviteProcessed,
   memberIdentityInvite, restoreMemberIdentityInvite, startMemberIdentity,
   isMemberInviteRejected, memberInvitePrerequisite };

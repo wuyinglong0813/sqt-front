@@ -1,4 +1,6 @@
+<import src="../../templates/member-applications.wxml"/>
 <view class="company-page">
+  <template wx:if="{{isLoggedIn}}" is="member-applications" data="{{memberApplications, memberApplicationsLoading, memberApplicationsError}}"/>
   <view class="enterprise-shell company-loading-shell" wx:if="{{companyInitializing || (isLoggedIn && !companyReady && !companyLoadError)}}" aria-label="正在加载企业信息">
     <view class="identity-card loading-identity">
       <view class="identity-top"><view class="loading-block loading-avatar"></view><view class="identity-copy"><view class="loading-block loading-name"></view><view class="loading-block loading-code"></view></view></view>

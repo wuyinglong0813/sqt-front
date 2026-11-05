@@ -3,6 +3,7 @@
   "resizable": true,
   "pages": [
     "pages/index/index",
+    "pages/invitation/invitation",
     "pages/login/login",
     "pages/phone-login/phone-login",
     "pages/privacy/privacy",

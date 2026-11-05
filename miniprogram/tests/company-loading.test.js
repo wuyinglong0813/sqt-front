@@ -49,6 +49,7 @@ function harness(handler) {
       if (id.endsWith('/companyOnboarding')) return { readDraft: () => null };
       if (id.endsWith('/signingContinuation')) return { serviceRecovery: () => null };
       if (id.endsWith('/tabBar')) return { syncTabBar() {}, setTabBarHidden() {} };
+      if (id.endsWith('/memberApplications')) return require('./member-applications-fixture');
       if (id.endsWith('/invitation')) return {};
       if (id.endsWith('/dict')) return { certification: status => ({ text: status === 'VERIFIED' ? '已认证' : '待认证' }) };
       throw new Error(id);
@@ -58,17 +59,18 @@ function harness(handler) {
   return { page, app, calls, patches };
 }
 
-test('enterprise tab immediately uses matching session summary without inventing certification or zero statistics', async () => {
+test('enterprise tab waits for a server-confirmed profile before restoring enterprise data', async () => {
   const me = deferred();
   const h = harness((options, defaults) => options.url === '/me' ? me.promise : defaults(options));
   assert.equal(h.page.data.companyInitializing, true);
   const pending = h.page.onShow();
   assert.equal(h.page.data.isLoggedIn, true);
-  assert.equal(h.page.data.hasCompany, true);
-  assert.equal(h.page.data.company.name, '企业3');
-  assert.equal(h.page.data.companySummaryOnly, true);
+  assert.equal(h.page.data.hasCompany, false);
+  assert.equal(h.page.data.company.name, undefined);
+  assert.equal(h.page.data.companySummaryOnly, false);
+  assert.equal(h.page.data.companyInitializing, true);
   assert.equal(h.page.data.memberCount, null);
-  assert.equal(h.page.data.canManage, true);
+  assert.equal(h.page.data.canManage, false);
   await tick();
   me.resolve(profile());
   await pending;
@@ -98,7 +100,7 @@ test('cold restoration keeps a loading view and shares the restored profile inst
   side.resolve([]); await pending;
 });
 
-test('matching tab re-entry keeps the complete view and failed refresh preserves previous statistics and todos', async () => {
+test('matching tab re-entry hides previous data and a confirmed profile does not reuse failed auxiliary reads', async () => {
   let refresh = false;
   const me = deferred();
   const h = harness((options, defaults) => {
@@ -109,15 +111,16 @@ test('matching tab re-entry keeps the complete view and failed refresh preserves
   await h.page.onShow();
   refresh = true;
   const pending = h.page.onShow();
-  assert.equal(h.page.data.companyInitializing, false);
+  assert.equal(h.page.data.companyInitializing, true);
   assert.equal(h.page.data.companySummaryOnly, false);
-  assert.equal(h.page.data.memberCount, 18);
-  assert.equal(h.page.data.todos.length, 1);
+  assert.equal(h.page.data.memberCount, null);
+  assert.equal(h.page.data.todos.length, 0);
   await tick(); me.resolve(profile()); await pending;
-  assert.equal(h.page.data.memberCount, 18);
-  assert.equal(h.page.data.roleCount, 1);
-  assert.equal(h.page.data.templateCount, 5);
-  assert.equal(h.page.data.todos.length, 1);
+  assert.equal(h.page.data.company.name, '企业3');
+  assert.equal(h.page.data.memberCount, null);
+  assert.equal(h.page.data.roleCount, null);
+  assert.equal(h.page.data.templateCount, null);
+  assert.equal(h.page.data.todos.length, 0);
   assert.ok(h.page.data.companyLoadError);
 });
 
@@ -287,4 +290,70 @@ test('a confirmed guest renders the login view without business requests and cle
   assert.equal(h.page.data.companyReady, false);
   assert.equal(h.page.data.canManage, false);
   assert.equal(h.page.data.memberCount, null);
+});
+
+test('an old ACTIVE profile cannot remain visible while the server restores an unverified unbound account', async () => {
+  let unbound;
+  const h = harness((options, defaults) => unbound && options.url === '/me' ? unbound : defaults(options));
+  await h.page.onShow();
+  assert.equal(h.page.data.company.name, '企业3');
+  assert.equal(h.page.data.memberCount, 18);
+  const restoration = deferred();
+  h.app.ensureSessionReady = () => restoration.promise;
+  const callsBefore = h.calls.length;
+  const restoring = h.page.onShow();
+  assert.equal(h.page.data.companyInitializing, true);
+  assert.equal(h.page.data.companyReady, false);
+  assert.equal(h.page.data.hasCompany, false);
+  assert.equal(h.page.data.company.name, undefined);
+  assert.equal(h.page.data.memberCount, null);
+  assert.equal(h.page.data.roleCount, null);
+  assert.equal(h.page.data.templateCount, null);
+  assert.equal(h.page.data.todos.length, 0);
+  assert.equal(h.page.data.canManage, false);
+  assert.equal(h.page.data.canInventory, false);
+
+  unbound = { user: { id: '7', currentCompanyId: null },
+    member: { roleCode: 'GUEST', memberStatus: 'NONE', permissions: [] }, company: null, companies: [] };
+  h.app.applyMePayload(unbound);
+  restoration.resolve(unbound);
+  await restoring;
+  assert.equal(h.page.data.companyInitializing, false);
+  assert.equal(h.page.data.companyReady, true);
+  assert.equal(h.page.data.hasCompany, false);
+  assert.equal(h.page.data.company.name, undefined);
+  assert.equal(h.page.data.memberCount, null);
+  assert.equal(h.page.data.canManage, false);
+  assert.equal(h.calls.slice(callsBefore).some(options => options.url.startsWith('/authorizations')
+    || options.url.startsWith('/roles') || options.url.startsWith('/contract-templates')
+    || options.url.endsWith('/signing-readiness')), false);
+});
+
+test('failed session restoration keeps old enterprise data hidden until a new confirmed profile arrives', async () => {
+  let failing = false;
+  const h = harness((options, defaults) => {
+    if (failing && options.url === '/me') throw new Error('offline');
+    return defaults(options);
+  });
+  await h.page.onShow();
+  assert.equal(h.page.data.memberCount, 18);
+  h.app.ensureSessionReady = async () => { throw new Error('session offline'); };
+  failing = true;
+  await h.page.onShow();
+  assert.equal(h.page.data.companyInitializing, false);
+  assert.equal(h.page.data.companyReady, false);
+  assert.equal(h.page.data.company.name, undefined);
+  assert.equal(h.page.data.memberCount, null);
+  assert.equal(h.page.data.roleCount, null);
+  assert.equal(h.page.data.templateCount, null);
+  assert.equal(h.page.data.todos.length, 0);
+  assert.equal(h.page.data.canManage, false);
+  assert.equal(h.page.data.canInventory, false);
+  assert.ok(h.page.data.companyLoadError);
+  failing = false;
+  await h.page.loadData();
+  assert.equal(h.page.data.companyReady, true);
+  assert.equal(h.page.data.company.name, '企业3');
+  assert.equal(h.page.data.memberCount, 18);
+  assert.equal(h.page.data.canManage, true);
 });

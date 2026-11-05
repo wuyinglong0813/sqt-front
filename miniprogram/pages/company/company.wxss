@@ -1,3 +1,4 @@
+@import "../../styles/member-applications.wxss";
 page { background: #f4f8fd; }
 
 .company-page {

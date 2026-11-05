@@ -1,0 +1,10 @@
+.member-applications { margin: 24rpx 0; padding: 28rpx; border-radius: 24rpx; background: #fff; border: 1rpx solid #e2ebf5; }
+.member-applications-head { display: flex; align-items: center; justify-content: space-between; gap: 20rpx; }
+.member-applications-title { color: #162336; font-size: 30rpx; font-weight: 600; }
+.member-applications-refresh { color: #2478df; font-size: 25rpx; flex-shrink: 0; }
+.member-application { padding: 26rpx 0; border-bottom: 1rpx solid #edf1f6; }
+.member-application-name { color: #162336; font-size: 30rpx; font-weight: 600; overflow-wrap: anywhere; }
+.member-application-status { margin-top: 14rpx; color: #b77815; font-size: 26rpx; }
+.member-application-description, .member-application-notice { margin-top: 14rpx; color: #657e98; font-size: 25rpx; line-height: 1.6; }
+.member-application-verify { margin-top: 22rpx; color: #fff; background: #3498ff; border-radius: 16rpx; font-size: 28rpx; }
+.member-application-error { margin-top: 16rpx; color: #b75436; font-size: 25rpx; line-height: 1.6; }

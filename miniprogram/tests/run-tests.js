@@ -1240,7 +1240,7 @@ test('partner loading distinguishes failures from empty company bindings and can
   } finally { app.getCurrentCompanyId = oldGetter; wx.request = oldRequest; }
 });
 
-test('member invitation requires a recipient before creating a share card', async () => {
+test('member invitation exposes a share card only after a code is ready', async () => {
   const page = loadPage('../pages/auth-manage/auth-manage');
   const oldReady = app.ensureSessionReady; const oldGetter = app.getCurrentCompanyId;
   app.ensureSessionReady = async () => {}; app.getCurrentCompanyId = () => '123';
@@ -1274,7 +1274,7 @@ test('member invitation waits for a code and cannot share across companies', asy
     pending.success({ statusCode: 200, data: { code: 0, data: { code: 'member+code' } } });
     await generating;
     const share = context.onShareAppMessage(event);
-    assert.strictEqual(share.path, '/pages/index/index?inviteCode=member%2Bcode&type=member');
+    assert.strictEqual(share.path, '/pages/invitation/invitation?inviteCode=member%2Bcode&type=member');
     assert.strictEqual(share.imageUrl, '/images/member-invite-cover.png');
     cid = '456';
     assert.strictEqual(context.onShareAppMessage(event).path, '/pages/index/index');
@@ -1326,7 +1326,7 @@ test('partner sharing waits for invite creation and rejects stale company contex
     await generating;
     assert.strictEqual(context.data.preparingInvite, false);
     assert.strictEqual(page.onShareAppMessage.call(context, event).path,
-      '/pages/index/index?inviteCode=test-code&type=counterparty');
+      '/pages/invitation/invitation?inviteCode=test-code&type=counterparty');
     context.data.role = 'supplier';
     assert.strictEqual(page.onShareAppMessage.call(context, event).path, '/pages/index/index');
   } finally {
@@ -1443,8 +1443,8 @@ test('app retries a failed cold-start profile restore before home decides compan
   assert.ok(indexScript.includes('scheduleSessionRestore()'));
   assert.ok(indexTemplate.includes('wx:elif="{{sessionRestoring && !homeHasSnapshot}}"'));
   assert.ok(!indexTemplate.includes('home-snapshot-notice'));
-  assert.ok(indexScript.indexOf('this.restoreHomeSnapshot()')
-    < indexScript.indexOf('await app.ensureSessionReady()'));
+  assert.ok(indexScript.indexOf('await app.ensureSessionReady()')
+    < indexScript.indexOf('this.restoreHomeSnapshot({ resetWhenMissing: true, disabled: this.data.showJoinForm })'));
 });
 
 test('app switchCompany sends target tenant header and updates global profile', async () => {

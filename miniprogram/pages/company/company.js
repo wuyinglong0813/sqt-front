@@ -5,6 +5,7 @@ const { serviceRecovery, serviceRecoveryUrl } = require('../../utils/signingCont
 const dict = require('../../utils/dict');
 const { setTabBarHidden, syncTabBar } = require('../../utils/tabBar');
 const { startMemberIdentity, memberInvitePrerequisite } = require('../../utils/invitation');
+const { memberApplicationData, memberApplicationMethods, startMemberApplicationIdentity } = require('../../utils/memberApplications');
 const app = getApp();
 
 function companyAbbr(name) {
@@ -88,7 +89,9 @@ function signingReadinessView(result, capabilities = {}) {
 }
 
 Page({
+  ...memberApplicationMethods,
   data: {
+    ...memberApplicationData,
     isLoggedIn: false,
     companyInitializing: true,
     companyReady: false,
@@ -131,12 +134,23 @@ Page({
     const showSequence = this._showSequence = (this._showSequence || 0) + 1;
     syncTabBar(this, 1);
     if (typeof app.restoreStoredSession === 'function') app.restoreStoredSession();
+    this.resetMemberApplicationContext();
     const token = app.globalData.token || wx.getStorageSync('tradepass_token');
-    this.prepareCompanyView(!!token);
+    // A previous ACTIVE profile does not prove that the current session still
+    // has a verified identity or enterprise access. Hide its data until /me
+    // has confirmed the current account again.
+    this._companySessionConfirmed = false;
+    this._loadSequence = (this._loadSequence || 0) + 1;
+    this._readinessSequence = (this._readinessSequence || 0) + 1;
+    this._readinessContext = null;
+    this.setData({ ...emptyCompanyView(), isLoggedIn: !!token, companyInitializing: !!token });
     this.setData({ isDesktopWechat: !!app.globalData.isDesktopWechat });
     const recovery = serviceRecovery(app);
     this.setData({ serviceRecoveryAvailable: !!(recovery && recovery.target.scene === 'member') });
-    if (!token) return;
+    if (!token) {
+      this.loadMemberApplications();
+      return;
+    }
     const restorationContext = captureCompanyContext(app);
     let restored;
     try {
@@ -144,7 +158,11 @@ Page({
     } catch (error) { /* The page request below provides a visible retry on failure. */ }
     if (this._unloaded || showSequence !== this._showSequence) return;
     this.prepareCompanyView(!!app.globalData.token);
-    if (!app.globalData.token) return;
+    if (!app.globalData.token) {
+      this.loadMemberApplications();
+      return;
+    }
+    this.loadMemberApplications();
     const reusableProfile = restored && restored.user && isCompanyContextCurrent(app, restorationContext)
       && String(restored.user.currentCompanyId || '') === String(app.globalData.currentCompanyId || '')
       && this.companyViewIdentity(restored) === this.companyViewIdentity();
@@ -169,7 +187,7 @@ Page({
       this._readinessContext = null;
       if (!loggedIn) return;
     }
-    if (this.data.companyReady) return;
+    if (this.data.companyReady || this._companySessionConfirmed === false) return;
     const data = app.globalData;
     if (this._viewToken && this._viewToken !== data.token) return;
     const companyId = String(data.currentCompanyId || '');
@@ -204,6 +222,7 @@ Page({
     try {
       const payload = options.payload || await request({ url: '/me', token: context.token, companyId: context.companyId });
       if (!current()) return;
+      this._companySessionConfirmed = true;
       app.applyMePayload(payload);
       context = captureCompanyContext(app);
       const identity = this.companyViewIdentity();
@@ -400,7 +419,7 @@ Page({
   async loadEnterpriseMetrics(companyId, canManage, canContractTemplate, isLoadCurrent) {
     const context = captureCompanyContext(app);
     if (!companyId) {
-      this.setData({ memberCount: 0, roleCount: 0, templateCount: 0 });
+      this.setData({ memberCount: null, roleCount: null, templateCount: null });
       return;
     }
     const safe = promise => promise.catch(() => null);
@@ -537,9 +556,15 @@ Page({
     const joinToken = app.globalData.token;
     try {
       const result = await request({ url: '/companies/join', method: 'POST', data: { code } });
+      if (joinToken !== app.globalData.token) return;
       wx.showToast({ title: result.message || '已提交', icon: 'none' });
       setTabBarHidden(this, false);
       this.setData({ showJoinModal: false });
+      if (result.status === 'PENDING_IDENTITY' && result.applicationId) {
+        this.loadMemberApplications();
+        startMemberApplicationIdentity(app, result.applicationId);
+        return;
+      }
       app.loadMe().then(() => this.loadData());
     } catch (e) {
       if (memberInvitePrerequisite(e) && joinToken === app.globalData.token) {
