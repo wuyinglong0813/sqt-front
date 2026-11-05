@@ -136,14 +136,21 @@ Page({
     if (typeof app.restoreStoredSession === 'function') app.restoreStoredSession();
     this.resetMemberApplicationContext();
     const token = app.globalData.token || wx.getStorageSync('tradepass_token');
-    // A previous ACTIVE profile does not prove that the current session still
-    // has a verified identity or enterprise access. Hide its data until /me
-    // has confirmed the current account again.
-    this._companySessionConfirmed = false;
+    // Tab navigation can keep this page's confirmed data while it updates.
+    // A foreground/session refresh changes _sessionReady even if it has already
+    // finished or failed, so those entries still wait for a confirmed profile.
+    const retainView = !!token && this._companySessionConfirmed && this.data.companyReady
+      && !app._sessionRefresh && this._viewSessionReady === app._sessionReady
+      && this._viewIdentity === this.companyViewIdentity();
     this._loadSequence = (this._loadSequence || 0) + 1;
     this._readinessSequence = (this._readinessSequence || 0) + 1;
-    this._readinessContext = null;
-    this.setData({ ...emptyCompanyView(), isLoggedIn: !!token, companyInitializing: !!token });
+    if (!retainView) {
+      this._companySessionConfirmed = false;
+      this._readinessContext = null;
+      this.setData({ ...emptyCompanyView(), isLoggedIn: !!token, companyInitializing: !!token });
+    } else {
+      this.setData({ signingReadinessLoading: false });
+    }
     this.setData({ isDesktopWechat: !!app.globalData.isDesktopWechat });
     const recovery = serviceRecovery(app);
     this.setData({ serviceRecoveryAvailable: !!(recovery && recovery.target.scene === 'member') });
@@ -216,6 +223,7 @@ Page({
   async loadData(options = {}) {
     this.prepareCompanyView();
     const sequence = this._loadSequence = (this._loadSequence || 0) + 1;
+    const sessionReady = app._sessionReady;
     let context = captureCompanyContext(app);
     const current = () => !this._unloaded && sequence === this._loadSequence && isCompanyContextCurrent(app, context);
     this.setData({ companyDraft: readDraft(), companyRefreshing: true, companyLoadError: '' });
@@ -230,6 +238,7 @@ Page({
       this.setData({ ...(identity === this._viewIdentity ? {} : emptyCompanyView()), ...profile });
       this._viewIdentity = identity;
       this._viewToken = context.token;
+      this._viewSessionReady = sessionReady;
       const results = await Promise.all([
         this.loadCertificationApplications(current),
         this.loadOnboarding(current),
