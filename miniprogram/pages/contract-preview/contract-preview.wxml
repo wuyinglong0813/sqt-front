@@ -142,18 +142,12 @@
           <view class="pdf-party-sign">
             <text class="pdf-party-role">供方</text>
             <text class="pdf-party-name">{{pdfSupplier || '—'}}</text>
-            <view class="pdf-seal-state">
-              <text>{{pdfSupplierSignText}}</text>
-              <text>—</text>
-            </view>
+            <text class="pdf-sign-state {{pdfSupplierSignText === '已签署' ? 'pdf-sign-state-done' : ''}}">{{pdfSupplierSignText}}</text>
           </view>
           <view class="pdf-party-sign">
             <text class="pdf-party-role">需方</text>
             <text class="pdf-party-name">{{pdfBuyer || '—'}}</text>
-            <view class="pdf-seal-state">
-              <text>{{pdfBuyerSignText}}</text>
-              <text>—</text>
-            </view>
+            <text class="pdf-sign-state {{pdfBuyerSignText === '已签署' ? 'pdf-sign-state-done' : ''}}">{{pdfBuyerSignText}}</text>
           </view>
         </view>
       </view>

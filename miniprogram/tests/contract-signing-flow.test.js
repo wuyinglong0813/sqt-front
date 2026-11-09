@@ -337,3 +337,22 @@ test('purchase-initiated contracts assign real signer progress to the correct su
   assert.equal(env.page.data.pdfBuyerSignText, '已签署');
   assert.equal(env.page.data.canSignContract, true);
 });
+
+test('detail retains confirmed progress when the separate signing request is unavailable', async () => {
+  const env = harness({ contractStatus: 'PENDING', signingError: '暂不可用',
+    contractProgress: { signingStatus: 'sign_progress',
+      partySigningProgress: { supplierSigned: true, buyerSigned: null } } });
+  await env.page.loadContractDetail();
+  assert.equal(env.page.data.pdfSupplierSignText, '已签署');
+  assert.equal(env.page.data.pdfBuyerSignText, '签署状态待同步');
+});
+
+test('viewing the PDF fetches a new copy after signing progresses', async () => {
+  const env = harness({ contractStatus: 'PENDING' });
+  await env.page.loadContractDetail();
+  const calls = [];
+  env.page.downloadContractPdfFile = download => calls.push(download);
+  env.page.data.pdfFilePath = '/previous-copy.pdf';
+  env.page.openContractPdf();
+  assert.deepEqual(calls, [false]);
+});

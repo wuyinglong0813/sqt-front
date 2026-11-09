@@ -101,7 +101,7 @@ test('stock row details use the displayed filtered row and keep every column ava
   assert.match(modal.content, /规格：DN100/);
   assert.match(modal.content, /仓库：阀门/);
   assert.match(modal.content, /库存数量：100 台/);
-  assert.match(modal.content, /库存单价：¥100\.00 \/ 台/);
+  assert.match(modal.content, /成本单价：¥100\.00 \/ 台/);
   assert.match(modal.content, /库存金额：¥10000\.00/);
   assert.ok(modal.content.endsWith(`备注：${h.records.overview.balances[1].remark}`));
   h.page.clearSearch();

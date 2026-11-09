@@ -7,10 +7,10 @@ const vm = require('node:vm');
 const contexts = require('../utils/companyContext');
 const presentation = require('../utils/membership');
 
-function fixture(handler, confirm = true) {
+function fixture(handler) {
   const app = { globalData: { token: 'token', currentCompanyId: 'A' } };
   const calls = [], modals = [];
-  const wx = { showModal(o) { modals.push(o); o.success({ confirm }); }, setNavigationBarTitle() {},
+  const wx = { showModal(o) { modals.push(o); o.success({ confirm: true }); }, setNavigationBarTitle() {},
     requirePrivacyAuthorize: o => o.success() };
   const page = file => {
     let definition;
@@ -56,15 +56,17 @@ test('membership response from an old company cannot replace the current company
   await pending;
   assert.equal(page.data.status, null);
 });
-test('cancelled signature confirmation never creates a provider task', async () => {
-  const env = fixture(() => ({ canSign: true, newTask: true, message: '使用专属额度 1 份' }), false);
+test('a new signing task proceeds after quota validation without a debit confirmation', async t => {
+  const env = fixture(options => options.url.endsWith('/quote')
+    ? { canSign: true, newTask: true, message: '使用专属额度 1 份' } : { url: 'https://example.test/sign' });
   const page = env.page('pages/fadada-auth/fadada-auth.js');
+  t.after(() => page.onUnload());
   page.data.scene = 'contract'; page.data.options = { contractId: '12' };
   await page.prepareService();
   assert.equal(env.calls.filter(o => o.url.endsWith('/signing/quote')).length, 1);
-  assert.equal(env.calls.filter(o => o.url.endsWith('/sign-url')).length, 0);
-  assert.equal(env.modals.filter(o => o.title === '确认发起电子签').length, 1);
-  assert.match(page.data.errorMessage, /取消/);
+  assert.equal(env.calls.filter(o => o.url.endsWith('/sign-url')).length, 1);
+  assert.equal(env.modals.length, 0);
+  assert.equal(page.data.serviceUrl, 'https://example.test/sign');
 });
 test('blocked enterprise cannot call sign-url even if user tries the signing page', async () => {
   const env = fixture(() => ({ canSign: false, newTask: true, message: '当前企业暂停新发起' }));
@@ -87,7 +89,7 @@ test('recipient and existing tasks skip debit confirmation and continue signing'
   assert.equal(env.calls.at(-1).url, '/contracts/12/sign-url');
   assert.equal(page.data.serviceUrl, 'https://example.test/sign');
 });
-test('switching companies while confirming cannot issue sign-url for the new company', async () => {
+test('switching companies during the quote cannot issue sign-url for the new company', async () => {
   const env = fixture(async options => {
     if (options.url.endsWith('/prerequisites')) return { status: 'READY' };
     env.app.globalData.currentCompanyId = 'B';

@@ -44,7 +44,7 @@ const press = (listeners, key, modifiers = {}) => {
   for (const listener of listeners) listener({ key, ...modifiers });
 };
 
-test('phone confirm saves the latest quantity, recalculates totals and focuses the same column next row', () => {
+test('phone confirm saves the latest quantity and recalculates totals without advancing', () => {
   const { page } = harness('ios');
   page.onShow();
   page.onTableCellFocus(event(0, 1));
@@ -53,23 +53,56 @@ test('phone confirm saves the latest quantity, recalculates totals and focuses t
   assert.equal(page.data.tableRows[0][3], '7500');
   assert.equal(page.data.totalAmount, '7512');
   assert.equal(page.data.tableRows.length, 2);
-  assert.equal(page.data.tableFocusRow, 1);
-  assert.equal(page.data.tableFocusCol, 1);
-  // Native blur can arrive after the new input is focused.
+  assert.equal(page.data.tableActiveRow, 0);
+  assert.equal(page.data.tableActiveCol, 1);
+  assert.equal(page.data.tableFocusRow, -1);
+  page.onTableCellFocus(event(1, 0));
+  // Native blur from the previous cell can arrive after an explicit tap.
   page.onTableCellBlur(event(0, 1, '2500'));
   assert.equal(page.data.tableFocusRow, 1);
+  assert.equal(page.data.tableFocusCol, 0);
 });
 
-test('phone confirm on the last row retains remarks and adds one editable product row', () => {
+test('phone confirm in any text column on the last row keeps the row count unchanged', () => {
   const { page } = harness('android');
+  const columns = ['品名', '型号', '规格', '单位', '数量', '单价', '金额', '备注'];
+  page.data.tableSection = { columns };
+  page.data.tableRows = [
+    ['电线', 'A1', '细', '米', '2', '3', '6', '红蓝'],
+    ['电线', 'A1', '细', '米', '4', '3', '12', '红白']
+  ];
+  Object.assign(page.data, page.tableColumnMetadata(columns));
   page.onShow();
-  page.onTableCellConfirm(event(1, 4, '红黄'));
-  assert.equal(page.data.tableRows[1][4], '红黄');
+  for (const [col, value] of [[0, '电缆'], [1, 'B2'], [2, '粗'], [3, '卷'], [7, '红黄']]) {
+    page.onTableCellFocus(event(1, col));
+    page.onTableCellConfirm(event(1, col, value));
+    assert.equal(page.data.tableRows[1][col], value);
+    assert.equal(page.data.tableRows.length, 2);
+    assert.equal(page.data.tableActiveRow, 1);
+    assert.equal(page.data.tableActiveCol, col);
+    assert.equal(page.data.tableFocusRow, -1);
+  }
+  page.addTableRow();
   assert.equal(page.data.tableRows.length, 3);
-  assert.equal(page.data.tableRows[2][3], '0');
-  assert.equal(page.data.tableFocusRow, 2);
-  assert.equal(page.data.tableFocusCol, 4);
+  assert.equal(page.data.tableRows[2][6], '0');
   assert.equal(page.data.totalAmount, '18');
+});
+
+test('phone confirm on a manually entered amount saves it without moving or adding a row', () => {
+  const { page } = harness('ios');
+  const columns = ['品名', '金额', '备注'];
+  page.data.tableSection = { columns };
+  page.data.tableRows = [['电线', '6', '红蓝'], ['电线', '12', '红白']];
+  Object.assign(page.data, page.tableColumnMetadata(columns));
+  page.onShow();
+  page.onNumberCellFocus(event(1, 1));
+  page.onTableCellConfirm(event(1, 1, '012.5'));
+  assert.equal(page.data.tableRows[1][1], '12.5');
+  assert.equal(page.data.totalAmount, '18.5');
+  assert.equal(page.data.tableRows.length, 2);
+  assert.equal(page.data.tableActiveRow, 1);
+  assert.equal(page.data.tableActiveCol, 1);
+  assert.equal(page.data.tableFocusRow, -1);
 });
 
 test('a single desktop click enables all four arrows, skips calculated amounts and stops at table bounds', () => {
@@ -134,7 +167,7 @@ for (const platform of ['windows', 'mac']) {
     page.onTableCellConfirm(event(0, 2, '9'));
     assert.equal(page.data.tableRows[0][3], '18');
     assert.equal(page.data.totalAmount, '30');
-    assert.equal(page.data.tableActiveRow, 1);
+    assert.equal(page.data.tableActiveRow, 0);
     assert.equal(page.data.tableActiveCol, 2);
     assert.equal(page.data.tableFocusRow, -1);
     page.onTableCellBlur(event(0, 2, '9'));
@@ -150,7 +183,7 @@ for (const platform of ['windows', 'mac']) {
 }
 
 for (const platform of ['ios', 'android']) {
-  test(`${platform} keeps tap-to-edit and confirm-to-next-row without a desktop key listener`, () => {
+  test(`${platform} keeps tap-to-edit and finishes on the current cell without a desktop key listener`, () => {
     const { page, listeners } = harness(platform);
     page.onShow();
     assert.equal(page.data.tableKeyboardAvailable, false);
@@ -159,8 +192,10 @@ for (const platform of ['ios', 'android']) {
     assert.equal(page.data.tableFocusRow, 0);
     assert.equal(page.data.tableFocusCol, 1);
     page.onTableCellConfirm(event(0, 1, '5'));
-    assert.equal(page.data.tableFocusRow, 1);
-    assert.equal(page.data.tableFocusCol, 1);
+    assert.equal(page.data.tableFocusRow, -1);
+    assert.equal(page.data.tableFocusCol, -1);
+    assert.equal(page.data.tableActiveRow, 0);
+    assert.equal(page.data.tableActiveCol, 1);
   });
 }
 
@@ -173,7 +208,8 @@ for (const missing of ['onKeyDown', 'offKeyDown']) {
     assert.equal(listeners.size, 0);
     page.onTableCellFocus(event(0, 1));
     page.onTableCellConfirm(event(0, 1, '5'));
-    assert.equal(page.data.tableFocusRow, 1);
+    assert.equal(page.data.tableFocusRow, -1);
+    assert.equal(page.data.tableActiveRow, 0);
     assert.equal(page.data.tableRows[0][3], '15');
     page.onHide();
     page.onUnload();
@@ -198,7 +234,7 @@ test('desktop double click edits only the same cell within the double-click inte
   assert.equal(page.data.tableRows[0][1], '2');
 });
 
-test('desktop last-row confirm saves the final value, adds one row and resumes arrow navigation', () => {
+test('desktop last-row confirm saves the final value and resumes arrow navigation from that row', () => {
   const { page, listeners } = harness();
   page.onShow();
   page.onTableCellTap(event(1, 1));
@@ -209,13 +245,15 @@ test('desktop last-row confirm saves the final value, adds one row and resumes a
   assert.equal(page.data.tableRows[1][1], '5');
   assert.equal(page.data.tableRows[1][3], '15');
   page.onTableCellConfirm(event(1, 1, '50'));
-  assert.equal(page.data.tableRows.length, 3);
+  assert.equal(page.data.tableRows.length, 2);
   assert.equal(page.data.tableRows[1][1], '50');
-  assert.equal(page.data.tableRows[2][3], '0');
-  assert.equal(page.data.tableActiveRow, 2);
+  assert.equal(page.data.tableRows[1][3], '150');
+  assert.equal(page.data.tableActiveRow, 1);
   assert.equal(page.data.tableActiveCol, 1);
   assert.equal(page.data.tableFocusRow, -1);
   press(listeners, 'ArrowUp');
+  assert.equal(page.data.tableActiveRow, 0);
+  press(listeners, 'ArrowDown');
   assert.equal(page.data.tableActiveRow, 1);
   press(listeners, 'F2');
   assert.equal(page.data.tableFocusRow, 1);
@@ -397,6 +435,12 @@ test('desktop cells use a non-input selection surface and the page has no naviga
   assert.doesNotMatch(markup, /table-navigation|table-keyboard-toggle|左一格|右一格|方向键选格/);
   assert.match(markup, /wx:elif="{{tableKeyboardAvailable && \(tableFocusRow !== ri \|\| tableFocusCol !== ci\)}}"/);
   assert.match(markup, /<view class="td-input td-display[^>]*catchtap="onTableCellTap"/);
+  const editableInputs = [...markup.matchAll(/<input\b[^>]*bindconfirm="onTableCellConfirm"[^>]*>/g)];
+  assert.equal(editableInputs.length, 3);
+  for (const [tag] of editableInputs) {
+    assert.match(tag, /confirm-type="done"/, tag);
+    assert.doesNotMatch(tag, /confirm-hold/, tag);
+  }
   const outsideInputs = [...markup.matchAll(/<(?:input|textarea)\b[^>]*>/g)]
     .map(match => match[0]).filter(tag => !/class="td-input/.test(tag));
   assert.ok(outsideInputs.length > 0);

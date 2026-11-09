@@ -1682,7 +1682,7 @@ test('inventory balance displays unit price and inventory amount', () => {
   const template = fs.readFileSync(path.join(pageDir, 'inventory.wxml'), 'utf8');
   assert.ok(script.includes('unitPriceText'));
   assert.ok(script.includes('inventoryAmountText'));
-  assert.ok(template.includes('库存单价'));
+  assert.ok(template.includes('成本单价'));
   assert.ok(template.includes('库存金额'));
 });
 

@@ -395,20 +395,6 @@ Page({
         });
         if (this._unloaded || !isCompanyContextCurrent(getApp(), context)) return;
         if (!quote || !quote.canSign) throw new Error((quote && quote.message) || '当前不能发起签署');
-        if (quote.newTask) {
-          const accepted = await new Promise(resolve => wx.showModal({
-            title: '确认发起电子签',
-            content: quote.message + '。\n成功创建签署任务后计入使用量，双方签完后合同生效。',
-            confirmText: '确认发起',
-            success: result => resolve(!!result.confirm),
-            fail: () => resolve(false)
-          }));
-          if (this._unloaded || !isCompanyContextCurrent(getApp(), context)) return;
-          if (!accepted) {
-            this.setData({ loading: false, errorMessage: '已取消发起，未创建签署任务' });
-            return;
-          }
-        }
       }
       // First onboarding must let the server check reusable enterprise consent
       // before asking the new applicant to enter the provider's grant flow.

@@ -85,7 +85,7 @@ Page({
     const item = this.data.visibleBalances[Number(e.currentTarget.dataset.index)];
     if (!item) return;
     wx.showModal({ title: '库存明细', showCancel: false, confirmText: '知道了',
-      content: `商品：${item.productName}\n型号：${item.model || '无型号'}\n规格：${item.specification || '无规格'}\n仓库：${item.warehouseName}\n库存数量：${item.quantity} ${item.baseUnit}\n库存单价：¥${item.unitPriceText} / ${item.baseUnit}\n库存金额：¥${item.inventoryAmountText}\n备注：${item.remark || '—'}` });
+      content: `商品：${item.productName}\n型号：${item.model || '无型号'}\n规格：${item.specification || '无规格'}\n仓库：${item.warehouseName}\n库存数量：${item.quantity} ${item.baseUnit}\n成本单价：¥${item.unitPriceText} / ${item.baseUnit}\n库存金额：¥${item.inventoryAmountText}\n备注：${item.remark || '—'}` });
   },
 
   async deleteBalance(e) {
@@ -141,7 +141,7 @@ Page({
     if (!warehouse || !form.productName.trim() || !form.baseUnit.trim()
         || !/^\d+(\.\d{1,4})?$/.test(form.quantity)
         || !/^\d+(\.\d{1,4})?$/.test(form.unitPrice)) {
-      wx.showToast({ title: '请填写商品、单位，数量和单价须为非负数（最多四位小数）', icon: 'none' });
+      wx.showToast({ title: '请填写商品、单位，数量和进价须为非负数（最多四位小数）', icon: 'none' });
       return;
     }
     this.setData({ savingInbound: true });

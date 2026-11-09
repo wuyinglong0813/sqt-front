@@ -116,8 +116,6 @@ Page({
     invoiceList: [],
     loading: false,
     pdfLoading: false,
-    pdfReady: false,
-    pdfFilePath: '',
     pdfTitle: '购销合同',
     pdfSupplier: '',
     pdfBuyer: '',
@@ -370,10 +368,24 @@ Page({
         && (contract.status === 'PENDING' || contract.status === 'ACTIVE');
       const outgoing = contract.perspective === 'OUTGOING';
       const initiatorIsSupplier = String(contract.direction || '').toUpperCase() === 'SALE';
-      const partySignText = value => ['signed', 'sign_completed', 'completed']
-        .includes(String(value || '').toLowerCase()) ? '已签署' : '待签署';
-      const initiatorSignText = partySignText(signing && signing.initiatorSignStatus);
-      const counterpartySignText = partySignText(signing && signing.counterpartySignStatus);
+      const partySigned = value => {
+        const state = String(value || '').toLowerCase();
+        if (['signed', 'sign_completed', 'completed'].includes(state)) return true;
+        return state === 'wait_sign' ? false : null;
+      };
+      const initiatorSigned = partySigned(signing && signing.initiatorSignStatus);
+      const counterpartySigned = partySigned(signing && signing.counterpartySignStatus);
+      const partyProgress = contract.partySigningProgress;
+      const supplierSigned = partyProgress ? partyProgress.supplierSigned
+        : initiatorIsSupplier ? initiatorSigned : counterpartySigned;
+      const buyerSigned = partyProgress ? partyProgress.buyerSigned
+        : initiatorIsSupplier ? counterpartySigned : initiatorSigned;
+      const waitingToStart = ['waiting_auth', 'creating', 'create_failed']
+        .includes(signingStatus.toLowerCase());
+      const partySignText = signed => {
+        if (signed === true) return '已签署';
+        return signed === false || waitingToStart ? '待签署' : '签署状态待同步';
+      };
       const createAsDraft = true;
       const recovery = serviceRecovery(getApp());
 
@@ -437,8 +449,8 @@ Page({
         pdfTitle,
         pdfSupplier: pdfSupplier || '—',
         pdfBuyer: pdfBuyer || '—',
-        pdfSupplierSignText: initiatorIsSupplier ? initiatorSignText : counterpartySignText,
-        pdfBuyerSignText: initiatorIsSupplier ? counterpartySignText : initiatorSignText,
+        pdfSupplierSignText: partySignText(supplierSigned),
+        pdfBuyerSignText: partySignText(buyerSigned),
         pdfDate: pdfDate || '—'
       }, () => {
         this.updateFulfillmentCount();
@@ -1001,10 +1013,6 @@ Page({
 
   openContractPdf() {
     if (!this.data.contract || this.data.pdfLoading) return;
-    if (this.data.pdfFilePath) {
-      this.openPdfDocument(this.data.pdfFilePath);
-      return;
-    }
     this.downloadContractPdfFile(false);
   },
 
@@ -1033,7 +1041,6 @@ Page({
         { shouldContinue: () => !this._pdfPageUnloaded }
       );
       if (this._pdfPageUnloaded) return;
-      this.setData({ pdfReady: true, pdfFilePath: result.filePath });
       if (showDownloadedToast) wx.showToast({ title: 'PDF已下载', icon: 'success' });
       this.openPdfDocument(result.filePath);
     } catch (error) {
@@ -1053,7 +1060,6 @@ Page({
       fileType: 'pdf',
       showMenu: true,
       fail: () => {
-        this.setData({ pdfReady: false, pdfFilePath: '' });
         wx.showToast({ title: 'PDF打开失败，请重新下载', icon: 'none' });
       }
     });

@@ -1045,20 +1045,19 @@ page { background: #f4f8fd; }
   text-align: center;
 }
 
-.pdf-seal-state {
-  align-items: center;
-  border: 2rpx solid #aab1b8;
-  border-radius: 50%;
-  color: #9199a1;
-  display: flex;
-  flex-direction: column;
-  font-size: 11rpx;
-  height: 54rpx;
-  justify-content: center;
-  line-height: 1.2;
-  margin-top: 5rpx;
-  transform: rotate(-7deg);
-  width: 54rpx;
+.pdf-sign-state {
+  background: #f1f3f5;
+  border-radius: 8rpx;
+  color: #58636f;
+  font-size: 20rpx;
+  margin-top: 8rpx;
+  padding: 4rpx 12rpx;
+}
+
+.pdf-sign-state-done {
+  background: #e6f6ef;
+  color: #17694c;
+  font-weight: 600;
 }
 
 .pdf-actions {

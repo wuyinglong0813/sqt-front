@@ -433,12 +433,14 @@ Page({
   },
 
   onTableCellConfirm(e) {
+    const { row, col } = e.currentTarget.dataset;
+    if (!this.data.tableRows[row] || !this.editableTableColumns().includes(Number(col))) return;
     // Confirm also carries the final value (some keyboards confirm before input).
     this.onTableCellChange(e);
-    const row = Number(e.currentTarget.dataset.row);
-    const col = Number(e.currentTarget.dataset.col);
-    if (row === this.data.tableRows.length - 1) this.addTableRow();
-    this.selectTableCell(row + 1, col, !this.data.tableKeyboardAvailable);
+    if (Number(row) === this.data.tableActiveRow && Number(col) === this.data.tableActiveCol) {
+      this.setData({ tableFocusRow: -1, tableFocusCol: -1,
+        productSuggestions: [], specificationSuggestions: [], suggestionRow: -1 });
+    }
   },
 
   moveTableSelection(direction, edit) {
