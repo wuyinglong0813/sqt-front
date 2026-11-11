@@ -1,8 +1,13 @@
-const { context, sameContext, retailRequest, money, documentView } = require('../../utils/retail');
+const { context, sameContext, retailRequest, money, documentView, documentTerms, retailTerms } = require('../../utils/retail');
 const { downloadApiFile } = require('../../utils/fileTransfer');
 Page({
-  data: { id: '', detail: null, loading: false, working: false, error: '', warehouses: [], downloading: false },
-  onLoad(options) { this.companyContext = context(); this.setData({ id: options.id || '' }); },
+  data: { id: '', detail: null, terms: retailTerms(), loading: false, working: false, error: '', warehouses: [], downloading: false },
+  onLoad(options) {
+    this.companyContext = context();
+    const terms = retailTerms(options.direction);
+    this.setData({ id: options.id || '', terms });
+    wx.setNavigationBarTitle({ title: `${terms.business}${terms.order}` });
+  },
   onShow() { this.loadData(); },
   onPullDownRefresh() { this.loadData().finally(() => wx.stopPullDownRefresh()); },
   async loadData() {
@@ -10,16 +15,21 @@ Page({
     this.setData({ loading: true, error: '' });
     try {
       const doc = await retailRequest(this.companyContext, { url: `/retail/documents/${this.data.id}` });
-      const detail = { ...documentView(doc), isReturn: doc.documentType === 'RETURN_ORDER',
+      const terms = documentTerms(doc.documentType);
+      const detail = { ...documentView(doc),
         items: doc.items.map(item => ({ ...item, amountText: money(item.amount),
           hasRoundingAdjustment: Number(item.roundingAdjustment || 0) !== 0 })) };
-      this.setData({ detail });
-      wx.setNavigationBarTitle({ title: detail.isReturn ? '零售退货单' : '零售销售单' });
+      this.setData({ detail, terms });
+      wx.setNavigationBarTitle({ title: detail.isReturn && terms.isPurchase
+        ? terms.returnOrder : terms.business + (detail.isReturn ? terms.returnOrder : terms.order) });
       if (detail.canProcessStock) this.setData({ warehouses: await retailRequest(this.companyContext, { url: '/warehouses' }).catch(() => []) });
     } catch (e) { this.setData({ error: e.message }); }
     finally { this.setData({ loading: false }); }
   },
-  edit() { const d = this.data.detail; wx.navigateTo({ url: `/pages/retail-order-form/retail-order-form?id=${d.id}&customerId=${d.customerId}&type=${d.documentType}` }); },
+  edit() {
+    const { detail, terms } = this.data;
+    wx.navigateTo({ url: `/pages/retail-order-form/retail-order-form?id=${detail.id}&customerId=${detail.customerId}&type=${detail.documentType}${terms.directionParam}` });
+  },
   async confirm() { await this.mutate('confirm', {}); },
   processStock() {
     if (this.data.working) return;
@@ -29,7 +39,7 @@ Page({
     } });
   },
   deleteDraft() {
-    wx.showModal({ title: '删除草稿', content: '确认删除这张未生效的零售单据？', success: async result => {
+    wx.showModal({ title: '删除草稿', content: `确认删除这张未生效的${this.data.terms.business}单据？`, success: async result => {
       if (!result.confirm || this.data.working) return;
       this.setData({ working: true });
       try { await retailRequest(this.companyContext, { url: `/retail/documents/${this.data.id}/delete`, method: 'POST' }); wx.navigateBack(); }
@@ -45,10 +55,10 @@ Page({
     finally { this.setData({ working: false }); }
   },
   createReturn() {
-    const d = this.data.detail;
-    wx.navigateTo({ url: `/pages/retail-order-form/retail-order-form?customerId=${d.customerId}&type=RETURN_ORDER&originalId=${d.id}` });
+    const { detail, terms } = this.data;
+    wx.navigateTo({ url: `/pages/retail-order-form/retail-order-form?customerId=${detail.customerId}&type=${terms.returnType}&originalId=${detail.id}${terms.directionParam}` });
   },
-  openCustomer() { wx.navigateTo({ url: `/pages/retail-customer-detail/retail-customer-detail?id=${this.data.detail.customerId}` }); },
+  openCustomer() { wx.navigateTo({ url: `/pages/retail-customer-detail/retail-customer-detail?id=${this.data.detail.customerId}${this.data.terms.directionParam}` }); },
   async viewPdf(e) {
     if (this.data.downloading || !sameContext(this.companyContext)) return;
     this.setData({ downloading: true });

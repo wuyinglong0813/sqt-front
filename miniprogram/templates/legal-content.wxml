@@ -69,7 +69,7 @@
     </view>
     <view class="info-list-item">
       <view class="info-list-title">合同及交易协作信息</view>
-      <view class="info-list-line"><text>内容：</text>合作企业、零售客户及联系人姓名、手机号、联系地址、合同、订单、金额、日期、审批、签署、库存、项目账套和对账记录</view>
+      <view class="info-list-line"><text>内容：</text>合作企业、零售客户、零采供应商及联系人姓名、手机号、联系地址、合同、订单、金额、日期、审批、签署、库存、项目账套和对账记录</view>
       <view class="info-list-line"><text>用途：</text>完成你发起的企业交易协作并形成业务记录</view>
       <view class="info-list-line"><text>场景：</text>使用合同、履约、库存、账套或对账功能时</view>
     </view>

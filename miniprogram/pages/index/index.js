@@ -14,7 +14,14 @@ const {
   writeHomeSnapshot
 } = require('../../utils/homeSnapshot');
 const app = getApp();
-const { context: retailContext, retailRequest, customerView, money } = require('../../utils/retail');
+const { context: retailContext, sameContext: sameRetailContext, retailRequest, customerView, money } = require('../../utils/retail');
+
+const emptyStandaloneCounterparties = {
+  standaloneCounterparties: [],
+  standaloneCanCreate: false,
+  standaloneLoading: false,
+  standaloneError: ''
+};
 
 Page({
   ...memberApplicationMethods,
@@ -22,10 +29,7 @@ Page({
     ...memberApplicationData,
     role: 'supplier',
     businessMode: 'partner',
-    retailCustomers: [],
-    retailCanCreate: false,
-    retailLoading: false,
-    retailError: '',
+    ...emptyStandaloneCounterparties,
     roleIndex: 0,
     roleOptions: [
       { value: 'supplier', text: '供应商' },
@@ -286,12 +290,17 @@ Page({
 
   restoreHomeSnapshot(options = {}) {
     const context = this.homeSnapshotContext(options);
+    const keepStandalone = !options.disabled && this.data.businessMode === 'standalone'
+      && context.role === this.standaloneRole && sameRetailContext(this.standaloneCompany);
+    const businessMode = keepStandalone ? 'standalone' : 'partner';
     const snapshot = options.disabled ? null : readHomeSnapshot(context);
+    this.standaloneRequestSeq = (this.standaloneRequestSeq || 0) + 1;
     if (!snapshot) {
       if (options.resetWhenMissing) {
         this.homeSnapshotIdentity = null;
         this.setData({
           role: context.role,
+          businessMode,
           period: context.period,
           periodText: this.periodLabel(context.period),
           companyName: '',
@@ -302,9 +311,7 @@ Page({
           partnerCompanies: [],
           partnerContractCounts: [],
           partnerNetSales: [],
-          retailCustomers: [],
-          retailCanCreate: false,
-          retailError: '',
+          ...emptyStandaloneCounterparties,
           counterpartiesLoaded: false,
           counterpartiesError: '',
           stats: { totalAmount: 0, totalOrders: 0, counterpartyCount: 0 },
@@ -320,6 +327,7 @@ Page({
     this.homeSnapshotIdentity = snapshotKey(context);
     this.setData({
       role: context.role,
+      businessMode,
       period: context.period,
       periodText: this.periodLabel(context.period),
       companyName: payload.companyName || '',
@@ -335,9 +343,7 @@ Page({
         .map(item => ({ ...item, netAmountText: item.netAmountText || '—' })),
       partnerContractCounts: Array.isArray(payload.partnerContractCounts) ? payload.partnerContractCounts : [],
       partnerNetSales: Array.isArray(payload.partnerNetSales) ? payload.partnerNetSales : [],
-      retailCustomers: [],
-      retailCanCreate: false,
-      retailError: '',
+      ...emptyStandaloneCounterparties,
       counterpartiesLoaded: true,
       approvalHasMessage: !!payload.approvalHasMessage,
       loading: false,
@@ -376,14 +382,17 @@ Page({
   async refreshHomeData() {
     const identity = snapshotKey(this.homeSnapshotContext());
     if (!identity) return;
+    const companyContext = captureCompanyContext(app);
+    const refreshSeq = this.homeRefreshSeq = (this.homeRefreshSeq || 0) + 1;
     this.setData({ homeRefreshing: true, homeRefreshError: '' });
     const results = await Promise.all([
       this.loadHome(),
       this.loadCounterparties(),
       this.loadApprovalIndicator(),
-      this.loadRetailCustomers()
+      this.data.businessMode === 'standalone' ? this.loadStandaloneCounterparties() : true
     ]);
-    if (identity !== snapshotKey(this.homeSnapshotContext())) return;
+    if (refreshSeq !== this.homeRefreshSeq || identity !== snapshotKey(this.homeSnapshotContext())
+      || !isCompanyContextCurrent(app, companyContext)) return;
     const coreUpdated = results[0] === true;
     const fullyUpdated = results.slice(0, 3).every(result => result === true);
     if (coreUpdated && results[1] === true) this.saveHomeSnapshot();
@@ -542,6 +551,7 @@ Page({
         companies: meData.companies || [],
         currentCompanyId: companyId,
         role: meData.member && meData.member.roleCode === 'PURCHASER' ? 'buyer' : 'supplier',
+        businessMode: 'partner',
         showCompanySwitcher: false,
         switchingCompanyId: ''
       });
@@ -560,7 +570,7 @@ Page({
   switchRole(e) {
     const role = e.currentTarget.dataset.role;
     if (role === this.data.role) return;
-    this.setData({ role, period: 'year', periodText: '今年' });
+    this.setData({ role, businessMode: 'partner', period: 'year', periodText: '今年' });
     const companyId = app.getCurrentCompanyId() || 'unbound';
     wx.setStorageSync(`tradepass_role_${companyId}`, role);
     const context = this.homeSnapshotContext({ role, period: 'year' });
@@ -661,16 +671,18 @@ Page({
     const period = this.data.period;
     const currentCompanyId = app.getCurrentCompanyId();
     if (!currentCompanyId) return false;
+    const companyContext = captureCompanyContext(app);
     this.homeRequestSeq = (this.homeRequestSeq || 0) + 1;
     const requestSeq = this.homeRequestSeq;
+    const isCurrent = () => requestSeq === this.homeRequestSeq && role === this.data.role
+      && period === this.data.period && String(currentCompanyId) === String(app.getCurrentCompanyId())
+      && isCompanyContextCurrent(app, companyContext);
     this.setData({ loading: true });
     try {
       const payload = await request({
         url: `/home/${role}?period=${period}&companyId=${currentCompanyId}`
       });
-      if (requestSeq !== this.homeRequestSeq || role !== this.data.role
-        || period !== this.data.period
-        || String(currentCompanyId) !== String(app.getCurrentCompanyId())) return false;
+      if (!isCurrent()) return false;
       const ranking = payload.ranking || [];
       // 计算统计数据
       const totalAmount = ranking.reduce((sum, item) => sum + Number(item.amount || 0), 0);
@@ -688,16 +700,17 @@ Page({
           counterpartyCount: ranking.length,
           partnerAmount: money(payload.stats ? payload.stats.partnerAmount : totalAmount.toFixed(2)),
           retailAmount: money(payload.stats ? payload.stats.retailAmount : 0),
+          quickPurchaseAmount: money(payload.stats ? payload.stats.quickPurchaseAmount : 0),
           returnAmount: money(payload.stats ? payload.stats.returnAmount : 0),
           netSalesAmount: money(payload.stats ? payload.stats.netSalesAmount : totalAmount.toFixed(2)),
-          retailCustomerCount: payload.stats ? Number(payload.stats.retailCustomerCount || 0) : 0
+          retailCustomerCount: payload.stats ? Number(payload.stats.retailCustomerCount || 0) : 0,
+          quickPurchaseSupplierCount: payload.stats ? Number(payload.stats.quickPurchaseSupplierCount || 0) : 0
         }
       });
       this.refreshPartnerCompanies();
       return true;
     } catch (error) {
-      if (requestSeq !== this.homeRequestSeq || role !== this.data.role
-        || period !== this.data.period) return false;
+      if (!isCurrent()) return false;
       if (!this.data.homeHasSnapshot) {
         wx.showToast({ title: error.message, icon: 'none' });
       }
@@ -812,28 +825,54 @@ Page({
     });
   },
 
-  async loadRetailCustomers() {
-    if (this.data.role !== 'supplier' || !app.getCurrentCompanyId()) return true;
+  async loadStandaloneCounterparties() {
     const company = retailContext();
-    const seq = this.retailRequestSeq = (this.retailRequestSeq || 0) + 1;
-    this.setData({ retailLoading: true, retailError: '' });
+    if (!company.companyId || !company.token) return false;
+    const role = this.data.role;
+    this.standaloneCompany = company;
+    this.standaloneRole = role;
+    const seq = this.standaloneRequestSeq = (this.standaloneRequestSeq || 0) + 1;
+    const isCurrent = () => !this._unloaded && seq === this.standaloneRequestSeq
+      && this.data.role === role && this.data.businessMode === 'standalone' && sameRetailContext(company);
+    this.setData({ standaloneLoading: true, standaloneError: '' });
     try {
-      const payload = await retailRequest(company, { url: '/retail/customers?page=1&size=5' });
-      if (seq !== this.retailRequestSeq || this.data.role !== 'supplier') return false;
-      this.setData({ retailCustomers: (payload.items || []).map(customerView), retailCanCreate: !!payload.canCreate });
+      const payload = await retailRequest(company, { url: `/retail/customers?page=1&size=5${this.standaloneDirectionQuery('&')}` });
+      if (!isCurrent()) return false;
+      this.setData({
+        standaloneCounterparties: (payload.items || []).map(customerView),
+        standaloneCanCreate: !!payload.canCreate
+      });
       return true;
     } catch (e) {
-      if (seq === this.retailRequestSeq) this.setData({ retailCustomers: [], retailCanCreate: false, retailError: e.message });
+      if (isCurrent()) this.setData({
+        standaloneCounterparties: [],
+        standaloneCanCreate: false,
+        standaloneError: e.message
+      });
       return false;
-    } finally { if (seq === this.retailRequestSeq) this.setData({ retailLoading: false }); }
+    } finally {
+      if (isCurrent()) this.setData({ standaloneLoading: false });
+    }
   },
   switchBusinessMode(e) {
-    this.setData({ businessMode: e.currentTarget.dataset.mode === 'retail' ? 'retail' : 'partner' });
-    if (this.data.businessMode === 'retail') this.loadRetailCustomers();
+    const businessMode = e.currentTarget.dataset.mode === 'standalone' ? 'standalone' : 'partner';
+    if (businessMode === this.data.businessMode) return;
+    this.setData({ businessMode });
+    if (businessMode === 'standalone') return this.loadStandaloneCounterparties();
   },
-  addRetailCustomer() { wx.navigateTo({ url: '/pages/retail-customers/retail-customers?create=1' }); },
-  allRetailCustomers() { wx.navigateTo({ url: '/pages/retail-customers/retail-customers' }); },
-  openRetailCustomer(e) { wx.navigateTo({ url: `/pages/retail-customer-detail/retail-customer-detail?id=${e.currentTarget.dataset.id}` }); },
+  standaloneDirectionQuery(separator) {
+    return this.data.role === 'buyer' ? `${separator}direction=PURCHASE` : '';
+  },
+  addStandaloneCounterparty() {
+    wx.navigateTo({ url: `/pages/retail-customers/retail-customers?create=1${this.standaloneDirectionQuery('&')}` });
+  },
+  allStandaloneCounterparties() {
+    wx.navigateTo({ url: `/pages/retail-customers/retail-customers${this.standaloneDirectionQuery('?')}` });
+  },
+  openStandaloneCounterparty(e) {
+    const id = encodeURIComponent(e.currentTarget.dataset.id);
+    wx.navigateTo({ url: `/pages/retail-customer-detail/retail-customer-detail?id=${id}${this.standaloneDirectionQuery('&')}` });
+  },
 
   goLogin() {
     wx.navigateTo({ url: '/pages/login/login' });
@@ -872,7 +911,7 @@ Page({
   completeHomeGuide() {
     wx.setStorageSync('tradepass_home_guide_done', true);
     this.setData({ showHomeGuide: false });
-    wx.pageScrollTo({ selector: '#partner-section', duration: 260 });
+    wx.pageScrollTo({ selector: '#home-business-tabs', duration: 260 });
   },
 
   goCreateCompany() {

@@ -1,18 +1,26 @@
-const { context, sameContext, retailRequest, today, documentView, lineCents, addCents, centsMoney, refundCents } = require('../../utils/retail');
+const { context, sameContext, retailRequest, today, documentView, documentTerms, retailTerms,
+  lineCents, addCents, centsMoney, refundCents } = require('../../utils/retail');
 const blankItem = () => ({ key: `item-${Date.now()}-${Math.random().toString(36).slice(2)}`, lineType: 'PRODUCT', productName: '', model: '', specification: '', baseUnit: '', quantity: '', unitPrice: '', remark: '' });
 Page({
-  data: { id: '', customerId: '', customer: null, documentType: 'SALES_ORDER', isReturn: false,
+  data: { id: '', customerId: '', customer: null, documentType: 'SALES_ORDER', isReturn: false, terms: retailTerms(),
     orderDate: '', remark: '', items: [], totalText: '0.00', originalDocumentId: '', originalDocumentNo: '',
     originals: [], originalPage: 1, originalHasMore: false, warehouses: [], warehouseIndex: 0, processStock: false,
     loading: false, saving: false, error: '', requestId: '' },
   onLoad(options) {
     this.companyContext = context();
-    const type = options.type === 'RETURN_ORDER' ? 'RETURN_ORDER' : 'SALES_ORDER';
-    this.setData({ id: options.id || '', customerId: options.customerId || '', documentType: type, isReturn: type === 'RETURN_ORDER',
-      originalDocumentId: options.originalId || '', orderDate: today(), items: type === 'SALES_ORDER' ? [blankItem()] : [],
+    const typeTerms = documentTerms(options.type);
+    const terms = options.direction === 'PURCHASE' ? retailTerms(options.direction) : typeTerms;
+    const isReturn = options.type === typeTerms.returnType;
+    this.setData({ id: options.id || '', customerId: options.customerId || '',
+      originalDocumentId: options.originalId || '', orderDate: today(), items: isReturn ? [] : [blankItem()],
       requestId: `retail-${Date.now()}-${Math.random().toString(36).slice(2, 12)}` });
-    wx.setNavigationBarTitle({ title: type === 'RETURN_ORDER' ? '开零售退货单' : '开零售销售单' });
-    this.loadData();
+    this.setOrderType(terms, isReturn);
+    return this.loadData();
+  },
+  setOrderType(terms, isReturn) {
+    this.setData({ terms, isReturn, documentType: isReturn ? terms.returnType : terms.orderType });
+    const orderTitle = isReturn && terms.isPurchase ? terms.returnOrder : terms.business + (isReturn ? terms.returnOrder : terms.order);
+    wx.setNavigationBarTitle({ title: `开${orderTitle}` });
   },
   onShow() { if (!sameContext(this.companyContext)) this.setData({ customer: null, items: [], originals: [], error: '企业已切换，请返回首页重新进入' }); },
   async loadData() {
@@ -20,13 +28,16 @@ Page({
     try {
       const customer = await retailRequest(this.companyContext, { url: `/retail/customers/${this.data.customerId}` });
       this.setData({ customer });
+      this.setOrderType(retailTerms(customer.direction), this.data.isReturn);
       if (customer.canManageStock) {
         const warehouses = await retailRequest(this.companyContext, { url: '/warehouses' }).catch(() => []);
         this.setData({ warehouses });
       }
       if (this.data.id) {
         const doc = await retailRequest(this.companyContext, { url: `/retail/documents/${this.data.id}` });
-        if (doc.status !== 'DRAFT') { wx.redirectTo({ url: `/pages/retail-order-detail/retail-order-detail?id=${doc.id}` }); return; }
+        const terms = documentTerms(doc.documentType);
+        this.setOrderType(terms, doc.documentType === terms.returnType);
+        if (doc.status !== 'DRAFT') { this.openDetail(doc.id); return; }
         this.setData({ originalDocumentId: doc.originalDocumentId || '', originalDocumentNo: doc.originalDocumentNo || '',
           orderDate: doc.orderDate, remark: doc.remark || '', items: doc.items.map(item => ({ ...item, key: String(item.id),
             quantity: String(item.quantity), unitPrice: String(item.unitPrice) })) });
@@ -48,7 +59,7 @@ Page({
   },
   async loadOriginals(reset) {
     const page = reset ? 1 : this.data.originalPage + 1;
-    const result = await retailRequest(this.companyContext, { url: `/retail/customers/${this.data.customerId}/documents?documentType=SALES_ORDER&status=CONFIRMED&page=${page}&size=20` });
+    const result = await retailRequest(this.companyContext, { url: `/retail/customers/${this.data.customerId}/documents?documentType=${this.data.terms.orderType}&status=CONFIRMED&page=${page}&size=20` });
     this.setData({ originals: reset ? result.items.map(documentView) : this.data.originals.concat(result.items.map(documentView)),
       originalPage: page, originalHasMore: result.hasMore });
   },
@@ -69,7 +80,7 @@ Page({
     const doc = await retailRequest(this.companyContext, { url: `/retail/documents/${id}` });
     const rows = doc.items.filter(item => Number(item.returnableQuantity) > 0).map(item => ({ ...item,
       key: String(item.id), originalItemId: String(item.id), quantity: '', unitPrice: String(item.unitPrice) }));
-    if (!rows.length) throw new Error('这张销售单已全部退货，请选择其他销售单');
+    if (!rows.length) throw new Error(`这张${this.data.terms.order}已全部退货，请选择其他${this.data.terms.order}`);
     this.setData({ originalDocumentId: String(id), originalDocumentNo: doc.documentNo, items: rows }); this.recalculate();
   },
   changeOriginal() {
@@ -139,5 +150,5 @@ Page({
     } catch (err) { this.setData({ error: err.message + (this.data.id ? '；草稿已保留，可继续修改或重试' : '') }); }
     finally { this.setData({ saving: false }); }
   },
-  openDetail(id) { wx.redirectTo({ url: `/pages/retail-order-detail/retail-order-detail?id=${id}` }); }
+  openDetail(id) { wx.redirectTo({ url: `/pages/retail-order-detail/retail-order-detail?id=${id}${this.data.terms.directionParam}` }); }
 });

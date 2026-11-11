@@ -1777,6 +1777,69 @@ test('home partner companies sort by net sales and distinguish equally named com
   }
 });
 
+test('buyer home loads standalone suppliers and keeps the procurement direction in each route', async () => {
+  await withIdPage('../pages/index/index', async page => {
+    const calls = [];
+    const routes = [];
+    wx.navigateTo = ({ url }) => routes.push(url);
+    wx.request = options => {
+      calls.push(options);
+      const payload = options.url.includes('/home/buyer?') ? { stats: {
+        totalAmount: '18.50', partnerAmount: '6.00', quickPurchaseAmount: '12.50',
+        returnAmount: '1.00', netSalesAmount: '17.50', quickPurchaseSupplierCount: 1, totalOrders: 2
+      } } : { items: [{
+        id: largeIds[0], name: '线下供应商', direction: 'PURCHASE', purchaseAmount: '12.50', purchaseOrderCount: 1
+      }], canCreate: true };
+      options.success({ statusCode: 200, data: { code: 0, data: payload } });
+    };
+    page.data.role = 'buyer';
+    assert.strictEqual(await page.loadHome(), true);
+    assert.strictEqual(page.data.stats.quickPurchaseAmount, '12.50');
+    assert.strictEqual(page.data.stats.quickPurchaseSupplierCount, 1);
+    assert.strictEqual(page.data.stats.netSalesAmount, '17.50');
+    assert.strictEqual(await page.switchBusinessMode({ currentTarget: { dataset: { mode: 'standalone' } } }), true);
+    assert.match(calls.at(-1).url, /\/retail\/customers\?page=1&size=5&direction=PURCHASE$/);
+    assert.strictEqual(calls.at(-1).header['X-Company-Id'], largeIds[1]);
+    assert.strictEqual(page.data.standaloneCounterparties[0].purchaseAmountText, '12.50');
+    assert.strictEqual(page.data.standaloneCanCreate, true);
+    page.addStandaloneCounterparty();
+    page.allStandaloneCounterparties();
+    page.openStandaloneCounterparty({ currentTarget: { dataset: { id: largeIds[0] } } });
+    assert.deepStrictEqual(routes, [
+      '/pages/retail-customers/retail-customers?create=1&direction=PURCHASE',
+      '/pages/retail-customers/retail-customers?direction=PURCHASE',
+      `/pages/retail-customer-detail/retail-customer-detail?id=${largeIds[0]}&direction=PURCHASE`
+    ]);
+  });
+});
+
+test('standalone home discards requests across role and company context changes', async () => {
+  await withIdPage('../pages/index/index', async page => {
+    const pending = [];
+    const standaloneTab = { currentTarget: { dataset: { mode: 'standalone' } } };
+    wx.request = options => pending.push(options);
+    wx.setStorageSync = () => {};
+    page.refreshHomeData = async () => {};
+    page.data.role = 'buyer';
+    const purchase = page.switchBusinessMode(standaloneTab);
+    page.switchRole({ currentTarget: { dataset: { role: 'supplier' } } });
+    assert.strictEqual(page.data.businessMode, 'partner');
+    const retail = page.switchBusinessMode(standaloneTab);
+    assert.match(pending[1].url, /\/retail\/customers\?page=1&size=5$/);
+    pending[0].success({ statusCode: 200, data: { code: 0, data: { items: [{ id: '42' }], canCreate: true } } });
+    assert.strictEqual(await purchase, false);
+    assert.deepStrictEqual(page.data.standaloneCounterparties, []);
+    assert.strictEqual(page.data.standaloneLoading, true);
+    getApp()._companyAccessGeneration = 1;
+    pending[1].fail({ errMsg: 'outdated' });
+    assert.strictEqual(await retail, false);
+    assert.strictEqual(page.data.standaloneError, '');
+    page.restoreHomeSnapshot({ resetWhenMissing: true });
+    assert.strictEqual(page.data.businessMode, 'partner');
+    assert.strictEqual(page.data.standaloneLoading, false);
+  });
+});
+
 const largeIds = ['2098123456789012345', '2098123456789012346'];
 
 async function withIdPage(relativePath, check) {

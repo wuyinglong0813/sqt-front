@@ -18,7 +18,7 @@
       </view>
       <view class="privacy-item">
         <view class="privacy-item-title">3. 合同与交易信息</view>
-        <view class="privacy-item-desc">当你使用业务功能时，我们会保存你主动提交的合作企业、零售客户及联系人姓名、手机号、联系地址、订单编号、金额、日期、合同模板、合同内容、审批、签署和对账记录，用于履行你发起的企业协作操作。录入他人信息或上传包含他人信息的资料前，请确保已取得必要授权。</view>
+        <view class="privacy-item-desc">当你使用业务功能时，我们会保存你主动提交的合作企业、零售客户、零采供应商及联系人姓名、手机号、联系地址、订单编号、金额、日期、合同模板、合同内容、审批、签署和对账记录，用于履行你发起的企业协作操作。录入他人信息或上传包含他人信息的资料前，请确保已取得必要授权。</view>
       </view>
       <view class="privacy-item">
         <view class="privacy-item-title">4. 实名与人脸认证信息</view>

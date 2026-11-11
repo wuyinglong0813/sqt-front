@@ -1,5 +1,20 @@
 const { request } = require('./request');
 
+const saleTerms = {
+  isPurchase: false, business: '零售', party: '客户', action: '销售', order: '销售单', returnOrder: '退货单',
+  orderType: 'SALES_ORDER', returnType: 'RETURN_ORDER', address: '收货地址', directionParam: ''
+};
+const purchaseTerms = {
+  isPurchase: true, business: '零采', party: '供应商', action: '采购', order: '采购单', returnOrder: '采购退货单',
+  orderType: 'PURCHASE_ORDER', returnType: 'PURCHASE_RETURN_ORDER', address: '供应商地址', directionParam: '&direction=PURCHASE'
+};
+function retailTerms(direction) {
+  return direction === 'PURCHASE' ? purchaseTerms : saleTerms;
+}
+function documentTerms(type) {
+  return type === purchaseTerms.orderType || type === purchaseTerms.returnType ? purchaseTerms : saleTerms;
+}
+
 function context() {
   const app = getApp();
   return { companyId: String(app.getCurrentCompanyId() || ''), token: app.globalData.token,
@@ -74,12 +89,22 @@ function refundCents(item) {
   return subtractCents(lineCents(totalQuantity, item.unitPrice), scaledDigits(item.returnedAmount, 2));
 }
 function documentView(value) {
+  const terms = documentTerms(value.documentType);
+  const isReturn = value.documentType === terms.returnType;
   return { ...value, id: String(value.id), amountText: money(value.amount),
-    statusText: value.status === 'DRAFT' ? '草稿' : value.documentType === 'RETURN_ORDER' ? '已退货' : '已生效' };
+    isReturn, statusText: value.status === 'DRAFT' ? '草稿' : isReturn ? '已退货' : '已生效' };
 }
 function customerView(value) {
-  return { ...value, id: String(value.id), initial: String(value.name || '客').slice(0, 1),
-    typeText: { COMPANY: '企业', INDIVIDUAL_BUSINESS: '个体工商户', PERSON: '个人' }[value.customerType] || '客户',
-    salesAmountText: money(value.salesAmount), returnAmountText: money(value.returnAmount), netSalesAmountText: money(value.netSalesAmount) };
+  const terms = retailTerms(value.direction);
+  const { isPurchase } = terms;
+  return { ...value, id: String(value.id), initial: String(value.name || terms.party).slice(0, 1),
+    typeText: { COMPANY: '企业', INDIVIDUAL_BUSINESS: '个体工商户', PERSON: '个人' }[value.customerType] || terms.party,
+    salesAmountText: money(value.salesAmount), netSalesAmountText: money(value.netSalesAmount),
+    purchaseAmountText: money(value.purchaseAmount), netPurchaseAmountText: money(value.netPurchaseAmount),
+    returnAmountText: money(value.returnAmount),
+    tradeAmountText: money(isPurchase ? value.purchaseAmount : value.salesAmount),
+    tradeOrderCount: isPurchase ? value.purchaseOrderCount : value.salesOrderCount,
+    netTradeAmountText: money(isPurchase ? value.netPurchaseAmount : value.netSalesAmount) };
 }
-module.exports = { context, sameContext, retailRequest, money, today, documentView, customerView, lineCents, addCents, centsMoney, refundCents };
+module.exports = { context, sameContext, retailRequest, money, today, documentView, customerView, retailTerms, documentTerms,
+  lineCents, addCents, centsMoney, refundCents };

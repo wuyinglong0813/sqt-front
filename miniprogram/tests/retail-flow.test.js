@@ -119,3 +119,62 @@ test('currency display keeps large decimal values and neighboring customer IDs i
   assert.equal(env.retail.centsMoney(env.retail.refundCents({ quantity: '1', unitPrice: '3.335', returnedQuantity: '1', returnedAmount: '3.34' })), '3.33');
   assert.equal(env.retail.centsMoney(env.retail.refundCents({ quantity: '1', unitPrice: '3.335', returnedQuantity: '2', returnedAmount: '6.67' })), '3.34');
 });
+
+test('a zero-purchase supplier can be created and used to confirm a purchase into a warehouse', async () => {
+  const supplierId = '2098123456789012345';
+  const documentId = '2098123456789012346';
+  const warehouseId = '2098123456789012347';
+  const supplier = { id: supplierId, direction: 'PURCHASE', name: '线下门店', canManageStock: true };
+  const env = harness(async options => {
+    if (options.url === '/warehouses') return [{ id: warehouseId, name: '主仓' }];
+    if (options.url === '/retail/customers?direction=PURCHASE' || options.url === `/retail/customers/${supplierId}`) return supplier;
+    return { id: documentId, documentType: 'PURCHASE_ORDER' };
+  });
+  const profiles = env.page('pages/retail-customers/retail-customers.js');
+  profiles.onLoad({ create: '1', direction: 'PURCHASE' });
+  profiles.onInput({ currentTarget: { dataset: { field: 'name' } }, detail: { value: supplier.name } });
+  await profiles.save({ currentTarget: { dataset: { sale: '1' } } });
+  assert.equal(env.calls[0].url, '/retail/customers?direction=PURCHASE');
+  assert.match(env.routes[0], new RegExp(`customerId=${supplierId}&type=PURCHASE_ORDER&direction=PURCHASE$`));
+
+  const form = env.page('pages/retail-order-form/retail-order-form.js');
+  await form.onLoad({ customerId: supplierId, direction: 'PURCHASE', type: 'PURCHASE_ORDER' });
+  for (const [field, value] of Object.entries({ productName: '新购电缆', baseUnit: '米', quantity: '2', unitPrice: '3.335' })) {
+    form.onItemInput({ currentTarget: { dataset: { index: 0, field } }, detail: { value } });
+  }
+  form.toggleStock({ detail: { value: true } });
+  await form.save({ currentTarget: { dataset: { confirm: '1' } } });
+  const order = env.calls.find(call => call.url === `/retail/customers/${supplierId}/documents`);
+  const confirmation = env.calls.find(call => call.url === `/retail/documents/${documentId}/confirm`);
+  assert.equal(order.data.documentType, 'PURCHASE_ORDER');
+  assert.equal(order.data.items[0].productName, '新购电缆');
+  assert.equal(confirmation.data.warehouseId, warehouseId);
+  assert.equal(form.data.totalText, '6.67');
+  assert.match(env.routes.at(-1), new RegExp(`id=${documentId}&direction=PURCHASE$`));
+});
+
+test('a purchase return selects confirmed purchases and preserves the original line', async () => {
+  const supplierId = '42';
+  const originalId = '84';
+  const originalLine = { id: '96', lineType: 'PRODUCT', productName: '电缆', model: 'YJV', baseUnit: '米',
+    unitPrice: '3.335', returnableQuantity: '2' };
+  const env = harness(async options => {
+    if (options.url === `/retail/customers/${supplierId}`) return { id: supplierId, direction: 'PURCHASE', name: '线下门店' };
+    if (options.url.includes('status=CONFIRMED')) return { items: [{ id: originalId, documentType: 'PURCHASE_ORDER' }] };
+    if (options.url === `/retail/documents/${originalId}`) return { id: originalId, documentNo: '原采购单', items: [originalLine] };
+    return { id: '100', documentType: 'PURCHASE_RETURN_ORDER' };
+  });
+  const form = env.page('pages/retail-order-form/retail-order-form.js');
+  await form.onLoad({ customerId: supplierId, direction: 'PURCHASE', type: 'PURCHASE_RETURN_ORDER' });
+  assert.match(env.calls.at(-1).url, /documentType=PURCHASE_ORDER&status=CONFIRMED/);
+  await form.selectOriginal({ currentTarget: { dataset: { id: originalId } } });
+  form.onInput({ currentTarget: { dataset: { field: 'remark' } }, detail: { value: '退回多购商品' } });
+  form.onItemInput({ currentTarget: { dataset: { index: 0, field: 'quantity' } }, detail: { value: '1' } });
+  await form.save({ currentTarget: { dataset: {} } });
+  const body = env.calls.at(-1).data;
+  assert.equal(body.documentType, 'PURCHASE_RETURN_ORDER');
+  assert.equal(body.originalDocumentId, originalId);
+  assert.equal(body.items[0].originalItemId, originalLine.id);
+  assert.equal(body.items[0].unitPrice, originalLine.unitPrice);
+  assert.equal(form.data.totalText, '3.34');
+});
