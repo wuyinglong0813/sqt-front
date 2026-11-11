@@ -47,11 +47,13 @@ function harness({ signing, action = {}, permissions = ['all'], syncResult = nul
 }
 
 function listHarness(file, records) {
-  let page;
+  let page, poll;
   const requests = [], toasts = [];
   vm.runInNewContext(fs.readFileSync(path.join(__dirname, `../pages/${file}/${file}.js`), 'utf8'), {
     Page: value => { page = value; }, getApp: () => ({ globalData: {}, getCurrentCompanyId: () => '3' }),
     wx: { showToast: options => toasts.push(options) },
+    setInterval: callback => { poll = callback; return 1; },
+    clearInterval: () => { poll = null; },
     require: id => {
       if (id.endsWith('/contractStatus')) return require('../utils/contractStatus');
       if (id.endsWith('/datetime')) return require('../utils/datetime');
@@ -59,13 +61,14 @@ function listHarness(file, records) {
         requests.push(options);
         if (options.url.endsWith('/summary')) return null;
         if (options.url.startsWith('/approvals/')) return [];
-        return options.url === '/contracts/pending' ? records : { items: records };
+        const items = typeof records === 'function' ? await records() : records;
+        return options.url === '/contracts/pending' ? items : { items };
       } };
       return {};
     }
   });
   page.setData = value => Object.assign(page.data, value);
-  return { page, requests, toasts, load: () => file === 'contract-approval'
+  return { page, requests, toasts, poll: () => poll && poll(), load: () => file === 'contract-approval'
     ? page.loadPending() : page.loadContracts(file === 'order-detail' ? '往来公司' : true) };
 }
 
@@ -255,6 +258,50 @@ test('counterparty cards keep local void and provider terminal progress distinct
   await load();
   assert.deepEqual(Array.from(page.data.contracts, item => item.statusText),
     ['签署已终止', '签署已过期', '签署结果确认中', '已作废']);
+});
+
+test('returning to a counterparty keeps the visible filter and cards during refresh', async () => {
+  let resolveRefresh;
+  const { page, load, requests, poll } = listHarness('order-detail', () => requests.length === 1
+    ? [{ id: '1', status: 'PENDING' }, { id: '2', status: 'ACTIVE' }]
+    : new Promise(resolve => { resolveRefresh = resolve; }));
+  page.data.counterpartyName = '往来公司';
+  assert.equal(page.data.contractLoading, true);
+  await load();
+  page.applyContractFilter('PENDING');
+  page.onHide();
+  page.onShow();
+
+  assert.equal(page.data.contractLoading, false);
+  assert.deepEqual(Array.from(page.data.filteredContracts, item => item.id), ['1']);
+  poll();
+  assert.equal(requests.length, 2);
+
+  resolveRefresh([{ id: '1', status: 'ACTIVE' }, { id: '3', status: 'PENDING' }]);
+  await new Promise(setImmediate);
+  assert.equal(page.data.activeContractFilter, 'PENDING');
+  assert.deepEqual(Array.from(page.data.filteredContracts, item => item.id), ['3']);
+  assert.equal(page.data.contractStats.active, 1);
+  page.onUnload();
+});
+
+test('a failed counterparty refresh keeps the last list until a successful refresh changes it', async () => {
+  let records = [{ id: '1', status: 'ACTIVE' }];
+  const { page, load } = listHarness('order-detail', () => {
+    if (records instanceof Error) throw records;
+    return records;
+  });
+  await load();
+  records = new Error('请求超时');
+  await load();
+  assert.equal(page.data.contractLoading, false);
+  assert.deepEqual(Array.from(page.data.filteredContracts, item => item.id), ['1']);
+  assert.equal(page.data.contractStats.total, 1);
+
+  records = [];
+  await load();
+  assert.equal(page.data.filteredContracts.length, 0);
+  assert.equal(page.data.contractStats.total, 0);
 });
 
 for (const file of ['order-detail', 'contract-center']) {

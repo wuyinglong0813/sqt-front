@@ -23,6 +23,12 @@ function contractPeriod(startDate, endDate) {
   return '未设置期限';
 }
 
+function filterContracts(contracts, key) {
+  return key === 'ALL' ? contracts : contracts.filter(item => key === 'CLOSED'
+    ? ['COMPLETED', 'VOIDED', 'REJECTED', 'CANCELLED'].includes(item.status)
+    : item.status === key);
+}
+
 Page({
   data: {
     counterpartyName: '',
@@ -86,7 +92,7 @@ Page({
   },
 
   onShow() {
-    // 每次回到页面时刷新合同列表（例如从签订合同页返回）
+    // 返回页面时刷新已有列表，保留当前筛选和卡片。
     if (this.data.counterpartyName) {
       this.loadContracts(this.data.counterpartyName);
     }
@@ -111,7 +117,9 @@ Page({
   startStatusPolling() {
     this.stopStatusPolling();
     this.contractStatusTimer = setInterval(() => {
-      if (this.data.counterpartyName) this.loadContracts(this.data.counterpartyName, true);
+      if (this.data.counterpartyName && !this.contractRequestPending) {
+        this.loadContracts(this.data.counterpartyName);
+      }
     }, 8000);
   },
 
@@ -122,11 +130,11 @@ Page({
   },
 
   /* 加载合同列表 */
-  async loadContracts(counterpartyName, silent = false) {
+  async loadContracts(counterpartyName) {
     const { request } = require('../../utils/request');
     this.contractRequestSeq = (this.contractRequestSeq || 0) + 1;
     const requestSeq = this.contractRequestSeq;
-    if (!silent) this.setData({ contractLoading: true });
+    this.contractRequestPending = true;
     try {
       const viewerDirection = this.data.role === 'buyer' ? 'PURCHASE' : 'SALE';
       const payload = await request({
@@ -155,10 +163,11 @@ Page({
       }));
       const pending = contracts.filter(item => item.status === 'PENDING').length;
       const active = contracts.filter(item => item.status === 'ACTIVE').length;
-      const closed = contracts.filter(item => ['COMPLETED', 'VOIDED', 'REJECTED', 'CANCELLED'].includes(item.status)).length;
+      const closed = filterContracts(contracts, 'CLOSED').length;
       const totalAmount = contracts.reduce((sum, item) => sum + Number(item.amount || 0), 0);
       this.setData({
         contracts,
+        filteredContracts: filterContracts(contracts, this.data.activeContractFilter),
         contractLoading: false,
         contractStats: {
           total,
@@ -175,10 +184,15 @@ Page({
           { key: 'CLOSED', label: '已结束', count: closed }
         ]
       });
-      this.applyContractFilter(this.data.activeContractFilter);
-    } catch (e) {
-      if (requestSeq !== this.contractRequestSeq || silent) return;
-      this.setData({ contractLoading: false, contracts: [], filteredContracts: [] });
+    } catch (error) {
+      if (requestSeq !== this.contractRequestSeq) return;
+      if ([401, 403].some(code => code === error.statusCode || code === error.code)) {
+        this.setData({ contractLoading: false, contracts: [], filteredContracts: [] });
+      } else if (this.data.contractLoading) {
+        this.setData({ contractLoading: false });
+      }
+    } finally {
+      if (requestSeq === this.contractRequestSeq) this.contractRequestPending = false;
     }
   },
 
@@ -187,12 +201,7 @@ Page({
   },
 
   applyContractFilter(key) {
-    const filteredContracts = key === 'ALL'
-      ? this.data.contracts
-      : this.data.contracts.filter(item => key === 'CLOSED'
-        ? ['COMPLETED', 'VOIDED', 'REJECTED', 'CANCELLED'].includes(item.status)
-        : item.status === key);
-    this.setData({ activeContractFilter: key, filteredContracts });
+    this.setData({ activeContractFilter: key, filteredContracts: filterContracts(this.data.contracts, key) });
   },
 
   async loadMonthlySales(counterpartyName) {
