@@ -85,13 +85,13 @@
                 <view class="td-input td-display {{ci === quantityColumnIndex || ci === priceColumnIndex || ci === amountColumnIndex ? 'num' : ''}} {{!row[ci] ? 'cell-placeholder' : ''}}" data-row="{{ri}}" data-col="{{ci}}" catchtap="onTableCellTap" aria-label="{{col}}，第 {{ri + 1}} 行">{{row[ci] || (ci === quantityColumnIndex || ci === priceColumnIndex || ci === amountColumnIndex ? '0' : '')}}</view>
               </block>
               <block wx:elif="{{ci === quantityColumnIndex || ci === priceColumnIndex || ci === amountColumnIndex}}">
-                <input class="td-input num" type="digit" value="{{row[ci]}}" placeholder="0" cursor-spacing="120" adjust-position hold-keyboard confirm-type="done" focus="{{tableFocusRow === ri && tableFocusCol === ci}}" data-row="{{ri}}" data-col="{{ci}}" bindfocus="onNumberCellFocus" bindblur="onNumberCellBlur" bindinput="onTableCellChange" bindconfirm="onTableCellConfirm"/>
+                <input class="td-input num" type="digit" value="{{row[ci]}}" placeholder="0" cursor-spacing="120" always-embed="{{iosTableInputs}}" adjust-position="{{!iosTableInputs}}" hold-keyboard confirm-type="done" focus="{{tableFocusRow === ri && tableFocusCol === ci}}" data-row="{{ri}}" data-col="{{ci}}" bindfocus="onNumberCellFocus" bindblur="onNumberCellBlur" bindinput="onTableCellChange" bindconfirm="onTableCellConfirm" bindkeyboardheightchange="onTableKeyboardHeightChange"/>
               </block>
               <block wx:elif="{{ci === productColumnIndex}}">
-                <input class="td-input" type="text" value="{{row[ci]}}" cursor-spacing="120" adjust-position hold-keyboard confirm-type="done" focus="{{tableFocusRow === ri && tableFocusCol === ci}}" data-row="{{ri}}" data-col="{{ci}}" bindfocus="onTableCellFocus" bindinput="onTableCellChange" bindblur="onProductCellBlur" bindconfirm="onTableCellConfirm"/>
+                <input class="td-input" type="text" value="{{row[ci]}}" cursor-spacing="120" always-embed="{{iosTableInputs}}" adjust-position="{{!iosTableInputs}}" hold-keyboard confirm-type="done" focus="{{tableFocusRow === ri && tableFocusCol === ci}}" data-row="{{ri}}" data-col="{{ci}}" bindfocus="onTableCellFocus" bindinput="onTableCellChange" bindblur="onProductCellBlur" bindconfirm="onTableCellConfirm" bindkeyboardheightchange="onTableKeyboardHeightChange"/>
               </block>
               <block wx:else>
-                <input class="td-input" type="text" value="{{row[ci]}}" cursor-spacing="120" adjust-position hold-keyboard confirm-type="done" focus="{{tableFocusRow === ri && tableFocusCol === ci}}" data-row="{{ri}}" data-col="{{ci}}" bindfocus="onTableCellFocus" bindblur="onTableCellBlur" bindinput="onTableCellChange" bindconfirm="onTableCellConfirm"/>
+                <input class="td-input" type="text" value="{{row[ci]}}" cursor-spacing="120" always-embed="{{iosTableInputs}}" adjust-position="{{!iosTableInputs}}" hold-keyboard confirm-type="done" focus="{{tableFocusRow === ri && tableFocusCol === ci}}" data-row="{{ri}}" data-col="{{ci}}" bindfocus="onTableCellFocus" bindblur="onTableCellBlur" bindinput="onTableCellChange" bindconfirm="onTableCellConfirm" bindkeyboardheightchange="onTableKeyboardHeightChange"/>
               </block>
             </view>
             <view class="td td-del">

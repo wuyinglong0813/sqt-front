@@ -398,6 +398,47 @@ test('vertical selection scrolls only when a row leaves the viewport after remov
   assert.deepEqual(scrolls, [340, 290]);
 });
 
+test('iOS switching between visible cells preserves horizontal scroll and reveals rows above the keyboard', () => {
+  const { page, wx } = harness('ios');
+  delete wx.onKeyDown;
+  const scrolls = [];
+  let rowRect = { top: 410, bottom: 450 };
+  wx.getWindowInfo = () => ({ windowHeight: 800 });
+  wx.pageScrollTo = options => scrolls.push(options.scrollTop);
+  wx.createSelectorQuery = () => {
+    const query = {
+      in: () => query, select: () => query, selectViewport: () => query,
+      boundingClientRect: () => query, scrollOffset: () => query,
+      exec: callback => callback([rowRect, { scrollTop: 120 }])
+    };
+    return query;
+  };
+  const keyboardEvent = (row, col, height) => ({
+    ...event(row, col),
+    detail: { height }
+  });
+
+  page.onShow();
+  assert.equal(page.data.iosTableInputs, true);
+  page.tableScrollMetrics = { contentWidth: 806, viewportWidth: 320 };
+  page.data.tableScrollbarThumbWidth = 40;
+  page.onTableScroll({ detail: { scrollLeft: 140 } });
+  const thumbLeft = page.data.tableScrollbarThumbLeft;
+
+  page.onTableCellFocus(keyboardEvent(0, 1, 300));
+  assert.deepEqual(scrolls, []);
+  rowRect = { top: 490, bottom: 530 };
+  page.onTableCellFocus(keyboardEvent(1, 2, 0));
+  page.onTableKeyboardHeightChange(keyboardEvent(0, 1, 300));
+  assert.deepEqual(scrolls, []);
+  page.onTableKeyboardHeightChange(keyboardEvent(1, 2, 300));
+  page.onTableKeyboardHeightChange(keyboardEvent(1, 2, 300));
+  assert.deepEqual(scrolls, [166]);
+  assert.equal(page.tableScrollOffset, 140);
+  assert.equal(page.data.tableScrollLeft, 0);
+  assert.equal(page.data.tableScrollbarThumbLeft, thumbLeft);
+});
+
 test('delayed row measurements cannot scroll another page or a later visit to this page', () => {
   const { page, wx } = harness();
   const pending = [], scrolls = [];
@@ -440,6 +481,9 @@ test('desktop cells use a non-input selection surface and the page has no naviga
   for (const [tag] of editableInputs) {
     assert.match(tag, /confirm-type="done"/, tag);
     assert.doesNotMatch(tag, /confirm-hold/, tag);
+    assert.ok(tag.includes('always-embed="{{iosTableInputs}}"'), tag);
+    assert.ok(tag.includes('adjust-position="{{!iosTableInputs}}"'), tag);
+    assert.ok(tag.includes('bindkeyboardheightchange="onTableKeyboardHeightChange"'), tag);
   }
   const outsideInputs = [...markup.matchAll(/<(?:input|textarea)\b[^>]*>/g)]
     .map(match => match[0]).filter(tag => !/class="td-input/.test(tag));

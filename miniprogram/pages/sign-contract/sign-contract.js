@@ -76,6 +76,7 @@ Page({
     tableFocusRow: -1,
     tableFocusCol: -1,
     tableKeyboardAvailable: false,
+    iosTableInputs: false,
     // 条款
     clauses: [],
     // 是否已选择模板
@@ -117,11 +118,14 @@ Page({
   onShow() {
     this.tableViewVisible = true;
     this.tableViewEpoch = (this.tableViewEpoch || 0) + 1;
+    const device = typeof wx.getDeviceInfo === 'function' ? wx.getDeviceInfo()
+      : typeof wx.getSystemInfoSync === 'function' ? wx.getSystemInfoSync() : {};
+    if (device.platform === 'ios' && !this.data.iosTableInputs) {
+      this.setData({ iosTableInputs: true });
+    }
     // Native inputs consume PC key events. Render selected cells as text until
     // editing starts, so ordinary clicks leave arrow-key navigation available.
     if (typeof wx.onKeyDown !== 'function' || typeof wx.offKeyDown !== 'function') return;
-    const device = typeof wx.getDeviceInfo === 'function' ? wx.getDeviceInfo()
-      : typeof wx.getSystemInfoSync === 'function' ? wx.getSystemInfoSync() : {};
     if (!['windows', 'mac'].includes(device.platform)) return;
     this.setData({ tableKeyboardAvailable: true });
     if (!this.tableKeyListener) {
@@ -392,13 +396,24 @@ Page({
       tableFocusRow: edit ? row : -1,
       tableFocusCol: edit ? col : -1,
       productSuggestions: [], specificationSuggestions: [], suggestionRow: -1
-    }, () => this.revealTableRow(row));
+    }, () => this.revealTableRow(row, col));
     this.revealTableColumn(col);
   },
 
   onTableCellFocus(e) {
     const { row, col } = e.currentTarget.dataset;
+    if (this.data.iosTableInputs) this.tableKeyboardHeight = Number(e.detail && e.detail.height) || 0;
     this.selectTableCell(Number(row), Number(col), true);
+  },
+
+  onTableKeyboardHeightChange(e) {
+    const row = Number(e.currentTarget.dataset.row);
+    const col = Number(e.currentTarget.dataset.col);
+    if (!this.data.iosTableInputs || row !== this.data.tableFocusRow || col !== this.data.tableFocusCol) return;
+    const height = Number(e.detail.height) || 0;
+    if (height === this.tableKeyboardHeight) return;
+    this.tableKeyboardHeight = height;
+    this.revealTableRow(row, col);
   },
 
   onTableCellTap(e) {
@@ -483,26 +498,35 @@ Page({
       col * width < current ? col * width
         : (col + 1) * width > current + metrics.viewportWidth
           ? (col + 1) * width - metrics.viewportWidth : current));
+    if (left === current) return;
     this.tableScrollOffset = left;
     this.setData({ tableScrollLeft: left,
       tableScrollbarThumbLeft: left / (metrics.contentWidth - metrics.viewportWidth)
         * (100 - this.data.tableScrollbarThumbWidth) });
   },
 
-  revealTableRow(row) {
+  revealTableRow(row, col) {
     if (!this.tableViewVisible || typeof wx.createSelectorQuery !== 'function' || typeof wx.pageScrollTo !== 'function') return;
+    const ios = this.data.iosTableInputs;
+    const keyboardHeight = this.tableKeyboardHeight;
+    // Embedded iOS inputs disable native page adjustment. Scroll vertically
+    // only when the keyboard would cover the selected row.
+    if (ios && (!keyboardHeight || row !== this.data.tableFocusRow || col !== this.data.tableFocusCol)) return;
     const epoch = this.tableViewEpoch;
     const query = wx.createSelectorQuery().in(this);
     query.select(`#contract-table-row-${row}`).boundingClientRect();
     query.selectViewport().scrollOffset();
     query.exec(result => {
-      if (!this.tableViewVisible || this.tableViewEpoch !== epoch || this.data.tableActiveRow !== row) return;
+      if (!this.tableViewVisible || this.tableViewEpoch !== epoch
+        || this.data.tableActiveRow !== row || this.data.tableActiveCol !== col) return;
+      if (ios && (row !== this.data.tableFocusRow || col !== this.data.tableFocusCol
+        || this.tableKeyboardHeight !== keyboardHeight)) return;
       const [rect, scroll] = result || [];
       if (!rect || !scroll) return;
       const window = typeof wx.getWindowInfo === 'function' ? wx.getWindowInfo()
         : typeof wx.getSystemInfoSync === 'function' ? wx.getSystemInfoSync() : {};
       const top = 12;
-      const bottom = Number(window.windowHeight || 0) - 90;
+      const bottom = Number(window.windowHeight || 0) - (ios ? keyboardHeight + 16 : 90);
       const delta = rect.top < top ? rect.top - top
         : bottom > top && rect.bottom > bottom ? rect.bottom - bottom : 0;
       if (delta) wx.pageScrollTo({ scrollTop: Math.max(0, scroll.scrollTop + delta), duration: 0 });
