@@ -1,5 +1,6 @@
 const { request } = require('../../utils/request');
 const { readDraft, saveDraft, clearDraft } = require('../../utils/companyOnboarding');
+const { dismissInvite, restoreCounterpartyInvite } = require('../../utils/invitation');
 const app = getApp();
 
 Page({
@@ -15,6 +16,7 @@ Page({
     legalOnlyOnboardingEnabled: false,
     companyVerified: false,
     hasCompany: false,
+    hasRegistrationInvite: false,
     agreed: false,
     loading: false,
     submitting: false,
@@ -67,6 +69,7 @@ Page({
 
   onShow() {
     this._renewingOrganization = false;
+    this.setData({ hasRegistrationInvite: !this.data.hasCompany && !!restoreCounterpartyInvite(app) });
     if (this._resumingClaim) return;
     if (this._awaitingPersonal) {
       this._awaitingPersonal = false;
@@ -190,6 +193,13 @@ Page({
     wx.navigateTo({ url: `/pages/legal-document/legal-document?type=${type}` });
   },
 
+  removeRegistrationInvite() {
+    if (this.data.submitting) return;
+    const invite = restoreCounterpartyInvite(app);
+    if (invite) dismissInvite(app, invite);
+    this.setData({ hasRegistrationInvite: false });
+  },
+
   async createAndAuthenticate(resuming) {
     resuming = resuming === true;
     if (!this.data.agreed) {
@@ -220,6 +230,7 @@ Page({
         });
         return;
       }
+      const invite = restoreCounterpartyInvite(app);
       const created = await request({
         url: '/companies', method: 'POST', withCompany: false,
         data: {
@@ -229,10 +240,13 @@ Page({
           registeredAddress: this.data.registeredAddress.trim(),
           contactPhone: this.data.contactPhone.trim(),
           bankName: this.data.bankName.trim(),
-          bankAccount: this.data.bankAccount.trim()
+          bankAccount: this.data.bankAccount.trim(),
+          ...(invite ? { inviteCode: invite.code } : {})
         }
       });
-      if (this._unloaded || token !== app.globalData.token) return;
+      if (token !== app.globalData.token) return;
+      if (invite) dismissInvite(app, invite);
+      if (this._unloaded) return;
       saveDraft({ ...this.data, companyId: created.id });
       await request({
         url: '/me/company', method: 'POST', withCompany: false,

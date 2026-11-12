@@ -16,6 +16,7 @@ function harness(name, handler) {
     require: id => {
       if (id.endsWith('/request')) return { request: async options => { calls.push(options); return handler(options); } };
       if (id.endsWith('/companyOnboarding')) return {};
+      if (id.endsWith('/invitation')) return { restoreCounterpartyInvite: () => null };
       throw new Error(id);
     }
   });

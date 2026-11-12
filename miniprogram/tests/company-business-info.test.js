@@ -25,6 +25,7 @@ function harness() {
       require: id => {
         if (id.endsWith('/request')) return { request };
         if (id.endsWith('/companyOnboarding')) return drafts;
+        if (id.endsWith('/invitation')) return { restoreCounterpartyInvite: () => null };
         if (id.endsWith('/companyContext')) return require('../utils/companyContext');
         if (id.endsWith('/dict')) return { certification: () => ({ text: '已认证' }) };
         throw new Error(id);

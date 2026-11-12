@@ -2,7 +2,7 @@ const { request, clearSession } = require('./utils/request');
 const { wechatLogin } = require('./utils/wechatLogin');
 const { USER_ID_KEY, clearCompanyHomeSnapshots } = require('./utils/homeSnapshot');
 const { captureCompanyContext, isCompanyContextCurrent } = require('./utils/companyContext');
-const { captureInviteEntry } = require('./utils/invitation');
+const { captureInviteEntry, forgetCounterpartyInvite } = require('./utils/invitation');
 
 // 默认连接服务器；仅本地联调时设为 true，且只在开发者工具中生效。
 const USE_LOCAL_BACKEND = false;
@@ -135,6 +135,7 @@ App({
     } catch (e) {
       // 即使服务端暂时不可达，也必须清理本地会话。
     } finally {
+      forgetCounterpartyInvite(this);
       clearSession(this);
       this._sessionReady = Promise.resolve(null);
       this._sessionRefresh = null;

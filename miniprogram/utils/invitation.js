@@ -1,5 +1,9 @@
+const { USER_ID_KEY } = require('./homeSnapshot');
+
 const PROCESSED_INVITES_KEY = 'tradepass_processed_invites';
 const MEMBER_IDENTITY_INVITE_KEY = 'tradepass_member_identity_invite';
+const COUNTERPARTY_INVITE_KEY = 'tradepass_counterparty_invite';
+const COUNTERPARTY_INVITE_MAX_AGE = 24 * 60 * 60 * 1000;
 // Invitations are shared as message cards. Also allow explicitly reopened
 // cards from favorites/history and links opened by scanning a code.
 const INVITATION_SCENES = [1007, 1008, 1010, 1011, 1012, 1013, 1044, 1047, 1048, 1049, 1096];
@@ -23,6 +27,58 @@ function inviteFromQuery(query = {}) {
   return code ? { code: String(code), type: query.type === 'counterparty' ? 'counterparty' : 'member' } : null;
 }
 
+function counterpartyInviteUserId(app) {
+  const { token, userInfo } = app.globalData;
+  return String((userInfo && userInfo.id) || (token && wx.getStorageSync(USER_ID_KEY)) || '');
+}
+
+function saveCounterpartyInvite(invite) {
+  const { code, type, openedAt, identityUserId } = invite;
+  wx.setStorageSync(COUNTERPARTY_INVITE_KEY, { code, type, openedAt, identityUserId });
+}
+
+function forgetCounterpartyInvite(app) {
+  const pending = app.globalData.pendingInvite;
+  if (pending && pending.type === 'counterparty') app.globalData.pendingInvite = null;
+  wx.removeStorageSync(COUNTERPARTY_INVITE_KEY);
+}
+
+function setPendingInvite(app, invite) {
+  if (invite.type === 'counterparty') {
+    invite.openedAt = Date.now();
+    invite.identityUserId = counterpartyInviteUserId(app);
+    saveCounterpartyInvite(invite);
+  } else {
+    forgetCounterpartyInvite(app);
+  }
+  app.globalData.pendingInvite = invite;
+  return invite;
+}
+
+function restoreCounterpartyInvite(app) {
+  const userId = counterpartyInviteUserId(app);
+  if (!userId) return null;
+  const pending = app.globalData.pendingInvite;
+  const invite = pending || wx.getStorageSync(COUNTERPARTY_INVITE_KEY);
+  if (!invite || invite.type !== 'counterparty') return null;
+  if (invite.identityUserId && invite.identityUserId !== userId) {
+    if (pending) app.globalData.pendingInvite = null;
+    return null;
+  }
+  if (!invite.openedAt || Date.now() - invite.openedAt >= COUNTERPARTY_INVITE_MAX_AGE) {
+    forgetCounterpartyInvite(app);
+    return null;
+  }
+  // A card may be opened before login. Once claimed locally, its continuation
+  // belongs to that account even if onboarding leaves the mini program.
+  if (!invite.identityUserId) {
+    invite.identityUserId = userId;
+    saveCounterpartyInvite(invite);
+  }
+  app.globalData.pendingInvite = invite;
+  return invite;
+}
+
 // The non-tab invitation page loads only when a link is explicitly opened.
 // Unlike App.onShow, this is fresh entry evidence even for the same card.
 function captureInviteLink(app, query = {}) {
@@ -30,8 +86,7 @@ function captureInviteLink(app, query = {}) {
   if (!invite) return null;
   // A newly opened card must not inherit another account's certification
   // binding or an earlier entry's in-flight preview, even for the same code.
-  app.globalData.pendingInvite = { ...invite, explicitEntry: true };
-  return app.globalData.pendingInvite;
+  return setPendingInvite(app, { ...invite, explicitEntry: true });
 }
 
 function captureInviteEntry(app, options = {}, pageEntry = false) {
@@ -47,7 +102,7 @@ function captureInviteEntry(app, options = {}, pageEntry = false) {
   // WeChat can retain the original query (and even share scene) on a resume.
   // A new page load or a changed entry identifies a fresh invitation opening.
   if (!pageEntry && previous && previous.scene === scene && sameInvite(previous.invite, invite)) return;
-  if (!sameInvite(app.globalData.pendingInvite, invite)) app.globalData.pendingInvite = invite;
+  if (!sameInvite(app.globalData.pendingInvite, invite)) setPendingInvite(app, invite);
 }
 
 function processedInviteKey(app, invite) {
@@ -68,7 +123,10 @@ function wasInviteProcessed(app, invite) {
 }
 
 function dismissInvite(app, invite) {
-  if (app.globalData.pendingInvite === invite) app.globalData.pendingInvite = null;
+  if (app.globalData.pendingInvite === invite) {
+    if (invite && invite.type === 'counterparty') forgetCounterpartyInvite(app);
+    else app.globalData.pendingInvite = null;
+  }
   const saved = memberIdentityInvite(app);
   if (sameInvite(saved, invite)) wx.removeStorageSync(MEMBER_IDENTITY_INVITE_KEY);
 }
@@ -115,5 +173,5 @@ function markInviteProcessed(app, invite, key = processedInviteKey(app, invite))
 }
 
 module.exports = { captureInviteEntry, captureInviteLink, dismissInvite, markInviteProcessed, processedInviteKey, wasInviteProcessed,
-  memberIdentityInvite, restoreMemberIdentityInvite, startMemberIdentity,
+  memberIdentityInvite, restoreMemberIdentityInvite, startMemberIdentity, restoreCounterpartyInvite, forgetCounterpartyInvite,
   isMemberInviteRejected, memberInvitePrerequisite };

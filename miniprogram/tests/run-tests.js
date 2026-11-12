@@ -1689,9 +1689,10 @@ test('inventory balance displays unit price and inventory amount', () => {
 test('home company switching uses the custom switcher instead of a native action sheet', () => {
   const script = fs.readFileSync(path.join(__dirname, '..', 'pages', 'index', 'index.js'), 'utf8');
   const template = fs.readFileSync(path.join(__dirname, '..', 'pages', 'index', 'index.wxml'), 'utf8');
-  assert.ok(script.includes('showCompanySwitcher: true'));
-  assert.ok(script.includes('if (companies.length === 0) return'));
-  assert.ok(!script.includes('wx.showActionSheet'));
+  const switchCompany = script.split('  switchCompany() {')[1].split('  closeCompanySwitcher() {')[0];
+  assert.ok(switchCompany.includes('showCompanySwitcher: true'));
+  assert.ok(switchCompany.includes('if (companies.length === 0) return'));
+  assert.ok(!switchCompany.includes('wx.showActionSheet'));
   assert.ok(template.includes('company-switch-sheet'));
   assert.ok(template.includes('company-switch-action primary'));
   assert.ok(template.includes('添加并管理另一家公司'));

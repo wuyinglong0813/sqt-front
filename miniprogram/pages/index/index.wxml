@@ -91,6 +91,7 @@
         <image class="onboarding-logo" src="/images/logo.png" mode="aspectFit"/>
         <view class="onboarding-title">{{hasOnboarding ? onboardingStatus : '开始使用商签通'}}</view>
         <view class="onboarding-desc">{{hasOnboarding ? (onboardingName || '前往企业中心查看认证进度') : '先确认你代表的企业，再建立第一条可信交易关系'}}</view>
+        <view class="onboarding-desc" wx:if="{{hasOnboardingInvite}}">已收到企业合作邀请，请以受邀企业的身份注册或继续认证。</view>
       </view>
       <view class="onboarding-card">
         <view class="step-row active">
@@ -107,7 +108,7 @@
         </view>
       </view>
       <button wx:if="{{hasOnboarding}}" class="primary-btn onboarding-create" bindtap="goOnboardingCenter">查看并继续企业认证</button>
-      <button wx:else class="primary-btn onboarding-create" bindtap="goCreateCompany">创建企业</button>
+      <button wx:else class="primary-btn onboarding-create" bindtap="goCreateCompany">{{hasOnboardingInvite ? '通过邀请创建企业' : '创建企业'}}</button>
       <view class="join-panel">
         <view class="join-label">已有企业邀请码</view>
         <view class="join-form">
@@ -253,6 +254,7 @@
           </view>
         </view>
         <button class="invite-btn" wx:if="{{isLegalPerson}}" loading="{{preparingInvite}}" disabled="{{preparingInvite}}" bindtap="addCounterparty">＋ 生成{{role === 'supplier' ? '客户' : '供应商'}}企业邀请</button>
+        <view class="section-sub" wx:if="{{isLegalPerson}}">新企业通过邀请首次注册并完成认证后，邀请方企业获赠 5 份合同额度。</view>
         <button class="invite-btn" open-type="share" data-invite-type="counterparty" wx:if="{{isLegalPerson && counterpartyInviteCode && inviteCompanyId === currentCompanyId && inviteRole === role}}">发送合作邀请给微信好友</button>
       </view>
 

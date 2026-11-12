@@ -3,7 +3,7 @@ const { loadSummary } = require('../../utils/companyOnboarding');
 const { setTabBarHidden, syncTabBar } = require('../../utils/tabBar');
 const { hasPrivacyConsent, acceptPrivacyConsent } = require('../../utils/privacy');
 const { captureInviteEntry, dismissInvite, markInviteProcessed, processedInviteKey,
-  wasInviteProcessed, restoreMemberIdentityInvite, startMemberIdentity,
+  wasInviteProcessed, restoreMemberIdentityInvite, startMemberIdentity, restoreCounterpartyInvite,
   isMemberInviteRejected, memberInvitePrerequisite } = require('../../utils/invitation');
 const { captureCompanyContext, isCompanyContextCurrent } = require('../../utils/companyContext');
 const { memberApplicationData, memberApplicationMethods, startMemberApplicationIdentity } = require('../../utils/memberApplications');
@@ -57,6 +57,7 @@ Page({
     counterpartiesError: '',
     showJoinForm: false,
     hasOnboarding: false,
+    hasOnboardingInvite: false,
     onboardingName: '',
     onboardingStatus: '',
     showHomeGuide: false,
@@ -156,6 +157,7 @@ Page({
     });
 
     restoreMemberIdentityInvite(app);
+    const counterpartyInvite = restoreCounterpartyInvite(app);
     if (wasInviteProcessed(app, app.globalData.pendingInvite)) {
       const invite = app.globalData.pendingInvite;
       dismissInvite(app, invite);
@@ -167,37 +169,45 @@ Page({
         showCancel: false
       });
     }
+    this.setData({
+      hasOnboardingInvite: this.data.showJoinForm && !!counterpartyInvite
+        && app.globalData.pendingInvite === counterpartyInvite
+    });
     if (!this._processingInvite && loggedIn && user && app.globalData.pendingInvite
         && (app.globalData.pendingInvite.type === 'member' || !this.data.showJoinForm)) {
       const invite = app.globalData.pendingInvite;
       const member = app.globalData.memberInfo;
       const context = captureCompanyContext(app);
       if (invite.type === 'counterparty') {
-        if (!member || member.roleCode !== 'LEGAL') {
-          wx.showModal({
-            title: '需要法人身份',
-            content: '接受企业合作邀请需要您是公司的法人。请先在“企业”页面完成企业认证。',
-            showCancel: false,
-            success: () => dismissInvite(app, invite)
-          });
-          return;
-        }
-      }
-      if (invite.type === 'counterparty') {
         if (this._confirmingInvite === invite) return;
         this._confirmingInvite = invite;
+        const canAcceptForCompany = member && member.roleCode === 'LEGAL';
         const company = (app.globalData.companies || []).find(c => String(c.companyId) === String(app.getCurrentCompanyId()));
+        const finish = () => { if (this._confirmingInvite === invite) this._confirmingInvite = null; };
+        let choosingOtherCompany = false;
         wx.showModal({
-          title: '接受企业合作邀请',
-          content: `是否以“${company && company.companyName || '当前企业'}”建立合作关系？如需使用其他企业，请先取消并切换企业，再打开邀请。`,
-          confirmText: '接受邀请',
+          title: canAcceptForCompany ? '接受企业合作邀请' : '选择受邀企业',
+          content: canAcceptForCompany
+            ? `是否以“${company && company.companyName || '当前企业'}”建立合作关系？如需注册新企业或切换企业，请选“其他企业”。`
+            : '已注册企业需由法人接受合作邀请。如果受邀企业尚未注册，可通过此邀请创建企业。',
+          confirmText: canAcceptForCompany ? '接受邀请' : '创建企业',
+          cancelText: canAcceptForCompany ? '其他企业' : '取消',
           success: result => {
             if (app.globalData.pendingInvite !== invite) return;
-            if (result.confirm && isCompanyContextCurrent(app, context)) this.processInvite(invite.code, invite);
-            else dismissInvite(app, invite);
+            if (!isCompanyContextCurrent(app, context)) {
+              dismissInvite(app, invite);
+            } else if (result.confirm) {
+              if (canAcceptForCompany) this.processInvite(invite.code, invite);
+              else this.goCreateCompany();
+            } else if (canAcceptForCompany && result.cancel) {
+              choosingOtherCompany = true;
+              this.chooseOtherInviteCompany(invite, context, finish);
+            } else {
+              dismissInvite(app, invite);
+            }
           },
           fail: () => this.inviteModalFailed(invite, context),
-          complete: () => { if (this._confirmingInvite === invite) this._confirmingInvite = null; }
+          complete: () => { if (!choosingOtherCompany) finish(); }
         });
       } else {
         if (this._confirmingInvite === invite) return;
@@ -466,6 +476,26 @@ Page({
     if (app.globalData.pendingInvite === invite && isCompanyContextCurrent(app, context)) {
       wx.showToast({ title: '邀请提示未打开，请重试', icon: 'none' });
     }
+  },
+
+  chooseOtherInviteCompany(invite, context, complete) {
+    wx.showActionSheet({
+      itemList: ['通过邀请注册新企业', '切换已注册企业'],
+      success: ({ tapIndex }) => {
+        if (app.globalData.pendingInvite !== invite) return;
+        if (!isCompanyContextCurrent(app, context)) {
+          dismissInvite(app, invite);
+        } else if (tapIndex === 0) {
+          this.goCreateCompany();
+        } else {
+          dismissInvite(app, invite);
+          this.switchCompany();
+          wx.showToast({ title: '切换后请重新打开邀请', icon: 'none' });
+        }
+      },
+      fail: () => dismissInvite(app, invite),
+      complete
+    });
   },
 
   async processInvite(code, invite = app.globalData.pendingInvite) {

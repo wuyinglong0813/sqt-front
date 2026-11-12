@@ -83,6 +83,10 @@
         <view class="agree-val">{{bankAccount || '未填写'}}</view>
       </view>
       <view class="cert-step-desc">如需修改，请返回上一步；认证后也可在企业资料中补充。</view>
+      <view class="auth-help-text" wx:if="{{hasRegistrationInvite}}">
+        <text>通过有效合作邀请首次注册并完成认证后，将与邀请方建立合作关系。</text>
+        <text class="agree-link" bindtap="removeRegistrationInvite">取消关联</text>
+      </view>
     </view>
 
     <view class="agree-bottom">

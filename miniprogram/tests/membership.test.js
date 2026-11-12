@@ -45,6 +45,13 @@ test('refunded unsigned tasks keep their history and show that their quota was r
   assert.equal(usage[0].statusText, '已退回');
   assert.equal(usage[0].sourceText, '已购额度');
 });
+test('usage identifies the company registration allowance and invitation reward', () => {
+  const usage = presentation.presentUsage([
+    { source: 'REGISTRATION', status: 'CONSUMED' },
+    { source: 'REFERRAL', status: 'CONSUMED' }
+  ]);
+  assert.deepEqual(usage.map(item => item.sourceText), ['企业注册免费额度', '邀请企业奖励']);
+});
 test('membership response from an old company cannot replace the current company', async () => {
   let finish;
   const slow = new Promise(resolve => { finish = resolve; });

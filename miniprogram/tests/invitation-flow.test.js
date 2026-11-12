@@ -8,7 +8,7 @@ const vm = require('node:vm');
 
 function harness(storage = {}) {
   let app;
-  const modals = [], requests = [], toasts = [], navigations = [];
+  const modals = [], actionSheets = [], requests = [], toasts = [], navigations = [];
   let pageStack = [];
   const pageDefinitions = new Map();
   let homeRefreshes = 0;
@@ -28,9 +28,11 @@ function harness(storage = {}) {
       }
       modals.push(options);
     },
+    showActionSheet: options => actionSheets.push(options),
     showToast: options => toasts.push(options),
     navigateTo: options => navigations.push(options.url),
     redirectTo: options => navigations.push(options.url),
+    reLaunch: options => navigations.push(options.url),
     switchTab: options => {
       navigations.push(options.url);
       if (options.success) options.success({});
@@ -86,7 +88,7 @@ function harness(storage = {}) {
     home.loadMemberApplications = async () => {};
     return home;
   }
-  return { app, wx, home, page, modals, requests, storage, toasts, navigations,
+  return { app, wx, home, page, modals, actionSheets, requests, storage, toasts, navigations,
     refreshes: () => homeRefreshes, invitations: load('utils/invitation.js'),
     memberApplications: load('utils/memberApplications.js'), snapshots: load('utils/homeSnapshot.js'),
     setPageStack: value => { pageStack = value; } };
@@ -98,6 +100,13 @@ const entry = { scene: 1007, query: inviteQuery };
 function cancel(modal) {
   modal.success({ confirm: false, cancel: true });
   modal.complete();
+}
+
+function cancelCounterparty(env) {
+  cancel(env.modals.at(-1));
+  const sheet = env.actionSheets.at(-1);
+  sheet.fail({ errMsg: 'showActionSheet:fail cancel' });
+  sheet.complete();
 }
 
 test('the modal harness rejects labels beyond the native SDK limit before displaying a dialog', () => {
@@ -121,7 +130,7 @@ test('cancelled cooperation invitation stays dismissed across resume, company sw
   await page.onShow();
   assert.equal(env.modals.length, 1);
   assert.match(env.modals[0].content, /河北云域科技有限公司/);
-  cancel(env.modals[0]);
+  cancelCounterparty(env);
   env.app.onShow(entry); // Some WeChat resumes keep the original share scene too.
   await page.onShow();
   assert.equal(env.modals.length, 1);
@@ -163,7 +172,7 @@ test('an explicitly reopened invitation page can prompt again after cancellation
   const first = env.home();
   first.onLoad(inviteQuery);
   await first.onShow();
-  cancel(env.modals[0]);
+  cancelCounterparty(env);
   env.app.onShow(entry);
   const reopened = env.home();
   reopened.onLoad(inviteQuery);
@@ -261,6 +270,105 @@ test('cooperation invitation cards also pass through the explicit invitation pag
   env.page('invitation').onLoad(query);
   await home.onShow();
   assert.equal(env.modals[0].title, '接受企业合作邀请');
+});
+
+test('a cooperation invite opened before login is retained across restart until company registration succeeds', async () => {
+  const storage = {};
+  const signedOut = harness(storage);
+  Object.assign(signedOut.app.globalData, { token: '', userInfo: null, memberInfo: null, currentCompanyId: '' });
+  signedOut.page('invitation').onLoad(inviteQuery);
+
+  const env = harness(storage);
+  Object.assign(env.app.globalData, { memberInfo: null, currentCompanyId: '', companies: [] });
+  const home = env.home();
+  await home.onShow();
+  assert.equal(home.data.hasOnboardingInvite, true);
+  assert.equal(env.modals.length, 0);
+
+  const company = env.page('company-cert');
+  company.setData({ agreed: true, companyName: '受邀企业', creditCode: '91130100MA12345678' });
+  company.loadCompany = () => {};
+  company.openService = () => {};
+  company.onShow();
+  assert.equal(company.data.hasRegistrationInvite, true);
+
+  const submissions = [];
+  env.wx.request = options => {
+    let data = {};
+    if (options.url.endsWith('/identity')) data = { status: 'VERIFIED' };
+    if (options.url.endsWith('/companies')) {
+      submissions.push(options.data);
+      if (submissions.length === 1) return options.fail({ errMsg: '网络暂不可用' });
+      data = { id: 'new-company', name: '受邀企业', creditCode: company.data.creditCode };
+    }
+    options.success({ statusCode: 200, data: { code: 0, data } });
+  };
+  await company.createAndAuthenticate();
+  assert.equal(env.app.globalData.pendingInvite.code, inviteQuery.inviteCode);
+  await company.createAndAuthenticate();
+  assert.deepEqual(submissions.map(value => value.inviteCode), [inviteQuery.inviteCode, inviteQuery.inviteCode]);
+  assert.equal(env.app.globalData.pendingInvite, null);
+  const reopened = harness(storage);
+  assert.equal(reopened.invitations.restoreCounterpartyInvite(reopened.app), null);
+});
+
+test('registration cannot use a cooperation invite saved for another account or a member invite', async () => {
+  const storage = {};
+  const previous = harness(storage);
+  previous.page('invitation').onLoad(inviteQuery);
+
+  const env = harness(storage);
+  env.app.globalData.userInfo = { id: 'another-account' };
+  const company = env.page('company-cert');
+  company.onShow();
+  assert.equal(company.data.hasRegistrationInvite, false);
+
+  env.page('invitation').onLoad({ inviteCode: 'member-code', type: 'member' });
+  company.onShow();
+  assert.equal(company.data.hasRegistrationInvite, false);
+  assert.equal(env.app.globalData.pendingInvite.type, 'member');
+});
+
+test('a recipient who is a member can register their own new company using the cooperation invite', async () => {
+  const env = harness();
+  env.app.globalData.memberInfo = { roleCode: 'SALES' };
+  env.page('invitation').onLoad(inviteQuery);
+  await env.home().onShow();
+  assert.equal(env.modals[0].confirmText, '创建企业');
+  env.modals[0].success({ confirm: true });
+  env.modals[0].complete();
+  assert.equal(env.navigations.at(-1), '/pages/company-bind/company-bind');
+  assert.equal(env.app.globalData.pendingInvite.code, inviteQuery.inviteCode);
+  assert.equal(env.requests.length, 0);
+});
+
+test('a legal representative can use a cooperation invite to register a different company', async () => {
+  const env = harness();
+  env.page('invitation').onLoad(inviteQuery);
+  const home = env.home();
+  await home.onShow();
+  assert.equal(env.modals[0].confirmText, '接受邀请');
+  assert.equal(env.modals[0].cancelText, '其他企业');
+  cancel(env.modals[0]);
+  assert.deepEqual([...env.actionSheets[0].itemList], ['通过邀请注册新企业', '切换已注册企业']);
+  await home.onShow();
+  assert.equal(env.modals.length, 1);
+  env.actionSheets[0].success({ tapIndex: 0 });
+  env.actionSheets[0].complete();
+  assert.equal(env.navigations.at(-1), '/pages/company-bind/company-bind');
+  assert.equal(env.app.globalData.pendingInvite.code, inviteQuery.inviteCode);
+  assert.equal(env.requests.length, 0);
+});
+
+test('explicit logout clears a cooperation invite before a new account signs in', async () => {
+  const storage = {};
+  const env = harness(storage);
+  env.page('invitation').onLoad(inviteQuery);
+  assert.equal(env.invitations.restoreCounterpartyInvite(env.app).code, inviteQuery.inviteCode);
+  await env.app.logout();
+  assert.equal(env.app.globalData.pendingInvite, null);
+  const restarted = harness(storage);
+  assert.equal(restarted.invitations.restoreCounterpartyInvite(restarted.app), null);
 });
 
 test('success is remembered across a new process for the same account and code', async () => {
@@ -574,7 +682,8 @@ test('callbacks from a replaced invitation confirmation cannot accept it or unlo
     assert.equal(env.requests.length, requestsBeforeCallbacks);
     assert.equal(env.modals.length, 2);
 
-    cancel(newModal);
+    if (type === 'counterparty') cancelCounterparty(env);
+    else cancel(newModal);
     assert.equal(env.app.globalData.pendingInvite, null);
   }
 });
